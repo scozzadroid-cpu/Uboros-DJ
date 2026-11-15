@@ -2,13 +2,61 @@ import QtQuick
 import Mixxx 1.0 as Mixxx
 import "." as LibraryComponent
 import "../Theme"
+import "Harmony.js" as Harmony
 
 Mixxx.LibrarySourceTree {
     id: root
 
+    // Harmonic hints, better than a CDJ: the Key and Bpm columns are
+    // highlighted when the track can be mixed with the reference deck, i.e.
+    // the sync leader if it plays, otherwise the first deck that plays.
+    component DeckState: QtObject {
+        id: deckState
+
+        required property string group
+        readonly property Mixxx.ControlProxy play: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "play"
+        }
+        readonly property Mixxx.ControlProxy leader: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "sync_leader"
+        }
+        readonly property Mixxx.ControlProxy key: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "key"
+        }
+        readonly property Mixxx.ControlProxy bpm: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "bpm"
+        }
+    }
+
+    readonly property var decks: [
+        DeckState { group: "[Channel1]" },
+        DeckState { group: "[Channel2]" },
+        DeckState { group: "[Channel3]" },
+        DeckState { group: "[Channel4]" }
+    ]
+    readonly property var referenceDeck: {
+        for (const deck of decks) {
+            if (deck.play.value > 0 && deck.leader.value > 0)
+                return deck;
+        }
+        for (const deck of decks) {
+            if (deck.play.value > 0)
+                return deck;
+        }
+        return null;
+    }
+    readonly property var referenceKey: referenceDeck ? Harmony.fromChromaticKey(referenceDeck.key.value) : null
+    readonly property real referenceBpm: referenceDeck ? referenceDeck.bpm.value : 0
+
     component DefaultDelegate: LibraryComponent.Cell {
         id: cell
         readonly property var caps: capabilities
+        property color textColor: Theme.textColor
+        property bool textBold: false
         // FIXME: https://bugreports.qt.io/browse/QTBUG-111789
         Binding on Drag.active {
             value: dragArea.drag.active
@@ -47,8 +95,24 @@ Mixxx.LibrarySourceTree {
             text: display ?? ""
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
-            color: Theme.textColor
+            color: cell.textColor
+            font.bold: cell.textBold
         }
+    }
+
+    // Green: same key or compatible on the Camelot wheel
+    component KeyDelegate: DefaultDelegate {
+        readonly property int match: Harmony.compatibility(Harmony.fromText(display), root.referenceKey)
+        textColor: match == 2 ? "#4ee04e" : (match == 1 ? "#a6e36b" : Theme.textColor)
+        textBold: match > 0
+    }
+
+    // Green: within 3% of the reference BPM (also half/double tempo),
+    // yellow: within 6%
+    component BpmDelegate: DefaultDelegate {
+        readonly property real distance: Harmony.bpmDistancePercent(display, root.referenceBpm)
+        textColor: distance <= 3 ? "#4ee04e" : (distance <= 6 ? "#e3c85a" : Theme.textColor)
+        textBold: distance <= 6
     }
 
     defaultColumns: [
@@ -169,14 +233,14 @@ Mixxx.LibrarySourceTree {
             preferredWidth: 60
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Bpm
-            delegate: DefaultDelegate { }
+            delegate: BpmDelegate { }
         },
         Mixxx.TrackListColumn {
             label: qsTr("Key")
             preferredWidth: 70
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Key
-            delegate: DefaultDelegate { }
+            delegate: KeyDelegate { }
         },
         Mixxx.TrackListColumn {
             label: qsTr("File Type")
@@ -231,13 +295,13 @@ Mixxx.LibrarySourceTree {
             label: qsTr("Bpm")
             preferredWidth: 60
             columnIdx: 11
-            delegate: DefaultDelegate { }
+            delegate: BpmDelegate { }
         }
         Mixxx.TrackListColumn {
             label: qsTr("Key")
             preferredWidth: 70
             columnIdx: 12
-            delegate: DefaultDelegate { }
+            delegate: KeyDelegate { }
         }
     }
 }
