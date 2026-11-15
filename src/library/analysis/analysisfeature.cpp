@@ -20,8 +20,14 @@ const mixxx::Logger kLogger("AnalysisFeature");
 
 const QString kViewName = QStringLiteral("Analysis");
 
+#ifdef __ANDROID__
+// On phones the batch analysis runs in the background while playing: all
+// the cores would compete with the audio and GUI threads and cause stutter.
+const int kNumberOfAnalyzerThreads = 1;
+#else
 // Utilize all available cores for batch analysis of tracks
 const int kNumberOfAnalyzerThreads = math_max(1, QThread::idealThreadCount());
+#endif
 
 inline
 int numberOfAnalyzerThreads() {
