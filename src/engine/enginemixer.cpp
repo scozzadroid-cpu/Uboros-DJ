@@ -258,6 +258,15 @@ void EngineMixer::processChannels(std::size_t bufferSize) {
 
         EngineChannel::ActiveState activeState = pChannel->updateActiveState();
         if (activeState == EngineChannel::ActiveState::Inactive) {
+            // A deck that never had a track is not processed, so its time
+            // stretchers would get the output signal (and allocate their
+            // buffers) only when the first track is loaded, on this thread,
+            // while the other deck plays: an audible dropout. Prepare them
+            // now; after the first callback this is only a comparison.
+            EngineBuffer* pBuffer = pChannel->getEngineBuffer();
+            if (pBuffer) {
+                pBuffer->prepareScalers();
+            }
             continue;
         }
 

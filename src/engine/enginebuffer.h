@@ -142,6 +142,9 @@ class EngineBuffer : public EngineObject {
 
     // The process methods all run in the audio callback.
     void process(CSAMPLE* pOut, const std::size_t bufferSize) override;
+    /// Gives the time stretchers the output signal (allocating their buffers
+    /// when it changes). Called from the engine thread.
+    void prepareScalers();
     void processSlip(std::size_t bufferSize);
     void postProcessLocalBpm();
     void postProcess(const std::size_t bufferSize);
