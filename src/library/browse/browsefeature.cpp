@@ -5,6 +5,9 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QStandardPaths>
+#ifdef __ANDROID__
+#include <QStorageInfo>
+#endif
 #include <QStringList>
 #include <memory>
 
@@ -134,6 +137,14 @@ BrowseFeature::BrowseFeature(
     // Apple hides the base Linux file structure But all devices are mounted at
     // /Volumes
     pRootItem->appendChild(tr("Devices"), "/Volumes/");
+#elif defined(__ANDROID__)
+    // DEVICE_NODE contents (USB OTG drives, SD cards mounted under
+    // /storage/<UUID>) will be rendered lazily in onLazyChildExpandation.
+    pRootItem->appendChild(tr("Removable Devices"), DEVICE_NODE);
+
+    // The root directory is not readable on Android, show the shared
+    // internal storage instead.
+    pRootItem->appendChild(tr("Internal Storage"), QStringLiteral("/storage/emulated/0/"));
 #else  // LINUX
     // DEVICE_NODE contents will be rendered lazily in onLazyChildExpandation.
     pRootItem->appendChild(tr("Removable Devices"), DEVICE_NODE);
@@ -406,6 +417,32 @@ std::vector<std::unique_ptr<TreeItem>> createRemovableDevices() {
         ret.push_back(std::make_unique<TreeItem>(
                 device.fileName(),
                 QVariant(device.filePath() + QStringLiteral("/"))));
+    }
+#elif defined(__ANDROID__)
+    // Removable volumes are mounted under /storage/<UUID>. /storage may not
+    // be listable by the app, so also ask for the mounted volumes.
+    QStringList devicePaths;
+    const QFileInfoList storageDirs = QDir(QStringLiteral("/storage"))
+                                              .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& storageDir : storageDirs) {
+        devicePaths.append(storageDir.absoluteFilePath());
+    }
+    const QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+    for (const QStorageInfo& volume : volumes) {
+        devicePaths.append(volume.rootPath());
+    }
+    devicePaths.removeDuplicates();
+    for (const QString& devicePath : std::as_const(devicePaths)) {
+        const QStringList parts = devicePath.split(QChar('/'), Qt::SkipEmptyParts);
+        // Only /storage/<name>, without the internal storage
+        if (parts.size() != 2 || parts[0] != QStringLiteral("storage") ||
+                parts[1] == QStringLiteral("emulated") ||
+                parts[1] == QStringLiteral("self")) {
+            continue;
+        }
+        ret.push_back(std::make_unique<TreeItem>(
+                parts[1],
+                QVariant(devicePath + QStringLiteral("/"))));
     }
 #endif
     return ret;

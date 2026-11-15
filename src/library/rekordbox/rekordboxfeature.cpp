@@ -7,6 +7,9 @@
 #include <QMap>
 #include <QMessageBox>
 #include <QSettings>
+#ifdef __ANDROID__
+#include <QStorageInfo>
+#endif
 #include <QString>
 #include <QTextCodec>
 #include <QtDebug>
@@ -226,6 +229,42 @@ QList<TreeItem*> findRekordboxDevices() {
             auto* pFoundDevice = new TreeItem(
                     device.fileName(),
                     QVariant(QList<QString>{device.filePath(), IS_RECORDBOX_DEVICE}));
+            foundDevices << pFoundDevice;
+        }
+    }
+#elif defined(__ANDROID__)
+    // Android mounts removable volumes (USB OTG drives, SD cards) under
+    // /storage/<UUID>. "emulated" and "self" are the internal storage.
+    // /storage may not be listable by the app, so also ask for the mounted
+    // volumes.
+    QStringList devicePaths;
+    const QFileInfoList storageDirs = QDir(QStringLiteral("/storage"))
+                                              .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& storageDir : storageDirs) {
+        devicePaths.append(storageDir.absoluteFilePath());
+    }
+    const QList<QStorageInfo> volumes = QStorageInfo::mountedVolumes();
+    for (const QStorageInfo& volume : volumes) {
+        devicePaths.append(volume.rootPath());
+    }
+    devicePaths.removeDuplicates();
+
+    for (const QString& devicePath : std::as_const(devicePaths)) {
+        const QStringList parts = devicePath.split(QChar('/'), Qt::SkipEmptyParts);
+        // Only /storage/<name>
+        if (parts.size() != 2 || parts[0] != QStringLiteral("storage") ||
+                parts[1] == QStringLiteral("emulated") ||
+                parts[1] == QStringLiteral("self")) {
+            continue;
+        }
+        QFileInfo rbDBFileInfo(devicePath + QStringLiteral("/") + kPdbPath);
+        qDebug() << "RekordboxFeature: checking Android volume" << devicePath
+                 << "export.pdb found:" << rbDBFileInfo.isFile();
+
+        if (rbDBFileInfo.exists() && rbDBFileInfo.isFile()) {
+            auto* pFoundDevice = new TreeItem(
+                    parts[1],
+                    QVariant(QList<QString>{devicePath, IS_RECORDBOX_DEVICE}));
             foundDevices << pFoundDevice;
         }
     }
