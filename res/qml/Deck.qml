@@ -45,7 +45,9 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         group: root.group
-        rightColumnWidth: rateSlider.width
+        // Minimized decks have room to spare: the BPM column also shows the
+        // difference from the original BPM
+        rightColumnWidth: root.minimized ? 96 : rateSlider.width
     }
 
     // Minimized (e.g. on a phone): a thin overview of the whole track under
