@@ -21,6 +21,16 @@ Item {
         id: librarySources
     }
 
+    // Every track needs its BPM (and key) in the list: Mixxx only analyzes a
+    // track when it is loaded, so analyze the remaining ones in the
+    // background, a while after startup. The batch analysis pauses while a
+    // deck analyzes the track just loaded.
+    Timer {
+        interval: 20000
+        running: true
+        onTriggered: Mixxx.Library.analyzeTracksWithoutBpm()
+    }
+
     SplitView {
         id: librarySplitView
         orientation: Qt.Horizontal

@@ -2,6 +2,11 @@
 
 #include <QAbstractItemModel>
 #include <QQmlEngine>
+#include <QSqlQuery>
+
+#include "analyzer/analyzerscheduledtrack.h"
+#include "library/trackcollection.h"
+#include "library/trackcollectionmanager.h"
 #ifdef __ANDROID__
 #include <QCoreApplication>
 #include <QJniObject>
@@ -34,6 +39,28 @@ void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
         return;
     }
     emit s_pLibrary->analyzeTracks({track->internal()->getId()});
+}
+
+int QmlLibraryProxy::analyzeTracksWithoutBpm() const {
+    VERIFY_OR_DEBUG_ASSERT(s_pLibrary) {
+        return 0;
+    }
+    QSqlQuery query(s_pLibrary->trackCollectionManager()->internalCollection()->database());
+    query.prepare(QStringLiteral(
+            "SELECT id FROM library WHERE mixxx_deleted=0 AND (bpm IS NULL OR bpm<=0)"));
+    if (!query.exec()) {
+        qWarning() << "analyzeTracksWithoutBpm: query failed" << query.lastQuery();
+        return 0;
+    }
+    QList<AnalyzerScheduledTrack> tracks;
+    while (query.next()) {
+        tracks.append(AnalyzerScheduledTrack(TrackId(query.value(0))));
+    }
+    qInfo() << "Analyzing" << tracks.size() << "track(s) without BPM";
+    if (!tracks.isEmpty()) {
+        emit s_pLibrary->analyzeTracks(tracks);
+    }
+    return static_cast<int>(tracks.size());
 }
 
 bool QmlLibraryProxy::importUsbDrives() const {
