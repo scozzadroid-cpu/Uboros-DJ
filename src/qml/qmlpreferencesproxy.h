@@ -239,6 +239,9 @@ class QmlControllerDeviceProxy : public QObject {
     Q_PROPERTY(QString name READ getName WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(QUrl visualUrl READ getVisualUrl WRITE setVisualUrl NOTIFY visualUrlChanged)
     Q_PROPERTY(bool enabled READ getEnabled WRITE setEnabled NOTIFY enabledChanged)
+    /// Name of the mapping currently loaded in the controller (may not be in
+    /// availableMappings when the mapping has no product match).
+    Q_PROPERTY(QString activeMappingName READ activeMappingName NOTIFY mappingChanged)
     Q_PROPERTY(bool edited MEMBER m_edited NOTIFY editedChanged)
     Q_PROPERTY(QSet<QmlControllerMappingProxy*> availableMappings MEMBER
                     m_mappings NOTIFY mappingsChanged)
@@ -285,6 +288,7 @@ class QmlControllerDeviceProxy : public QObject {
             emit editedChanged();
         }
     }
+    QString activeMappingName() const;
     QString vendor() const;
     QString product() const;
     QString serialNumber() const;

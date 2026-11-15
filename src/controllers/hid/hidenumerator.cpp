@@ -151,6 +151,29 @@ QList<Controller*> HidEnumerator::queryDevices() {
             deviceList.size());
 
     for (const auto& usbDevice : deviceList) {
+#ifdef __ANDROID_MIDI__
+        // Devices with a USB MIDI streaming interface (audio class 1,
+        // subclass 3) are handled by the Android MIDI backend. Listing their
+        // HID interface as well only adds a duplicate, unusable entry.
+        bool hasMidiInterface = false;
+        for (jint ifaceIdx = 0;
+                ifaceIdx < usbDevice->callMethod<jint>("getInterfaceCount");
+                ifaceIdx++) {
+            auto usbInterface = usbDevice->callMethod<jobject>("getInterface",
+                    "(I)Landroid/hardware/usb/UsbInterface;",
+                    ifaceIdx);
+            if (usbInterface.callMethod<jint>("getInterfaceClass") == 1 &&
+                    usbInterface.callMethod<jint>("getInterfaceSubclass") == 3) {
+                hasMidiInterface = true;
+                break;
+            }
+        }
+        if (hasMidiInterface) {
+            qInfo() << "Skipping HID scan of USB MIDI device"
+                    << usbDevice->callMethod<jstring>("getProductName").toString();
+            continue;
+        }
+#endif
         for (jint ifaceIdx = 0;
                 ifaceIdx < usbDevice->callMethod<jint>("getInterfaceCount");
                 ifaceIdx++) {
