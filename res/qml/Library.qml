@@ -14,6 +14,7 @@ Item {
     id: root
 
     property var sidebar: librarySources.sidebar()
+    property bool compact: false
 
     LibraryComponent.SourceTree {
         id: librarySources
@@ -56,8 +57,8 @@ Item {
         SplitView {
             id: sideBarSplitView
             SplitView.minimumWidth: 100
-            SplitView.preferredWidth: 415
-            SplitView.maximumWidth: 600
+            SplitView.preferredWidth: root.compact ? Math.min(240, root.width * 0.3) : 415
+            SplitView.maximumWidth: root.compact ? root.width * 0.5 : 600
 
             orientation: Qt.Vertical
 
