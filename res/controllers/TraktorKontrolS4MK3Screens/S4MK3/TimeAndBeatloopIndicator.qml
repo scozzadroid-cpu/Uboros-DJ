@@ -3,7 +3,7 @@ This module is used to define the center left section, above the waveform.
 Currently this section is dedicated to show the remaining time as well as the beatloop when changing.
 */
 import QtQuick 2.14
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls

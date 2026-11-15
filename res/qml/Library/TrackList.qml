@@ -6,7 +6,7 @@ import QtQml
 import QtQuick
 import QtQml.Models
 import QtQuick.Layouts
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 import "../Theme"
 
 Rectangle {

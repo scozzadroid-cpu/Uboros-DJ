@@ -1,5 +1,5 @@
 import QtQuick 2.12
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Shapes
 import Qt5Compat.GraphicalEffects

@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Window 2.3
 
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 import QtQuick.Shapes 1.11
 import QtQuick.Layouts 1.3
 import QtQuick.Window 2.15

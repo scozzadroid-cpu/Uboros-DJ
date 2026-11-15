@@ -9,7 +9,7 @@ import QtQuick 2.15
 import QtQuick.Shapes 1.4
 import QtQuick.Window 2.15
 
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 
 import Mixxx 1.0 as Mixxx
 

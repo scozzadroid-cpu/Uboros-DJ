@@ -1,6 +1,6 @@
 import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
-import QtQuick.Controls 2.12
+import QtQuick.Controls.Basic
 import "Theme"
 
 // Flat, rounded button. The previous look used two inner shadows, a drop

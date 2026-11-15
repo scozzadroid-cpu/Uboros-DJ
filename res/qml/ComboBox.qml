@@ -1,6 +1,6 @@
 import "." as Skin
 import QtQuick 2.12
-import QtQuick.Controls 2.12
+import QtQuick.Controls.Basic
 import QtQuick.Shapes
 import Qt5Compat.GraphicalEffects
 import "Theme"
