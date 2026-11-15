@@ -3718,6 +3718,11 @@ set(
   Widgets
   Xml
 )
+if(ANDROID AND NOT BUILD_TESTING)
+  # QtTest is only used by the test suite: keep it (and its QML plugin) out of
+  # the APK
+  list(REMOVE_ITEM QT_COMPONENTS Test)
+endif()
 set(QT_EXTRA_COMPONENTS "")
 if(QT6)
   find_package(QT 6.2 NAMES Qt6 COMPONENTS Core REQUIRED)
@@ -5465,4 +5470,37 @@ if(APPLE AND MACOS_BUNDLE)
     @ONLY
   )
   install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/BundleInstall.cmake")
+endif()
+
+if(ANDROID AND QML)
+  # Scan only the skin for QML imports. Qt adds the whole source tree to the
+  # root paths (buildenv with the Qt sources, the tests), which pulled QtTest
+  # and the unused Material/Imagine/Universal/FluentWinUI3 styles into the APK.
+  # Deferred so that it runs after Qt's own deferred finalizer; the property is
+  # read at generate time.
+  function(mixxx_android_restrict_qml_root_paths)
+    get_target_property(_roots mixxx _qt_internal_qml_root_path)
+    if(_roots)
+      list(REMOVE_ITEM _roots "${CMAKE_SOURCE_DIR}")
+    else()
+      set(_roots "")
+    endif()
+    set_target_properties(
+      mixxx
+      PROPERTIES
+        _qt_internal_qml_root_path "${_roots}"
+        QT_QML_ROOT_PATH "${CMAKE_SOURCE_DIR}/res/qml"
+    )
+    # Qt also adds the target's source directory to the list it writes to
+    # the deployment settings
+    get_target_property(_native mixxx _qt_android_native_qml_root_paths)
+    if(_native)
+      list(REMOVE_ITEM _native "${CMAKE_SOURCE_DIR}")
+      set_target_properties(
+        mixxx
+        PROPERTIES _qt_android_native_qml_root_paths "${_native}"
+      )
+    endif()
+  endfunction()
+  cmake_language(DEFER CALL mixxx_android_restrict_qml_root_paths)
 endif()
