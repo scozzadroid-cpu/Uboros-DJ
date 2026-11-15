@@ -26,6 +26,11 @@ QmlPlayerProxy::QmlPlayerProxy(BaseTrackPlayer* pTrackPlayer, QObject* parent)
             &BaseTrackPlayer::trackUnloaded,
             this,
             &QmlPlayerProxy::slotTrackUnloaded);
+    // Loading failed: the player is left empty
+    connect(m_pTrackPlayer,
+            &BaseTrackPlayer::playerEmpty,
+            this,
+            [this]() { setLoading(false); });
     if (m_pTrackPlayer && m_pTrackPlayer->getLoadedTrack()) {
         slotTrackLoaded(pTrackPlayer->getLoadedTrack());
     }
@@ -54,7 +59,42 @@ void QmlPlayerProxy::loadTrackFromLocationUrl(const QUrl& trackLocationUrl, bool
     }
 }
 
+void QmlPlayerProxy::setLoading(bool loading) {
+    if (m_isLoading == loading) {
+        return;
+    }
+    m_isLoading = loading;
+    emit isLoadingChanged();
+}
+
+void QmlPlayerProxy::setAnalysisProgress(double progress) {
+    // Notify only on whole percent changes: the analyzer reports often
+    if (progress >= 0 && m_analysisProgress >= 0 &&
+            static_cast<int>(progress * 100) == static_cast<int>(m_analysisProgress * 100)) {
+        return;
+    }
+    if (progress == m_analysisProgress) {
+        return;
+    }
+    m_analysisProgress = progress;
+    emit analysisProgressChanged();
+}
+
+void QmlPlayerProxy::slotTrackAnalyzerProgress(
+        TrackId trackId, AnalyzerProgress analyzerProgress) {
+    if (!m_pCurrentTrack || m_pCurrentTrack->getId() != trackId) {
+        return;
+    }
+    if (analyzerProgress < kAnalyzerProgressNone ||
+            analyzerProgress >= kAnalyzerProgressDone) {
+        setAnalysisProgress(-1.0);
+    } else {
+        setAnalysisProgress(analyzerProgress);
+    }
+}
+
 void QmlPlayerProxy::slotTrackLoaded(TrackPointer pTrack) {
+    setLoading(false);
     m_pCurrentTrack = pTrack;
     emit trackChanged();
     emit trackLoaded();
@@ -70,6 +110,8 @@ void QmlPlayerProxy::slotTrackUnloaded(TrackPointer pOldTrack) {
         disconnect(m_pCurrentTrack.get(), nullptr, this, nullptr);
     }
     m_pCurrentTrack.reset();
+    setLoading(false);
+    setAnalysisProgress(-1.0);
     emit trackChanged();
     emit trackUnloaded();
 }
@@ -90,6 +132,8 @@ void QmlPlayerProxy::slotLoadingTrack(TrackPointer pNewTrack, TrackPointer pOldT
         disconnect(m_pCurrentTrack.get(), nullptr, this, nullptr);
     }
     m_pCurrentTrack = pNewTrack;
+    setAnalysisProgress(-1.0);
+    setLoading(true);
     emit trackChanged();
     emit trackLoading();
 }
