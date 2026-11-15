@@ -69,11 +69,16 @@ void QmlSidebarModelProxy::update(const QList<QmlLibrarySource*>& sources) {
         VERIFY_OR_DEBUG_ASSERT(librarySource) {
             continue;
         }
+        auto* pLibrarySource = librarySource->internal();
+        if (!pLibrarySource) {
+            // e.g. a feature of the library that has been disabled
+            continue;
+        }
         connect(librarySource,
                 &QmlLibrarySource::requestTrackModel,
                 this,
-                &QmlSidebarModelProxy::slotShowTrackModel);
-        auto* pLibrarySource = librarySource->internal();
+                &QmlSidebarModelProxy::slotShowTrackModel,
+                Qt::UniqueConnection);
         addLibraryFeature(pLibrarySource);
     }
     endResetModel();

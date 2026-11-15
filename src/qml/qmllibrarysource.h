@@ -95,6 +95,11 @@ class QmlLibrarySource : public QObject {
     QString m_label;
     QString m_icon;
     QList<QmlLibraryTrackListColumn*> m_columns;
+    /// Whether the track objects of the rows may be created while the list is
+    /// displayed. Must be false for sources outside of the Mixxx library
+    /// (files, external libraries), where creating a track object imports the
+    /// file into the library.
+    bool m_tracksOnDisplay{true};
 };
 
 class QmlLibraryAllTrackSource : public QmlLibrarySource {
@@ -110,6 +115,40 @@ class QmlLibraryAllTrackSource : public QmlLibrarySource {
 
   private:
     std::unique_ptr<AllTrackLibraryFeature> m_pLibraryFeature;
+};
+
+/// Exposes the Rekordbox feature owned by the library (prepared USB drives)
+class QmlLibraryRekordboxSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryRekordboxSource)
+  public:
+    explicit QmlLibraryRekordboxSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature;
+    }
+
+  private:
+    // Owned by the library, may be null if the feature is disabled
+    LibraryFeature* m_pLibraryFeature;
+};
+
+/// Exposes the Browse ("Computer") feature owned by the library
+class QmlLibraryBrowseSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryBrowseSource)
+  public:
+    explicit QmlLibraryBrowseSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature;
+    }
+
+  private:
+    // Owned by the library
+    LibraryFeature* m_pLibraryFeature;
 };
 
 } // namespace qml

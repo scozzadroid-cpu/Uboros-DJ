@@ -197,4 +197,47 @@ Mixxx.LibrarySourceTree {
         label: qsTr("All...")
         columns: root.defaultColumns
     }
+    // USB drives exported with Rekordbox. The devices are searched when the
+    // entry is selected.
+    Mixxx.LibraryRekordboxSource {
+        label: qsTr("Rekordbox")
+        columns: root.defaultColumns
+    }
+    // Folders: quick links, removable devices (USB drives) and the local
+    // storage. The columns are the ones of the file browser model, not the
+    // library ones.
+    Mixxx.LibraryBrowseSource {
+        label: qsTr("Computer")
+
+        Mixxx.TrackListColumn {
+            label: qsTr("Filename")
+            fillSpan: 3
+            columnIdx: 1
+            delegate: DefaultDelegate { }
+        }
+        Mixxx.TrackListColumn {
+            label: qsTr("Title")
+            fillSpan: 2
+            columnIdx: 3
+            delegate: DefaultDelegate { }
+        }
+        Mixxx.TrackListColumn {
+            label: qsTr("Artist")
+            fillSpan: 2
+            columnIdx: 2
+            delegate: DefaultDelegate { }
+        }
+        Mixxx.TrackListColumn {
+            label: qsTr("Bpm")
+            preferredWidth: 60
+            columnIdx: 11
+            delegate: DefaultDelegate { }
+        }
+        Mixxx.TrackListColumn {
+            label: qsTr("Key")
+            preferredWidth: 70
+            columnIdx: 12
+            delegate: DefaultDelegate { }
+        }
+    }
 }
