@@ -4,6 +4,10 @@
 
 #include <QQmlEngineExtensionPlugin>
 #include <QQuickStyle>
+#ifdef __ANDROID__
+#include <QCoreApplication>
+#include <QJniObject>
+#endif
 
 #include "controllers/controllermanager.h"
 #include "mixer/playermanager.h"
@@ -126,6 +130,33 @@ QmlApplication::QmlApplication(
                 }
             });
     loadQml(m_mainFilePath);
+
+#ifdef __ANDROID__
+    // Many phones run at 90/120 Hz. Rendering the waveforms within 8 ms per
+    // frame is not realistic, so frames are dropped and the UI stutters.
+    // Ask Android for 60 Hz for this window: 16.7 ms per frame.
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) {
+            return;
+        }
+        QJniObject window = activity.callObjectMethod(
+                "getWindow", "()Landroid/view/Window;");
+        if (!window.isValid()) {
+            return;
+        }
+        QJniObject params = window.callObjectMethod(
+                "getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+        if (!params.isValid()) {
+            return;
+        }
+        params.setField<jfloat>("preferredRefreshRate", 60.0f);
+        window.callMethod<void>("setAttributes",
+                "(Landroid/view/WindowManager$LayoutParams;)V",
+                params.object());
+        qInfo() << "Requested 60 Hz refresh rate for the main window";
+    });
+#endif
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 
