@@ -121,9 +121,10 @@ Item {
             anchors.fill: parent
             channels: Mixxx.WaveformOverview.Channels.LeftChannel
             renderer: Mixxx.WaveformOverview.Renderer.Filtered
-            colorHigh: Theme.white
-            colorMid: Theme.blue
-            colorLow: Theme.green
+            // Same three bands as the scrolling waveform
+            colorHigh: '#f1e7d6'
+            colorMid: '#c9852f'
+            colorLow: '#1f5fff'
             group: root.group
         }
     }

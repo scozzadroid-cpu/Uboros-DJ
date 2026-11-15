@@ -36,8 +36,10 @@ Item {
             endOfTrackWarningTime: 30
         }
 
+        // Before the start / after the end of the track: discreet, the
+        // salmon color is kept for the end of track warning only
         Mixxx.WaveformRendererPreroll {
-            color: '#ff8872'
+            color: '#3a3f47'
         }
 
         Mixxx.WaveformRendererMarkRange {
@@ -73,9 +75,11 @@ Item {
 
         Mixxx.WaveformRendererFiltered {
             axesColor: '#a1a1a1a1'
-            lowColor: '#2154D7'
-            midColor: '#97632D'
-            highColor: '#D5C2A2'
+            // Three bands like the Pioneer decks: blue lows, amber mids,
+            // near-white highs
+            lowColor: '#1f5fff'
+            midColor: '#c9852f'
+            highColor: '#f1e7d6'
 
             gainAll: 1.0
             gainLow: 1.0
@@ -89,7 +93,7 @@ Item {
         }
 
         Mixxx.WaveformRendererBeat {
-            color: '#a1a1a1a1'
+            color: '#60ffffff'
         }
 
         Mixxx.WaveformRendererMark {
