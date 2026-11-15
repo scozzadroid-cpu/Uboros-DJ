@@ -377,9 +377,9 @@
                 </options>
             </control>
             <control>
-                <description>BEAT SYNC +SHIFT (DECK1) - press - change Tempo range</description>
+                <description>BEAT SYNC +SHIFT (DECK1) - press - toggle keylock (Master Tempo)</description>
                 <group>[Channel1]</group>
-                <key>PioneerDDJFLX4.cycleTempoRange</key>
+                <key>PioneerDDJFLX4.toggleKeylock</key>
                 <status>0x90</status>
                 <midino>0x60</midino>
                 <options>
@@ -408,9 +408,9 @@
                 </options>
             </control>
             <control>
-                <description>BEAT SYNC +SHIFT (DECK2) - press - change Tempo range</description>
+                <description>BEAT SYNC +SHIFT (DECK2) - press - toggle keylock (Master Tempo)</description>
                 <group>[Channel2]</group>
-                <key>PioneerDDJFLX4.cycleTempoRange</key>
+                <key>PioneerDDJFLX4.toggleKeylock</key>
                 <status>0x91</status>
                 <midino>0x60</midino>
                 <options>
@@ -3007,6 +3007,25 @@
                 <key>sync_enabled</key>
                 <status>0x91</status>
                 <midino>0x58</midino>
+                <on>0x7F</on>
+                <minimum>0.5</minimum>
+            </output>
+
+            <!-- Keylock state on BEAT SYNC while SHIFT is held -->
+            <output>
+                <group>[Channel1]</group>
+                <key>keylock</key>
+                <status>0x90</status>
+                <midino>0x60</midino>
+                <on>0x7F</on>
+                <minimum>0.5</minimum>
+            </output>
+            <!-- Keylock state on BEAT SYNC while SHIFT is held -->
+            <output>
+                <group>[Channel2]</group>
+                <key>keylock</key>
+                <status>0x91</status>
+                <midino>0x60</midino>
                 <on>0x7F</on>
                 <minimum>0.5</minimum>
             </output>
