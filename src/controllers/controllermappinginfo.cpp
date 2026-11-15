@@ -98,7 +98,7 @@ MappingInfo::MappingInfo(const QFileInfo& fileInfo) {
 
             // Parse simple info children when inside the info block
             if (inInfo) {
-                if (!inInfo && xmlElementName == QStringLiteral("info") && xmlHierachyDepth == 2) {
+                if (xmlElementName == QStringLiteral("name") && xmlHierachyDepth == 3) {
                     m_name = xml.readElementText();
                     continue;
                 } else if (xmlElementName == QStringLiteral("author")) {
