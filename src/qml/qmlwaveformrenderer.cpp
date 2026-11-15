@@ -351,7 +351,10 @@ QmlWaveformRendererFactory::Renderer QmlWaveformRendererMark::create(
             qmlEngine(this)->throwError(tr("Cannot find the marker icon") + " \"" + icon + '"');
         }
 
-        if (!endIcon.isEmpty() && !QFileInfo::exists(endIcon)) {
+        // The default mark's icons may be templates ("jump_%1.svg") that are
+        // filled in per hotcue later: only check plain file names.
+        if (!endIcon.isEmpty() && !endIcon.contains(QStringLiteral("%1")) &&
+                !QFileInfo::exists(endIcon)) {
             qmlEngine(this)->throwError(tr("Cannot find the marker endIcon") +
                     " \"" + endIcon + '"');
         }

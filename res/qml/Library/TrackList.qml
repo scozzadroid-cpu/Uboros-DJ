@@ -190,6 +190,11 @@ Rectangle {
         anchors.margins: 5
         clip: true
         reuseItems: true
+        // Touch: scroll vertically only, and give the flick a moment to win
+        // over the cells' mouse areas
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Qt.platform.os === "android" ? Flickable.VerticalFlick : Flickable.AutoFlickDirection
+        pressDelay: Qt.platform.os === "android" ? 80 : 0
         Keys.onUpPressed: this.selectionModel.moveSelectionVertical(-1)
         Keys.onDownPressed: this.selectionModel.moveSelectionVertical(1)
         Keys.onEnterPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
@@ -202,7 +207,7 @@ Rectangle {
                 return;
             }
             for (let c = 0; c < model.columns.length; c++) {
-                if (model.columns[c].hidden) {
+                if (model.columns[c].hidden || model.columns[c].preferredWidth === 0) {
                     continue
                 } else if (model.columns[c].preferredWidth > 0) {
                     usedWidth += model.columns[c].preferredWidth;
@@ -238,6 +243,9 @@ Rectangle {
                 }
                 const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
                 this.select(this.model.index(newRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                // Keep the selected track visible, e.g. when browsing with
+                // the controller's browse knob
+                view.positionViewAtRow(newRow, TableView.Contain);
             }
 
             function moveSelectionVertical(value) {

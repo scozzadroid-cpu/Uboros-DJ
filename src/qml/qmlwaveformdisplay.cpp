@@ -283,7 +283,9 @@ qsizetype QmlWaveformDisplay::renderers_count(QQmlListProperty<QmlWaveformRender
     VERIFY_OR_DEBUG_ASSERT(pWaveform) {
         return 0;
     }
-    pWaveform->m_dirtyFlag.setFlag(DirtyFlag::Window, true);
+    // Read-only access: must not mark the renderer stack dirty, otherwise all
+    // renderers are destroyed and recreated on the next frame every time the
+    // list is read (seen several times per second while loading tracks).
     return pWaveform->m_waveformRenderers.count();
 }
 
@@ -294,7 +296,7 @@ QmlWaveformRendererFactory* QmlWaveformDisplay::renderers_at(
         return nullptr;
     }
     QmlWaveformDisplay* pWaveform = static_cast<QmlWaveformDisplay*>(pList->object);
-    pWaveform->m_dirtyFlag.setFlag(DirtyFlag::Window, true);
+    // Read-only access: see renderers_count()
     return pWaveform->m_waveformRenderers.at(index);
 }
 
