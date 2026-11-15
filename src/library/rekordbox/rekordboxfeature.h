@@ -24,6 +24,10 @@
 
 #pragma once
 
+#include <QTimer>
+
+#include "analyzer/analyzerscheduledtrack.h"
+
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QStringListModel>
@@ -75,6 +79,11 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
 
   private slots:
     void htmlLinkClicked(const QUrl& link);
+    // Pre-analysis: imports the device's tracks into the library (beatgrid,
+    // cues, key, color from rekordbox, as when loading one) a few at a time,
+    // then queues their analysis (waveforms), so that loading a track later
+    // does not wait for "Analyzing". Writes only to Mixxx's own database.
+    void preanalyzeNextBatch();
 
   private:
     QString formatRootViewHtml() const;
@@ -83,6 +92,11 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
 
     parented_ptr<TreeItemModel> m_pSidebarModel;
     parented_ptr<RekordboxPlaylistModel> m_pRekordboxPlaylistModel;
+    parented_ptr<RekordboxPlaylistModel> m_pPreanalysisModel;
+    QTimer m_preanalysisTimer;
+    QString m_preanalysisPlaylist;
+    int m_preanalysisRow = 0;
+    QList<AnalyzerScheduledTrack> m_preanalysisTracks;
 
     QFutureWatcher<QList<TreeItem*>> m_devicesFutureWatcher;
     QFuture<QList<TreeItem*>> m_devicesFuture;

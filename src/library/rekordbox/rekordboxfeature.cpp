@@ -1,5 +1,8 @@
 #include "library/rekordbox/rekordboxfeature.h"
 
+#include "library/library.h"
+#include "mixer/playerinfo.h"
+
 #include <mp3guessenc.h>
 #include <rekordbox_anlz.h>
 #include <rekordbox_pdb.h>
@@ -1415,6 +1418,13 @@ RekordboxFeature::RekordboxFeature(
             false);
     m_pRekordboxPlaylistModel = make_parented<RekordboxPlaylistModel>(
             this, pLibrary->trackCollectionManager(), m_trackSource);
+    m_pPreanalysisModel = make_parented<RekordboxPlaylistModel>(
+            this, pLibrary->trackCollectionManager(), m_trackSource);
+    m_preanalysisTimer.setSingleShot(true);
+    connect(&m_preanalysisTimer,
+            &QTimer::timeout,
+            this,
+            &RekordboxFeature::preanalyzeNextBatch);
 
     m_title = tr("Rekordbox");
 
@@ -1696,4 +1706,46 @@ void RekordboxFeature::onTracksFound() {
 
     m_pRekordboxPlaylistModel->setPlaylist(devicePlaylist);
     emit showTrackModel(m_pRekordboxPlaylistModel);
+
+    // Pre-analyze all the tracks of this device, once per device and run
+    if (devicePlaylist != m_preanalysisPlaylist && !m_preanalysisTimer.isActive()) {
+        m_preanalysisPlaylist = devicePlaylist;
+        m_pPreanalysisModel->setPlaylist(devicePlaylist);
+        m_pPreanalysisModel->select();
+        m_preanalysisRow = 0;
+        m_preanalysisTracks.clear();
+        qInfo() << "Rekordbox pre-analysis:" << m_pPreanalysisModel->rowCount()
+                << "track(s) on" << devicePlaylist;
+        // Let the UI settle first
+        m_preanalysisTimer.start(3000);
+    }
+}
+
+void RekordboxFeature::preanalyzeNextBatch() {
+    // Reading the files competes with the decks for the storage: wait
+    if (PlayerInfo::instance().getCurrentPlayingDeck() >= 0) {
+        m_preanalysisTimer.start(5000);
+        return;
+    }
+    // A few tracks per event loop turn: importing reads each file's tags
+    constexpr int kBatchSize = 4;
+    const int rowCount = m_pPreanalysisModel->rowCount();
+    for (int i = 0; i < kBatchSize && m_preanalysisRow < rowCount; ++i, ++m_preanalysisRow) {
+        const QModelIndex index = m_pPreanalysisModel->index(m_preanalysisRow, 0);
+        TrackPointer pTrack = m_pPreanalysisModel->getTrack(index);
+        if (pTrack && pTrack->getId().isValid()) {
+            m_preanalysisTracks.append(AnalyzerScheduledTrack(pTrack->getId()));
+        }
+    }
+    if (m_preanalysisRow < rowCount) {
+        m_preanalysisTimer.start(50);
+        return;
+    }
+    // Tracks already analyzed (waveform present) are skipped by the analyzer
+    qInfo() << "Rekordbox pre-analysis: queuing" << m_preanalysisTracks.size()
+            << "track(s)";
+    if (!m_preanalysisTracks.isEmpty()) {
+        emit m_pLibrary->analyzeTracks(m_preanalysisTracks);
+    }
+    m_preanalysisTracks.clear();
 }
