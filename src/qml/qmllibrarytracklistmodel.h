@@ -52,7 +52,8 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
 
     QmlLibraryTrackListModel(const QList<QmlLibraryTrackListColumn*>& librarySource,
             QAbstractItemModel* pModel,
-            QObject* pParent = nullptr);
+            QObject* pParent = nullptr,
+            bool tracksOnDisplay = true);
     ~QmlLibraryTrackListModel() = default;
 
     QQmlListProperty<QmlLibraryTrackListColumn> columns() {
@@ -78,6 +79,7 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
 
   private:
     std::vector<parented_ptr<QmlLibraryTrackListColumn>> m_columns;
+    bool m_tracksOnDisplay;
 
     static void parent_qlist_append(
             QQmlListProperty<QmlLibraryTrackListColumn>* p,

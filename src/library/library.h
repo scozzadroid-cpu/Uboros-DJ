@@ -74,6 +74,18 @@ class Library: public QObject {
 
     void addFeature(LibraryFeature* feature);
 
+    /// Returns the first feature of the given type owned by the library, or
+    /// nullptr. Needed for exposing the existing features to QML.
+    template<typename T>
+    T* findFeature() const {
+        for (LibraryFeature* pFeature : m_features) {
+            if (T* pTyped = qobject_cast<T*>(pFeature)) {
+                return pTyped;
+            }
+        }
+        return nullptr;
+    }
+
     /// Needed for exposing models to QML
     LibraryTableModel* trackTableModel() const;
 

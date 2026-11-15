@@ -47,6 +47,22 @@ Rectangle {
 
                     selectionModel: featureSelection
 
+                    // Some sources find their children asynchronously after
+                    // being activated (e.g. Rekordbox USB drives): show them
+                    // as soon as they are known.
+                    Connections {
+                        target: root.model
+                        function onRowsInserted(parent, first, last) {
+                            if (!parent.valid || parent.parent.valid)
+                                return;
+                            Qt.callLater(() => {
+                                const viewRow = featureView.rowAtIndex(parent);
+                                if (viewRow >= 0 && !featureView.isExpanded(viewRow))
+                                    featureView.expand(viewRow);
+                            });
+                        }
+                    }
+
                     delegate: FocusScope {
                         required property string label
                         required property var icon
@@ -95,10 +111,16 @@ Rectangle {
                                 hoverEnabled: true
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: (event) => {
-                                    treeView.selectionModel.select(treeView.selectionModel.model.index(row, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                                    // Read the state before activating: the activation may
+                                    // populate the children (folders are listed lazily)
+                                    const wasExpanded = expanded;
+                                    const viewRow = row;
+                                    treeView.selectionModel.select(treeView.selectionModel.model.index(viewRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
                                     treeView.model.activate(index)
-                                    if (isTreeNode && hasChildren) {
-                                        treeView.toggleExpanded(row)
+                                    if (wasExpanded) {
+                                        treeView.collapse(viewRow)
+                                    } else {
+                                        treeView.expand(viewRow)
                                     }
                                     event.accepted = true
                                 }

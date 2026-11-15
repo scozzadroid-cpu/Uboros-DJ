@@ -12,6 +12,7 @@
 #include "library/browse/browsefeature.h"
 #include "library/library.h"
 #include "library/librarytablemodel.h"
+#include "library/rekordbox/rekordboxfeature.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/trackset/crate/cratefeature.h"
@@ -43,7 +44,8 @@ QmlLibrarySource::QmlLibrarySource(
 }
 
 void QmlLibrarySource::slotShowTrackModel(QAbstractItemModel* pModel) {
-    emit requestTrackModel(std::make_shared<QmlLibraryTrackListModel>(columns(), pModel));
+    emit requestTrackModel(std::make_shared<QmlLibraryTrackListModel>(
+            columns(), pModel, nullptr, m_tracksOnDisplay));
 }
 
 QmlLibraryAllTrackSource::QmlLibraryAllTrackSource(
@@ -52,6 +54,36 @@ QmlLibraryAllTrackSource::QmlLibraryAllTrackSource(
           m_pLibraryFeature(std::make_unique<AllTrackLibraryFeature>(
                   QmlLibraryProxy::get(), QmlConfigProxy::get())) {
     connect(m_pLibraryFeature.get(),
+            &LibraryFeature::showTrackModel,
+            this,
+            &QmlLibrarySource::slotShowTrackModel);
+}
+
+QmlLibraryRekordboxSource::QmlLibraryRekordboxSource(
+        QObject* parent, const QList<QmlLibraryTrackListColumn*>& columns)
+        : QmlLibrarySource(parent, columns),
+          m_pLibraryFeature(QmlLibraryProxy::get()->findFeature<RekordboxFeature>()) {
+    m_tracksOnDisplay = false;
+    if (!m_pLibraryFeature) {
+        qWarning() << "QmlLibraryRekordboxSource: the Rekordbox feature is disabled";
+        return;
+    }
+    connect(m_pLibraryFeature,
+            &LibraryFeature::showTrackModel,
+            this,
+            &QmlLibrarySource::slotShowTrackModel);
+}
+
+QmlLibraryBrowseSource::QmlLibraryBrowseSource(
+        QObject* parent, const QList<QmlLibraryTrackListColumn*>& columns)
+        : QmlLibrarySource(parent, columns),
+          m_pLibraryFeature(QmlLibraryProxy::get()->findFeature<BrowseFeature>()) {
+    m_tracksOnDisplay = false;
+    if (!m_pLibraryFeature) {
+        qWarning() << "QmlLibraryBrowseSource: the Browse feature is not available";
+        return;
+    }
+    connect(m_pLibraryFeature,
             &LibraryFeature::showTrackModel,
             this,
             &QmlLibrarySource::slotShowTrackModel);

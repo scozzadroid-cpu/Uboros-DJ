@@ -44,9 +44,11 @@ QColor colorFromRgbCode(double colorValue) {
 QmlLibraryTrackListModel::QmlLibraryTrackListModel(
         const QList<QmlLibraryTrackListColumn*>& librarySource,
         QAbstractItemModel* pModel,
-        QObject* pParent)
+        QObject* pParent,
+        bool tracksOnDisplay)
         : QIdentityProxyModel(pParent),
-          m_columns() {
+          m_columns(),
+          m_tracksOnDisplay(tracksOnDisplay) {
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
@@ -86,7 +88,10 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
 
     switch (role) {
     case Track: {
-        if (pTrackModel == nullptr) {
+        if (pTrackModel == nullptr || !m_tracksOnDisplay) {
+            // For sources outside of the library, getTrack() imports the
+            // file. Don't do that for every displayed row, the track is
+            // requested with getTrack(row) when it is really needed.
             return {};
         }
         auto pTrack = make_qml_owned<QmlTrackProxy>(pTrackModel->getTrack(
@@ -95,7 +100,7 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
     }
     case Qt::DecorationRole: {
         if (pTrackTableModel == nullptr) {
-            return {};
+            return QColor();
         };
         return colorFromRgbCode(QIdentityProxyModel::data(
                 proxyIndex.siblingAtColumn(pTrackTableModel->fieldIndex(
@@ -111,6 +116,9 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
                             ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION)),
                     Qt::DisplayRole)
                                .toString();
+        } else if (pTrackModel != nullptr && !m_tracksOnDisplay) {
+            location = pTrackModel->getTrackLocation(
+                    QIdentityProxyModel::mapToSource(proxyIndex));
         } else if (pTrackModel != nullptr) {
             auto pTrack = pTrackModel->getTrack(
                     QIdentityProxyModel::mapToSource(proxyIndex));
