@@ -267,7 +267,7 @@ Rectangle {
             required property url cover_art
             required property int row
 
-            implicitHeight: 30
+            implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
             Loader {
                 id: loader

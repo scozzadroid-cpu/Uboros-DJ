@@ -25,6 +25,9 @@ Mixxx.LibrarySourceTree {
             onPressed: {
                 if (pressedButtons == Qt.LeftButton) {
                     tableView.selectionModel.selectRow(row);
+                    // No drag and drop on touch screens: skip the costly grab
+                    if (Qt.platform.os === "android")
+                        return;
                     parent.dragImage.grabToImage((result) => {
                             parent.Drag.imageSource = result.url;
                         }, Qt.size(parent.dragImage.width, parent.dragImage.height));
@@ -39,8 +42,8 @@ Mixxx.LibrarySourceTree {
         Text {
             id: value
             anchors.fill: parent
-            anchors.leftMargin: 15
-            font.pixelSize: 14
+            anchors.leftMargin: Qt.platform.os === "android" ? 6 : 15
+            font.pixelSize: Qt.platform.os === "android" ? 12 : 14
             text: display ?? ""
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -50,13 +53,14 @@ Mixxx.LibrarySourceTree {
 
     defaultColumns: [
         Mixxx.TrackListColumn {
-            preferredWidth: 110
+            // Smaller cover column on phones, the table needs the room
+            preferredWidth: Qt.platform.os === "android" ? 40 : 110
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
 
             delegate: Rectangle {
                 color: decoration
-                implicitHeight: 30
+                implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
                 Image {
                     anchors.fill: parent

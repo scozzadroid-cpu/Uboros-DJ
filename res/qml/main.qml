@@ -27,8 +27,9 @@ ApplicationWindow {
         // The on-screen mixer needs the whole height on a phone
         if (showMixer)
             return 0;
-        // Share ~40% of the window between the visible waveforms.
-        return Math.max(40, Math.min(120, Math.floor(height * 0.4 / waveformCount)));
+        // Share ~26% of the window between the visible waveforms, the
+        // library needs the rest.
+        return Math.max(32, Math.min(120, Math.floor(height * 0.26 / waveformCount)));
     }
 
     color: Theme.backgroundColor
