@@ -72,8 +72,8 @@ Item {
             group: root.group
         }
 
-        // Deck state badges, like the CDJ display: MASTER (sync leader),
-        // SYNC, KEY LOCK and the active loop with its length in beats
+        // Active loop with its length in beats (MASTER, SYNC and KEY LOCK are
+        // in the info bar)
         Row {
             anchors.left: parent.left
             anchors.top: parent.top
@@ -99,24 +99,6 @@ Item {
                     font.bold: true
                     color: parent.tint
                 }
-            }
-
-            Badge {
-                visible: leaderControl.value > 0
-                text: "MASTER"
-                tint: "#ff9a3c"
-            }
-
-            Badge {
-                visible: syncControl.value > 0
-                text: "SYNC"
-                tint: "#4ec3ff"
-            }
-
-            Badge {
-                visible: keylockControl.value > 0
-                text: "KEY LOCK"
-                tint: "#c38bff"
             }
 
             Badge {
@@ -219,27 +201,6 @@ Item {
                 group: root.group
                 key: "track_samplerate"
             }
-        }
-
-        Mixxx.ControlProxy {
-            id: leaderControl
-
-            group: root.group
-            key: "sync_leader"
-        }
-
-        Mixxx.ControlProxy {
-            id: syncControl
-
-            group: root.group
-            key: "sync_enabled"
-        }
-
-        Mixxx.ControlProxy {
-            id: keylockControl
-
-            group: root.group
-            key: "keylock"
         }
 
         Mixxx.ControlProxy {
