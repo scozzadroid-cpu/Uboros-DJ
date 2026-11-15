@@ -43,19 +43,21 @@ function fromChromaticKey(value) {
 }
 
 /// Parses the key text shown in the library: traditional ("Cm", "Bbm",
-/// "D♭", "F# minor"), Camelot ("8A") or OpenKey ("1m", "1d").
+/// "D♭", "F# minor"), Camelot/Lancelot ("8A", "8A (Am)") or OpenKey ("1m",
+/// "1d (C)").
 function fromText(text) {
     if (!text)
         return null;
     let t = String(text).trim().replace(/♭/g, "b").replace(/♯/g, "#");
-    let match = /^(\d{1,2})\s*([ABab])$/.exec(t);
+    // Camelot/Lancelot, alone or followed by the traditional name: "8A (Am)"
+    let match = /^(\d{1,2})\s*([ABab])(?:\s*\(.*\))?$/.exec(t);
     if (match) {
         const n = parseInt(match[1]);
         if (n < 1 || n > 12)
             return null;
         return {n: n, minor: match[2].toUpperCase() === "A"};
     }
-    match = /^(\d{1,2})\s*([dmDM])$/.exec(t);
+    match = /^(\d{1,2})\s*([dmDM])(?:\s*\(.*\))?$/.exec(t);
     if (match) {
         // OpenKey 1d = C major = 8B, 1m = A minor = 8A
         const n = parseInt(match[1]);

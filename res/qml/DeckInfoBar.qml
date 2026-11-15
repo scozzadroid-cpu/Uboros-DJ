@@ -4,6 +4,7 @@ import Mixxx.Controls 1.0 as MixxxControls
 import Qt5Compat.GraphicalEffects
 import QtQuick 2.12
 import "Theme"
+import "Library/Harmony.js" as Harmony
 
 Rectangle {
     id: root
@@ -13,11 +14,29 @@ Rectangle {
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
     property var currentTrack: deckPlayer ? deckPlayer.currentTrack : null
     property color lineColor: Theme.deckLineColor
+    readonly property color deckColor: Theme.deckColor(group)
+    readonly property string deckNumber: {
+        const match = /(\d+)\]$/.exec(group);
+        return match ? match[1] : "";
+    }
 
-    border.width: 2
-    border.color: Theme.deckBackgroundColor
-    radius: 5
+    border.width: 1
+    border.color: Theme.deckLineColor
+    radius: 6
     height: 56
+
+    // Deck color stripe on the left edge
+    Rectangle {
+        z: 1
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 6
+        anchors.bottomMargin: 6
+        width: 3
+        radius: 1.5
+        color: root.deckColor
+    }
 
     Image {
         id: coverArt
@@ -52,8 +71,31 @@ Rectangle {
         anchors.fill: coverArt
         radius: height / 2
         border.width: 2
-        border.color: Theme.deckLineColor
+        border.color: Qt.darker(root.deckColor, 1.6)
         color: "transparent"
+    }
+
+    // Deck number, in the deck color
+    Rectangle {
+        z: 2
+        anchors.right: coverArt.right
+        anchors.bottom: coverArt.bottom
+        anchors.rightMargin: -3
+        anchors.bottomMargin: -3
+        width: 17
+        height: 17
+        radius: 8.5
+        color: root.deckColor
+        border.width: 2
+        border.color: Theme.deckBackgroundColor
+
+        Text {
+            anchors.centerIn: parent
+            text: root.deckNumber
+            font.pixelSize: 10
+            font.bold: true
+            color: "#0b0c0f"
+        }
     }
 
     Item {
@@ -102,8 +144,10 @@ Rectangle {
         anchors.right: infoBarHSeparator1.left
         anchors.bottom: infoBarVSeparator.bottom
         horizontalAlignment: Text.AlignLeft
-        font.bold: false
+        font.bold: true
         font.pixelSize: Theme.textFontPixelSize
+        elide: Text.ElideRight
+        color: Theme.white
     }
 
     Rectangle {
@@ -127,7 +171,9 @@ Rectangle {
         anchors.bottom: infoBarHSeparator1.bottom
         horizontalAlignment: Text.AlignLeft
         font.bold: false
-        font.pixelSize: Theme.textFontPixelSize
+        font.pixelSize: Theme.textFontPixelSize - 1
+        color: Theme.textMutedColor
+        elide: Text.ElideRight
     }
 
     Rectangle {
@@ -142,14 +188,47 @@ Rectangle {
         color: root.lineColor
     }
 
-    Skin.EmbeddedText {
+    // Key in a pill colored like the Camelot wheel
+    Item {
         id: infoBarKey
 
-        text: root.currentTrack ? root.currentTrack.keyText : ""
+        readonly property var camelot: Harmony.fromChromaticKey(keyControl.value)
+
         anchors.top: infoBarHSeparator1.top
         anchors.bottom: infoBarVSeparator.top
         anchors.right: infoBarHSeparator2.left
         width: root.rightColumnWidth
+
+        Rectangle {
+            anchors.centerIn: parent
+            visible: keyText.text !== ""
+            width: Math.min(parent.width - 6, keyText.implicitWidth + 10)
+            height: Math.min(parent.height - 4, 18)
+            radius: height / 2
+            color: infoBarKey.camelot ? Qt.darker(Theme.camelotColor(infoBarKey.camelot.n), 1.5) : Theme.darkGray2
+            border.width: 1
+            border.color: infoBarKey.camelot ? Theme.camelotColor(infoBarKey.camelot.n) : Theme.deckLineColor
+        }
+
+        Text {
+            id: keyText
+
+            anchors.centerIn: parent
+            width: parent.width - 8
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            text: root.currentTrack ? root.currentTrack.keyText : ""
+            font.pixelSize: 11
+            font.bold: true
+            color: Theme.white
+        }
+
+        Mixxx.ControlProxy {
+            id: keyControl
+
+            group: root.group
+            key: "key"
+        }
     }
 
     Rectangle {
@@ -175,6 +254,8 @@ Rectangle {
         // Current BPM (with the tempo fader applied), like on a CDJ
         text: bpmControl.value > 0 ? bpmControl.value.toFixed(1) : "-"
         font.bold: true
+        font.pixelSize: 17
+        color: Theme.white
 
         Mixxx.ControlProxy {
             id: bpmControl
@@ -226,7 +307,8 @@ Rectangle {
             return "-" + minutes + ":" + (rest < 10 ? "0" : "") + rest;
         }
         color: ending ? (blink ? Theme.white : "#ff3030") : Theme.deckTextColor
-        font.bold: ending
+        font.bold: true
+        font.pixelSize: 14
 
         Timer {
             interval: 500

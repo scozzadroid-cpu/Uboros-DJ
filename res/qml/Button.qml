@@ -3,6 +3,8 @@ import QtQuick 2.12
 import QtQuick.Controls 2.12
 import "Theme"
 
+// Flat, rounded button. The previous look used two inner shadows, a drop
+// shadow and a glow per button, which also cost GPU time on phones.
 AbstractButton {
     id: root
 
@@ -10,69 +12,45 @@ AbstractButton {
     property bool highlight: false
     property color normalColor: Theme.buttonNormalColor
     property color pressedColor: activeColor
+    readonly property bool active: root.highlight || root.checked
+    // Toolbar buttons (white active color) fill with the accent color, the
+    // others (hotcues, sync...) with their own color
+    readonly property color activeFill: Qt.colorEqual(root.activeColor, Theme.white) ? Theme.accentColor : Qt.darker(root.activeColor, 1.7)
 
     implicitHeight: 26
-    implicitWidth: 52
+    implicitWidth: Math.max(52, label.implicitWidth + 20)
 
-    background: Item {
+    background: Rectangle {
+        id: backgroundRect
+
         anchors.fill: parent
+        anchors.margins: 2
+        radius: 6
+        color: {
+            if (root.pressed)
+                return root.active ? Qt.lighter(root.activeFill, 1.2) : Theme.darkGray2;
+            return root.active ? root.activeFill : Theme.buttonBackgroundColor;
+        }
+        border.width: 1
+        border.color: root.active ? Qt.lighter(root.activeFill, 1.4) : Theme.buttonBorderColor
 
-        Rectangle {
-            id: backgroundImage
-            anchors.fill: parent
-            color: Theme.darkGray2
-            radius: 0
-        }
-        InnerShadow {
-            id: bottomInnerEffect
-            anchors.fill: parent
-            color: "transparent"
-            horizontalOffset: -1
-            radius: 8
-            samples: 16
-            source: backgroundImage
-            spread: 0.3
-            verticalOffset: -1
-        }
-        InnerShadow {
-            id: topInnerEffect
-            anchors.fill: parent
-            color: "transparent"
-            horizontalOffset: 1
-            radius: 8
-            samples: 16
-            source: bottomInnerEffect
-            spread: 0.3
-            verticalOffset: 1
-        }
-        DropShadow {
-            id: dropEffect
-            anchors.fill: parent
-            color: Theme.darkGray
-            horizontalOffset: 0
-            radius: 4.0
-            source: topInnerEffect
-            verticalOffset: 0
+        Behavior on color {
+            ColorAnimation {
+                duration: 80
+            }
         }
     }
     contentItem: Item {
         anchors.fill: parent
 
-        Glow {
-            id: labelGlow
-            anchors.fill: parent
-            color: label.color
-            radius: 1
-            source: label
-            spread: 0.1
-        }
         Label {
             id: label
             anchors.fill: parent
-            color: root.normalColor
+            color: root.pressed ? root.pressedColor : (root.active ? root.activeColor : root.normalColor)
             font.bold: true
             font.capitalization: Font.AllUppercase
             font.family: Theme.fontFamily
+            font.letterSpacing: 0.5
             font.pixelSize: Theme.buttonFontPixelSize
             horizontalAlignment: Text.AlignHCenter
             text: root.text
@@ -92,66 +70,9 @@ AbstractButton {
         ColorOverlay {
             anchors.fill: image
             antialiasing: true
-            color: root.normalColor
+            color: root.active ? root.activeColor : root.normalColor
             source: image
-            visible: icon.source != null
+            visible: icon.source != null && icon.source != ""
         }
     }
-    states: [
-        State {
-            name: "pressed"
-            when: root.pressed
-
-            PropertyChanges {
-                color: root.checked ? Theme.accentColor : Theme.darkGray3
-                target: backgroundImage
-            }
-            PropertyChanges {
-                color: root.pressedColor
-                target: label
-            }
-            PropertyChanges {
-                target: labelGlow
-                visible: true
-            }
-        },
-        State {
-            name: "active"
-            when: (root.highlight || root.checked) && !root.pressed
-
-            PropertyChanges {
-                color: Theme.accentColor
-                target: backgroundImage
-            }
-            PropertyChanges {
-                color: root.activeColor
-                target: label
-            }
-            PropertyChanges {
-                target: labelGlow
-                visible: true
-            }
-            PropertyChanges {
-                color: Qt.darker(Theme.accentColor, 3)
-                target: bottomInnerEffect
-            }
-            PropertyChanges {
-                color: Qt.darker(Theme.accentColor, 3)
-                target: topInnerEffect
-            }
-        },
-        State {
-            name: "inactive"
-            when: !root.checked && !root.highlight && !root.pressed
-
-            PropertyChanges {
-                color: root.normalColor
-                target: label
-            }
-            PropertyChanges {
-                target: labelGlow
-                visible: false
-            }
-        }
-    ]
 }

@@ -47,8 +47,14 @@ class KeyDetectionSettings {
                               KEY_CONFIG_KEY, KEY_REANALYZE_WHEN_SETTINGS_CHANGE, false);
 
     // TODO(rryan): Enum
+#ifdef __ANDROID__
+    // DJs on the go mix with the wheel numbers and the key names: "8A (Am)"
+    DEFINE_PREFERENCE_HELPERS(KeyNotation, QString,
+                              KEY_CONFIG_KEY, KEY_NOTATION, KEY_NOTATION_LANCELOT_AND_TRADITIONAL);
+#else
     DEFINE_PREFERENCE_HELPERS(KeyNotation, QString,
                               KEY_CONFIG_KEY, KEY_NOTATION, KEY_NOTATION_TRADITIONAL);
+#endif
 
     DEFINE_PREFERENCE_HELPERS(StemStrategy,
             StemStrategy,
