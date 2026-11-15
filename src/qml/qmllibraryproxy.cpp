@@ -2,6 +2,10 @@
 
 #include <QAbstractItemModel>
 #include <QQmlEngine>
+#ifdef __ANDROID__
+#include <QCoreApplication>
+#include <QJniObject>
+#endif
 
 #include "library/library.h"
 #include "library/librarytablemodel.h"
@@ -30,6 +34,22 @@ void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
         return;
     }
     emit s_pLibrary->analyzeTracks({track->internal()->getId()});
+}
+
+bool QmlLibraryProxy::importUsbDrives() const {
+#ifdef __ANDROID__
+    // Same folder as the one searched by RekordboxFeature
+    const QString destRoot = QStringLiteral("/storage/emulated/0/RekordboxUSB");
+    QJniObject context = QNativeInterface::QAndroidApplication::context();
+    QJniObject::callStaticMethod<void>("org/mixxx/UsbImporter",
+            "start",
+            "(Landroid/content/Context;Ljava/lang/String;)V",
+            context.object<jobject>(),
+            QJniObject::fromString(destRoot).object<jstring>());
+    return true;
+#else
+    return false;
+#endif
 }
 
 // static
