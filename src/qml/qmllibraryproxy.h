@@ -37,6 +37,9 @@ class QmlLibraryProxy : public QObject {
     /// Android: copy the Rekordbox export of the connected USB drives to the
     /// internal storage (no root needed). Returns false where unsupported.
     Q_INVOKABLE bool importUsbDrives() const;
+    /// Queues the analysis (BPM, key, beat grid...) of the library tracks
+    /// that have no BPM yet. Returns the number of queued tracks.
+    Q_INVOKABLE int analyzeTracksWithoutBpm() const;
 
   private:
     static inline std::shared_ptr<Library> s_pLibrary;

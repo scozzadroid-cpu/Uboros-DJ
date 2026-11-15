@@ -248,10 +248,10 @@ Rectangle {
                                     id: lineIcon
                                     anchors.left: parent.left
                                     anchors.verticalCenter: parent.verticalCenter
-                                    model: !!icon ? 1 : 0
+                                    // The model gives the feature icon name (e.g. "rekordbox")
+                                    model: depth == 0 && !!icon ? 1 : 0
                                     Image {
-                                        visible: depth == 0 && icon
-                                        source: icon
+                                        source: "../../images/library/ic_library_" + icon + ".svg"
                                         height: 25
                                         width: 25
                                     }
