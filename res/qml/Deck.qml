@@ -48,6 +48,29 @@ Item {
         rightColumnWidth: rateSlider.width
     }
 
+    // Minimized (e.g. on a phone): a thin overview of the whole track under
+    // the info bar, with the play position, the cues and the loops, like on
+    // a CDJ. The full deck has its own overview below.
+    Rectangle {
+        id: miniOverview
+
+        visible: root.minimized
+        anchors.top: infoBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: 5
+        anchors.rightMargin: 5
+        anchors.topMargin: 3
+        height: 28
+        radius: 4
+        color: Theme.deckBackgroundColor
+
+        Skin.WaveformOverview {
+            anchors.fill: parent
+            group: root.group
+        }
+    }
+
     Skin.ControlSlider {
         id: rateSlider
 
