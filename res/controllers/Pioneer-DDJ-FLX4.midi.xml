@@ -322,7 +322,7 @@
                 <status>0xB0</status>
                 <midino>0x20</midino>
                 <options>
-                    <script-binding/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
@@ -332,7 +332,7 @@
                 <status>0xB0</status>
                 <midino>0x00</midino>
                 <options>
-                    <script-binding/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
@@ -342,7 +342,7 @@
                 <status>0xB1</status>
                 <midino>0x20</midino>
                 <options>
-                    <script-binding/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
@@ -352,7 +352,7 @@
                 <status>0xB1</status>
                 <midino>0x00</midino>
                 <options>
-                    <script-binding/>
+                    <Script-Binding/>
                 </options>
             </control>
 
@@ -631,6 +631,16 @@
             <!-- DECK Section END -->
 
             <!-- MIXER Section START -->
+            <control>
+                <description>SMART FADER - press - crossfader on/off (off: moving it does nothing)</description>
+                <group>[Master]</group>
+                <key>PioneerDDJFLX4.smartFaderPress</key>
+                <status>0x96</status>
+                <midino>0x01</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
             <control>
                 <description>CROSSFADER - slider</description>
                 <group>[Master]</group>

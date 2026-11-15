@@ -42,13 +42,20 @@
 //        * Pad FX1
 //        * Pad FX2
 //
+//      * SMART FADER: crossfader on/off (LED on = crossfader active). Off: decks 1
+//        and 2 are not affected by the crossfader, so moving it by mistake does
+//        nothing; on: the previous crossfader assignment is restored.
+//
 //  Not implemented yet (but might be in the future):
 //      * Smart CFX
-//      * Smart fader
 
 var PioneerDDJFLX4 = {};
 
 PioneerDDJFLX4.lights = {
+    smartFader: {
+        status: 0x96,
+        data1: 0x01,
+    },
     beatFx: {
         status: 0x94,
         data1: 0x47,
@@ -251,6 +258,8 @@ PioneerDDJFLX4.toggleLight = function(midiIn, active) {
 //
 
 PioneerDDJFLX4.init = function() {
+    PioneerDDJFLX4.crossfaderActive = true;
+    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, true);
     engine.setValue("[EffectRack1_EffectUnit1]", "show_focus", 1);
 
     engine.makeConnection("[Channel1]", "vu_meter", PioneerDDJFLX4.vuMeterUpdate);
@@ -1105,10 +1114,43 @@ PioneerDDJFLX4.pitchPadShiftPressed = function(_channel, control, value, _status
 
 
 //
+// SMART FADER: crossfader on/off
+//
+
+// [ChannelN],orientation: 0 = left, 1 = center (not affected), 2 = right
+PioneerDDJFLX4.crossfaderActive = true;
+PioneerDDJFLX4.savedOrientation = {"[Channel1]": 0, "[Channel2]": 2};
+
+PioneerDDJFLX4.setCrossfaderActive = function(active) {
+    ["[Channel1]", "[Channel2]"].forEach(function(group) {
+        if (active) {
+            engine.setValue(group, "orientation", PioneerDDJFLX4.savedOrientation[group]);
+        } else {
+            PioneerDDJFLX4.savedOrientation[group] = engine.getValue(group, "orientation");
+            engine.setValue(group, "orientation", 1);
+        }
+    });
+    PioneerDDJFLX4.crossfaderActive = active;
+    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, active);
+};
+
+PioneerDDJFLX4.smartFaderPress = function(_channel, _control, value) {
+    if (value === 0) {
+        return; // release
+    }
+    PioneerDDJFLX4.setCrossfaderActive(!PioneerDDJFLX4.crossfaderActive);
+};
+
+//
 // Shutdown
 //
 
 PioneerDDJFLX4.shutdown = function() {
+    // leave the crossfader working for whoever uses Mixxx next
+    if (!PioneerDDJFLX4.crossfaderActive) {
+        PioneerDDJFLX4.setCrossfaderActive(true);
+    }
+    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, false);
     // reset vumeter
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.deck1.vuMeter, false);
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.deck2.vuMeter, false);
