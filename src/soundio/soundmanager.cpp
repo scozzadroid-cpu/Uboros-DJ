@@ -5,6 +5,7 @@
 #include <QLibrary>
 #include <QThread>
 #include <QtGlobal>
+#include <algorithm>
 #include <cstring> // for memcpy and strcmp
 
 #include "control/controlobject.h"
@@ -340,7 +341,25 @@ void SoundManager::queryDevicesPortaudio() {
                 return false;
             };
 
-            auto const parse = [isSupported](PaOboe_Direction direction,
+            // Native output sample rate: used for devices that accept any
+            // rate (empty list) to keep AAudio's low latency path (no
+            // resampling).
+            QJniObject PROPERTY_OUTPUT_SAMPLE_RATE =
+                    QJniObject::getStaticField<jstring>(
+                            "android/media/AudioManager",
+                            "PROPERTY_OUTPUT_SAMPLE_RATE");
+            int nativeSampleRate =
+                    audioManager
+                            .callMethod<jstring>("getProperty",
+                                    "(Ljava/lang/String;)Ljava/lang/String;",
+                                    PROPERTY_OUTPUT_SAMPLE_RATE)
+                            .toString()
+                            .toInt();
+            if (nativeSampleRate <= 0) {
+                nativeSampleRate = 48000;
+            }
+
+            auto const parse = [isSupported, nativeSampleRate](PaOboe_Direction direction,
                                        QJniArray<QJniObject>& devices) {
                 for (const auto& device : devices) {
                     jint type = device->callMethod<jint>("getType");
@@ -351,21 +370,34 @@ void SoundManager::queryDevicesPortaudio() {
                                                  "()Ljava/lang/CharSequence;")
                                            .toString();
                     auto channelCounts = device->callMethod<QJniArray<jint>>("getChannelCounts");
-                    int channelCount = *std::max_element(
-                            channelCounts.begin(), channelCounts.end());
+                    // An empty list means "any channel count" (no
+                    // max_element on an empty range: undefined behavior)
+                    int channelCount = channelCounts.isEmpty()
+                            ? 2
+                            : *std::max_element(channelCounts.begin(), channelCounts.end());
                     auto sampleRates = device->callMethod<QJniArray<jint>>("getSampleRates");
+                    // An empty list means "any rate": use the native one.
+                    // Otherwise prefer 48 kHz, then 44.1 kHz, as the first
+                    // entry of the list may be any rate (e.g. 8 kHz).
+                    int sampleRate = nativeSampleRate;
+                    if (!sampleRates.isEmpty()) {
+                        sampleRate = *sampleRates.cbegin();
+                        for (const int preferred : {nativeSampleRate, 48000, 44100}) {
+                            if (std::find(sampleRates.begin(), sampleRates.end(), preferred) !=
+                                    sampleRates.end()) {
+                                sampleRate = preferred;
+                                break;
+                            }
+                        }
+                    }
                     qDebug() << "audioManager - Type:" << type
                              << "- Name:" << name
                              << "- ChannelCount:" << channelCount
-                             << channelCounts.size();
-                    if (!sampleRates.isEmpty()) {
-                        int sampleRate = *sampleRates.cbegin();
-                        qDebug() << "audioManager - SampleRates:" << sampleRate;
-                        PaOboe_RegisterDevice(name.toStdString().c_str(),
-                                direction,
-                                channelCount,
-                                sampleRate);
-                    }
+                             << "- SampleRate:" << sampleRate;
+                    PaOboe_RegisterDevice(name.toStdString().c_str(),
+                            direction,
+                            channelCount,
+                            sampleRate);
                 }
             };
 
