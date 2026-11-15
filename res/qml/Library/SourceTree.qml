@@ -32,7 +32,7 @@ Mixxx.LibrarySourceTree {
         }
     }
 
-    readonly property var decks: [
+    readonly property list<QtObject> decks: [
         DeckState { group: "[Channel1]" },
         DeckState { group: "[Channel2]" },
         DeckState { group: "[Channel3]" },
