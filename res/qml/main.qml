@@ -13,6 +13,20 @@ ApplicationWindow {
     property alias show4decks: show4DecksButton.checked
     property alias showEffects: showEffectsButton.checked
     property alias showSamplers: showSamplersButton.checked
+    property alias showMixer: showMixerButton.checked
+    // Phones / small tablets: the desktop layout needs ~1000 px of height.
+    readonly property bool compact: height < 700
+    readonly property bool isAndroid: Qt.platform.os === "android"
+    // In compact mode the decks are shown minimized (info bar only) unless
+    // the on-screen mixer is requested; a hardware controller does the rest.
+    readonly property bool decksMinimized: maximizeLibrary || (compact && !showMixer)
+    readonly property int waveformCount: show4decks ? 4 : 2
+    readonly property real waveformHeight: {
+        if (!compact)
+            return 120;
+        // Share ~40% of the window between the visible waveforms.
+        return Math.max(40, Math.min(120, Math.floor(height * 0.4 / waveformCount)));
+    }
 
     color: Theme.backgroundColor
     height: 1080
@@ -33,7 +47,7 @@ ApplicationWindow {
         Rectangle {
             id: toolbar
             color: Theme.toolbarBackgroundColor
-            height: 36
+            height: root.compact ? 40 : 36
             radius: 1
             width: parent.width
 
@@ -64,6 +78,13 @@ ApplicationWindow {
                     checkable: true
                     text: "Sampler"
                 }
+                Skin.Button {
+                    id: showMixerButton
+                    activeColor: Theme.white
+                    checkable: true
+                    text: "Mixer"
+                    visible: root.compact
+                }
                 Item {
                     Layout.fillWidth: true
                 }
@@ -73,6 +94,7 @@ ApplicationWindow {
                     checkable: true
                     checked: devToolsWindow.visible
                     text: "Develop"
+                    visible: !root.isAndroid
 
                     onClicked: {
                         if (devToolsWindow.visible)
@@ -110,7 +132,7 @@ ApplicationWindow {
         Skin.WaveformDisplay {
             id: deck3waveform
             group: "[Channel3]"
-            height: 120
+            height: root.waveformHeight
             visible: root.show4decks && !root.maximizeLibrary
             width: root.width
 
@@ -121,7 +143,7 @@ ApplicationWindow {
         Skin.WaveformDisplay {
             id: deck1waveform
             group: "[Channel1]"
-            height: 120
+            height: root.waveformHeight
             visible: !root.maximizeLibrary
             width: root.width
 
@@ -132,7 +154,7 @@ ApplicationWindow {
         Skin.WaveformDisplay {
             id: deck2waveform
             group: "[Channel2]"
-            height: 120
+            height: root.waveformHeight
             visible: !root.maximizeLibrary
             width: root.width
 
@@ -143,7 +165,7 @@ ApplicationWindow {
         Skin.WaveformDisplay {
             id: deck4waveform
             group: "[Channel4]"
-            height: 120
+            height: root.waveformHeight
             visible: root.show4decks && !root.maximizeLibrary
             width: root.width
 
@@ -154,14 +176,14 @@ ApplicationWindow {
         Skin.DeckRow {
             id: decks12
             leftDeckGroup: "[Channel1]"
-            minimized: root.maximizeLibrary
+            minimized: root.decksMinimized
             rightDeckGroup: "[Channel2]"
             width: parent.width
         }
         Skin.CrossfaderRow {
             id: crossfader
             crossfaderWidth: decks12.mixer.width
-            visible: !root.maximizeLibrary
+            visible: !root.decksMinimized
             width: parent.width
 
             Skin.FadeBehavior on visible  {
@@ -171,7 +193,7 @@ ApplicationWindow {
         Skin.DeckRow {
             id: decks34
             leftDeckGroup: "[Channel3]"
-            minimized: root.maximizeLibrary
+            minimized: root.decksMinimized
             rightDeckGroup: "[Channel4]"
             visible: root.show4decks
             width: parent.width
@@ -199,15 +221,17 @@ ApplicationWindow {
             }
         }
         Skin.Library {
-            height: parent.height - y
+            compact: root.compact
+            height: Math.max(0, parent.height - y)
+            visible: height > 48
             width: parent.width
         }
     }
     Skin.Settings {
         id: settingsPopup
-        height: Math.max(840, parent.height * 0.7)
+        height: root.compact ? parent.height - 8 : Math.max(840, parent.height * 0.7)
         modal: true
-        width: Math.max(1400, parent.width * 0.8)
+        width: root.compact ? parent.width - 16 : Math.max(1400, parent.width * 0.8)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
 
