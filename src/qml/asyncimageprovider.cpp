@@ -1,6 +1,8 @@
 #include "qml/asyncimageprovider.h"
 
 #include "library/coverartcache.h"
+#include "library/coverartutils.h"
+#include "util/fileaccess.h"
 #include "moc_asyncimageprovider.cpp"
 #include "track/track.h"
 
@@ -51,7 +53,14 @@ void AsyncImageResponse::run() {
         pTrack = m_pTrackCollectionManager->getTrackByRef(trackRef);
     }
     if (!pTrack) {
-        qWarning() << "ImageProvider: Failed to load track" << trackRef;
+        // Not in the library, e.g. a track of a Rekordbox drive or of a
+        // folder that has not been loaded yet: read the cover embedded in
+        // the file without importing the track.
+        QImage image = CoverArtUtils::extractEmbeddedCover(
+                mixxx::FileAccess(mixxx::FileInfo(trackLocation)));
+        if (!image.isNull()) {
+            m_image = m_requestedSize.isValid() ? image.scaled(m_requestedSize) : image;
+        }
         emit finished();
         return;
     }
