@@ -96,6 +96,19 @@ QmlApplication::QmlApplication(
     QmlDlgPreferencesProxy::s_pInstance =
             std::make_unique<QmlDlgPreferencesProxy>(pDlgPreferences, this);
 
+    // The QML skin always shows 4 decks and 8 samplers. Create them before
+    // the QML is loaded: components look up their player only once, so a
+    // deck created later would stay empty ("-100.00", null player errors).
+    {
+        auto pPlayerManager = m_pCoreServices->getPlayerManager();
+        while (PlayerManager::numDecks() < 4) {
+            pPlayerManager->addDeck();
+        }
+        while (PlayerManager::numSamplers() < 8) {
+            pPlayerManager->addSampler();
+        }
+    }
+
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();
     for (const QString& group : visualGroups) {

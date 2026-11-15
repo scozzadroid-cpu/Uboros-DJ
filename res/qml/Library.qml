@@ -16,6 +16,16 @@ Item {
     property var sidebar: librarySources.sidebar()
     property bool compact: false
 
+    // TEMP diagnostics
+    function dumpGeometry() {
+        const items = [["split", librarySplitView], ["sidebarSplit", sideBarSplitView], ["browser", browser], ["tracklist", trackList]];
+        for (const [name, item] of items) {
+            const p = item.mapToItem(null, 0, 0);
+            console.log(`DIAG ${name} x=${p.x} y=${p.y} w=${item.width} h=${item.height} visible=${item.visible} opacity=${item.opacity}`);
+        }
+        console.log(`DIAG sidebar=${root.sidebar} tracklistModel=${root.sidebar ? root.sidebar.tracklist : "n/a"}`);
+    }
+
     LibraryComponent.SourceTree {
         id: librarySources
     }
@@ -91,6 +101,7 @@ Item {
                 }
             }
             LibraryComponent.Browser {
+                id: browser
                 SplitView.minimumHeight: root.compact ? 80 : 200
                 SplitView.preferredHeight: 500
                 SplitView.fillHeight: true
@@ -106,6 +117,7 @@ Item {
             }
         }
         LibraryComponent.TrackList {
+            id: trackList
             SplitView.fillHeight: true
 
             // FIXME: this is necessary to prevent the header label to render outside of the table when horizontally scrolling: https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-3311914346

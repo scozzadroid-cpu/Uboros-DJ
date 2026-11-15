@@ -24,6 +24,9 @@ ApplicationWindow {
     readonly property real waveformHeight: {
         if (!compact)
             return 120;
+        // The on-screen mixer needs the whole height on a phone
+        if (showMixer)
+            return 0;
         // Share ~40% of the window between the visible waveforms.
         return Math.max(40, Math.min(120, Math.floor(height * 0.4 / waveformCount)));
     }
@@ -65,6 +68,9 @@ ApplicationWindow {
                     activeColor: Theme.white
                     checkable: true
                     text: "Library"
+
+                    // In compact mode Library and Mixer share the same space
+                    onCheckedChanged: if (checked && root.compact) root.showMixer = false
                 }
                 Skin.Button {
                     id: showEffectsButton
@@ -84,6 +90,8 @@ ApplicationWindow {
                     checkable: true
                     text: "Mixer"
                     visible: root.compact
+
+                    onCheckedChanged: if (checked) root.maximizeLibrary = false
                 }
                 Item {
                     Layout.fillWidth: true
@@ -133,7 +141,7 @@ ApplicationWindow {
             id: deck3waveform
             group: "[Channel3]"
             height: root.waveformHeight
-            visible: root.show4decks && !root.maximizeLibrary
+            visible: root.show4decks && !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
             FadeBehavior on visible  {
@@ -144,7 +152,7 @@ ApplicationWindow {
             id: deck1waveform
             group: "[Channel1]"
             height: root.waveformHeight
-            visible: !root.maximizeLibrary
+            visible: !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
             FadeBehavior on visible  {
@@ -155,7 +163,7 @@ ApplicationWindow {
             id: deck2waveform
             group: "[Channel2]"
             height: root.waveformHeight
-            visible: !root.maximizeLibrary
+            visible: !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
             FadeBehavior on visible  {
@@ -166,7 +174,7 @@ ApplicationWindow {
             id: deck4waveform
             group: "[Channel4]"
             height: root.waveformHeight
-            visible: root.show4decks && !root.maximizeLibrary
+            visible: root.show4decks && !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
             FadeBehavior on visible  {
@@ -193,7 +201,7 @@ ApplicationWindow {
         Skin.DeckRow {
             id: decks34
             leftDeckGroup: "[Channel3]"
-            minimized: root.decksMinimized
+            minimized: root.decksMinimized || root.compact
             rightDeckGroup: "[Channel4]"
             visible: root.show4decks
             width: parent.width
@@ -221,7 +229,27 @@ ApplicationWindow {
             }
         }
         Skin.Library {
+            id: library
+
             compact: root.compact
+
+            // TEMP diagnostics: the library is invisible on Android
+            Timer {
+                interval: 4000
+                repeat: true
+                running: true
+                triggeredOnStart: true
+
+                onTriggered: {
+                    const p = library.mapToItem(null, 0, 0);
+                    console.log(`DIAG library x=${p.x} y=${p.y} w=${library.width} h=${library.height} visible=${library.visible} opacity=${library.opacity} z=${library.z} contentH=${content.height} winH=${root.height}`);
+                    for (let i = 0; i < content.children.length; i++) {
+                        const c = content.children[i];
+                        console.log(`DIAG content[${i}] ${c} y=${c.y} h=${c.height} visible=${c.visible} opacity=${c.opacity}`);
+                    }
+                    library.dumpGeometry();
+                }
+            }
             height: Math.max(0, parent.height - y)
             // Don't bind visibility to the height: an invisible item is not
             // re-positioned by the Column, so it would never become visible again.
