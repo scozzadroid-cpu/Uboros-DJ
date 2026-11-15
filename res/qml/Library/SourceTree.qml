@@ -151,13 +151,15 @@ Mixxx.LibrarySourceTree {
         Mixxx.TrackListColumn {
             label: qsTr("Album")
             fillSpan: 1
+            // Hidden on phones (0 width): title, artist, BPM and key matter most
+            preferredWidth: Qt.platform.os === "android" ? 0 : -1
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
             delegate: DefaultDelegate { }
         },
         Mixxx.TrackListColumn {
             label: qsTr("Year")
-            preferredWidth: 80
+            preferredWidth: Qt.platform.os === "android" ? 0 : 80
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Year
             delegate: DefaultDelegate { }
@@ -178,14 +180,14 @@ Mixxx.LibrarySourceTree {
         },
         Mixxx.TrackListColumn {
             label: qsTr("File Type")
-            preferredWidth: 70
+            preferredWidth: Qt.platform.os === "android" ? 0 : 70
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.FileType
             delegate: DefaultDelegate { }
         },
         Mixxx.TrackListColumn {
             label: qsTr("Bitrate")
-            preferredWidth: 70
+            preferredWidth: Qt.platform.os === "android" ? 0 : 70
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Bitrate
             delegate: DefaultDelegate { }
