@@ -3,7 +3,7 @@ import Mixxx 1.0 as Mixxx
 import QtQml.Models // DelegateChoice for Qt >= 6.9
 import Qt.labs.qmlmodels // DelegateChooser
 import QtQuick 2.12
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 import QtQuick.Layouts 1.12
 import QtQuick.Window 2.12
 import "Theme"

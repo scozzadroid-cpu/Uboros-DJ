@@ -3,7 +3,7 @@ This module is used to define the top section o the screen.
 Currently this section is dedicated to display title and artist of the track loaded on the deck.
 */
 import QtQuick 2.14
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls

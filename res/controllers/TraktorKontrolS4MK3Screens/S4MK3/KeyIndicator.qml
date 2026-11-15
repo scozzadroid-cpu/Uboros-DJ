@@ -3,7 +3,7 @@ This module is used to define the top left section, right under the label.
 Currently this section is dedicated to key/pitch information.
 */
 import QtQuick 2.14
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 
 import Mixxx 1.0 as Mixxx
 import Mixxx.Controls 1.0 as MixxxControls

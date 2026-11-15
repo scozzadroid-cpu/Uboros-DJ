@@ -1,7 +1,7 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick 2.12
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import "Theme"

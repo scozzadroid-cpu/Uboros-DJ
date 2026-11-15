@@ -1,6 +1,6 @@
 import Mixxx 1.0 as Mixxx
 import QtQuick
-import QtQuick.Controls 2.15
+import QtQuick.Controls.Basic
 import "../Theme"
 
 MouseArea {
