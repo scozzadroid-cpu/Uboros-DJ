@@ -429,7 +429,7 @@ void SoundManager::queryDevicesPortaudio() {
             qDebug() << "audioManager outputFramePerBuffer:" << outputFramePerBuffer;
             PaOboe_SetNativeBufferSize(outputFramePerBuffer);
         }).waitForFinished();
-        PaOboe_SetNumberOfBuffers(1);
+        PaOboe_SetNumberOfBuffers(2);
 
 #endif
         err = Pa_Initialize();
