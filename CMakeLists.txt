@@ -2430,6 +2430,10 @@ if(QT6)
       COMMAND
         ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res
         ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets
+      COMMAND
+        ${CMAKE_COMMAND}
+        -DASSETS_DIR=${CMAKE_CURRENT_BINARY_DIR}/android-build/assets -P
+        ${CMAKE_SOURCE_DIR}/cmake/modules/AndroidPruneAssets.cmake
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     add_dependencies(mixxx copy-resource-android)
