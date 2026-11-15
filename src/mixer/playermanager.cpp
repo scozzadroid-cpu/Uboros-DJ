@@ -1,6 +1,7 @@
 #include "mixer/playermanager.h"
 
 #include <QRegularExpression>
+#include <QThread>
 
 #include "audio/types.h"
 #include "control/controlobject.h"
@@ -306,6 +307,16 @@ unsigned int PlayerManager::numPreviewDecks() {
 }
 
 void PlayerManager::slotChangeNumDecks(double v) {
+    if (QThread::currentThread() != thread()) {
+        // Requested from another thread, e.g. a controller script setting
+        // [App],num_decks. Players are QObjects parented to this
+        // object, so they must be created in the main thread.
+        QMetaObject::invokeMethod(
+                this,
+                [this, v]() { slotChangeNumDecks(v); },
+                Qt::QueuedConnection);
+        return;
+    }
     const auto locker = lockMutex(&m_mutex);
     int num = (int)v;
 
@@ -336,6 +347,16 @@ void PlayerManager::slotChangeNumDecks(double v) {
 }
 
 void PlayerManager::slotChangeNumSamplers(double v) {
+    if (QThread::currentThread() != thread()) {
+        // Requested from another thread, e.g. a controller script setting
+        // [App],num_samplers. Players are QObjects parented to this
+        // object, so they must be created in the main thread.
+        QMetaObject::invokeMethod(
+                this,
+                [this, v]() { slotChangeNumSamplers(v); },
+                Qt::QueuedConnection);
+        return;
+    }
     const auto locker = lockMutex(&m_mutex);
     int num = (int)v;
     if (num < m_samplers.size()) {
