@@ -188,8 +188,11 @@ int AndroidMidiController::open(const QString& resourcePath) {
     }
 
     startEngine();
-    applyMapping(resourcePath);
+    // The ports are open at this point. Mark the device open before applying
+    // the mapping, otherwise the initial LED states sent by the mapping's
+    // output handlers and init() are dropped ("not open for output").
     setOpen(true);
+    applyMapping(resourcePath);
     return 0;
 }
 
