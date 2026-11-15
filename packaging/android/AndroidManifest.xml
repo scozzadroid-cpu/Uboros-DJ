@@ -52,7 +52,7 @@
 
           <meta-data
                 android:name="android.app.arguments"
-                android:value="--qml --log-level info" />
+                android:value="--qml --log-level info --log-flush-level warning" />
         </activity>
 
         <provider
