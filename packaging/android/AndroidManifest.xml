@@ -52,7 +52,7 @@
 
           <meta-data
                 android:name="android.app.arguments"
-                android:value="--qml --log-level debug --developer" />
+                android:value="--qml --log-level info" />
         </activity>
 
         <provider
