@@ -70,9 +70,17 @@ Item {
     }
 
     // In the QML UI the focus between the sidebar (sources) and the track list
-    // is handled here: the legacy LibraryControl only handles widgets.
+    // is handled here and in Browser.qml: the legacy LibraryControl only
+    // handles widgets. A press in the track list moves the cursor to the
+    // sources; a press there opens the source (Browser.qml decides whether
+    // the focus comes back). The focus is read now and changed afterwards,
+    // so the same press is not handled twice.
     function toggleFocus() {
-        root.focusWidget = root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar ? Skin.FocusedWidgetControl.WidgetKind.LibraryView : Skin.FocusedWidgetControl.WidgetKind.Sidebar;
+        if (root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+            return;
+        Qt.callLater(() => {
+            root.focusWidget = Skin.FocusedWidgetControl.WidgetKind.Sidebar;
+        });
     }
 
     Mixxx.ControlProxy {

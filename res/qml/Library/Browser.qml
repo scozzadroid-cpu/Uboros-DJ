@@ -22,16 +22,19 @@ Rectangle {
         root.model.activate(root.model.index(0, 0))
     }
 
-    // Controller navigation (e.g. the BROWSE encoder of a DJ controller):
-    // when [Library],focused_widget is the sidebar, the library move controls
-    // move the selection here. The source under the cursor is shown shortly
-    // after the cursor stops, and when the focus goes back to the track list.
+    // Controller navigation (e.g. the BROWSE encoder of a DJ controller),
+    // like a CDJ: when [Library],focused_widget is the sidebar, turning only
+    // moves the cursor (nothing is opened on the way). Pressing opens the
+    // source under the cursor: a closed source with children (Rekordbox, a USB
+    // drive, a folder) is shown and expanded and the cursor stays here; a
+    // source without children, or one already open, is shown and the focus
+    // goes to the track list. Pressing in the track list comes back here
+    // (Control.qml).
     Skin.FocusedWidgetControl {
         id: focusedWidget
     }
 
     readonly property bool controllerFocus: focusedWidget.value == Skin.FocusedWidgetControl.WidgetKind.Sidebar
-    property bool activationPending: false
 
     function currentViewRow() {
         const current = featureSelection.currentIndex;
@@ -47,38 +50,84 @@ Rectangle {
         const index = featureView.index(row, 0);
         featureSelection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
         featureView.positionViewAtRow(row, TableView.Contain);
-        root.activationPending = true;
-        activationTimer.restart();
     }
 
-    function activateSelection() {
-        activationTimer.stop();
-        if (!root.activationPending)
-            return;
-        root.activationPending = false;
+    function openSelection() {
         const row = root.currentViewRow();
         if (row < 0)
             return;
-        root.model.activate(featureView.index(row, 0));
-        // Show the children (sub-folders, playlists, USB drives...)
-        if (!featureView.isExpanded(row))
-            featureView.expand(row);
+        const index = featureView.index(row, 0);
+        // Read before activating: activating may list the children lazily
+        const wasExpanded = featureView.isExpanded(row);
+        root.model.activate(index);
+        if (wasExpanded) {
+            focusedWidget.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
+            return;
+        }
+        // Some sources (Rekordbox, USB drives, folders) only know their
+        // children once activated: decide after they had time to appear.
+        root.openedRow = row;
+        openedCheck.restart();
     }
 
+    property int openedRow: -1
+
     Timer {
-        id: activationTimer
-        interval: 500
-        onTriggered: root.activateSelection()
+        id: openedCheck
+        interval: 250
+        onTriggered: {
+            const row = root.openedRow;
+            root.openedRow = -1;
+            if (row < 0 || row !== root.currentViewRow())
+                return;
+            if (root.model.hasChildren(featureView.index(row, 0))) {
+                if (!featureView.isExpanded(row))
+                    featureView.expand(row);
+            } else {
+                focusedWidget.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
+            }
+        }
     }
 
     onControllerFocusChanged: {
-        if (root.controllerFocus) {
-            // Start from the source whose tracks are shown
-            if (root.currentViewRow() < 0) {
-                featureSelection.setCurrentIndex(featureView.index(0, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
-            }
-        } else {
-            root.activateSelection();
+        // Start from the source whose tracks are shown
+        if (root.controllerFocus && root.currentViewRow() < 0) {
+            featureSelection.setCurrentIndex(featureView.index(0, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+        }
+    }
+
+    // The same press also reaches Control.qml (track list -> sidebar): both
+    // read the focus as it was before the press and change it afterwards, so
+    // one press never does both.
+    function onPress() {
+        if (root.controllerFocus)
+            Qt.callLater(root.openSelection);
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocusForward"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.onPress();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocusBackward"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.onPress();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocus"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.onPress();
         }
     }
 
@@ -113,10 +162,8 @@ Rectangle {
         group: "[Library]"
         key: "GoToItem"
         onValueChanged: (value) => {
-            if (value != 0 && root.controllerFocus) {
-                root.activationPending = true;
-                root.activateSelection();
-            }
+            if (value != 0 && root.controllerFocus)
+                Qt.callLater(root.openSelection);
         }
     }
 
@@ -162,7 +209,12 @@ Rectangle {
                     Connections {
                         target: root.model
                         function onRowsInserted(parent, first, last) {
-                            if (!parent.valid || parent.parent.valid)
+                            // Top-level sources, and the source just opened
+                            // with the controller (e.g. a USB drive's playlists)
+                            if (!parent.valid)
+                                return;
+                            const isOpened = root.currentViewRow() >= 0 && featureView.rowAtIndex(parent) === root.currentViewRow();
+                            if (parent.parent.valid && !isOpened)
                                 return;
                             Qt.callLater(() => {
                                 const viewRow = featureView.rowAtIndex(parent);
