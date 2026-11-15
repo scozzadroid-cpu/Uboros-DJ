@@ -23,6 +23,11 @@ using namespace allshader;
 
 namespace {
 constexpr int kDefaultSyncInternalMs = 100;
+// Frames without movement before switching to the idle redraw rate (~0.5 s)
+constexpr int kStillFramesBeforeIdle = 30;
+// Idle redraw interval: catches cue/loop/waveform changes of a paused deck
+// and the start of playback (at most this delay before 60 fps again)
+constexpr int kIdleRedrawIntervalMs = 100;
 } // namespace
 
 namespace mixxx {
@@ -42,6 +47,9 @@ QmlWaveformDisplay::QmlWaveformDisplay(QQuickItem* parent)
             Qt::DirectConnection);
     // Restart the redraw cycle when the waveform is shown again
     connect(this, &QQuickItem::visibleChanged, this, [this]() { update(); });
+    m_idleTimer.setSingleShot(true);
+    m_idleTimer.setInterval(kIdleRedrawIntervalMs);
+    connect(&m_idleTimer, &QTimer::timeout, this, [this]() { update(); });
     slotWindowChanged(window());
 }
 
@@ -79,7 +87,12 @@ void QmlWaveformDisplay::slotFrameSwapped() {
     // hidden or empty waveforms every frame keeps the whole window rendering
     // at the display refresh rate (120 Hz on many phones) for nothing.
     if (isVisible() && getTrackInfo()) {
-        update();
+        if (m_stillFrames.load(std::memory_order_relaxed) < kStillFramesBeforeIdle) {
+            update();
+        } else if (!m_idleTimer.isActive()) {
+            // Paused deck: nothing moves, check again a few times per second
+            m_idleTimer.start();
+        }
     }
 }
 
@@ -98,8 +111,18 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
 
     DEBUG_ASSERT(!node || node->childCount() == 1);
 
-    auto* pClipNode = dynamic_cast<QSGClipNode*>(node);
-    auto* pBgNode = pClipNode ? dynamic_cast<QSGSimpleRectNode*>(pClipNode->lastChild()) : nullptr;
+    // No dynamic_cast here: on Android, dynamic_cast to Qt scene graph
+    // classes (defined in libQt6Quick, another shared library) fails, so
+    // the whole renderer tree (marks, textures, ...) was destroyed and
+    // rebuilt on every frame. The node structure is ours: the clip node
+    // has exactly one child, the background rectangle (a geometry node).
+    auto* pClipNode = node && node->type() == QSGNode::ClipNodeType
+            ? static_cast<QSGClipNode*>(node)
+            : nullptr;
+    auto* pBgNode = pClipNode && pClipNode->childCount() == 1 &&
+                    pClipNode->lastChild()->type() == QSGNode::GeometryNodeType
+            ? static_cast<QSGSimpleRectNode*>(pClipNode->lastChild())
+            : nullptr;
 
     if (!pBgNode) {
         if (pClipNode) {
@@ -161,6 +184,18 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
     }
 
     onPreRender(this);
+
+    {
+        const int posVSample = getPlayPosVSample();
+        const double zoom = getZoom();
+        if (posVSample != m_lastPosVSample || zoom != m_lastZoom) {
+            m_lastPosVSample = posVSample;
+            m_lastZoom = zoom;
+            m_stillFrames.store(0, std::memory_order_relaxed);
+        } else {
+            m_stillFrames.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
 
     for (auto* pRenderer : std::as_const(m_rendererStack)) {
         pRenderer->update();
@@ -232,6 +267,7 @@ void QmlWaveformDisplay::slotTrackUnloaded() {
 }
 
 void QmlWaveformDisplay::setCurrentTrack(TrackPointer pTrack) {
+    m_stillFrames.store(0, std::memory_order_relaxed);
     auto pCurrentTrack = getTrackInfo();
     // TODO: Check if this is actually possible
     if (pCurrentTrack == pTrack) {
@@ -253,6 +289,7 @@ void QmlWaveformDisplay::setCurrentTrack(TrackPointer pTrack) {
 }
 
 void QmlWaveformDisplay::slotWaveformUpdated() {
+    m_stillFrames.store(0, std::memory_order_relaxed);
     update();
 }
 

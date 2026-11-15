@@ -449,7 +449,7 @@ class QmlWaveformUntilMark : public QObject {
     }
 
     float textHeightLimit() const {
-        return m_textSize;
+        return m_textHeightLimit;
     }
 
   signals:
@@ -459,11 +459,12 @@ class QmlWaveformUntilMark : public QObject {
     void textSizeChanged(int);
 
   private:
-    bool m_showTime;
-    bool m_showBeats;
-    Qt::Alignment m_align;
-    int m_textSize;
-    int m_textHeightLimit;
+    bool m_showTime{false};
+    bool m_showBeats{false};
+    Qt::Alignment m_align{Qt::AlignVCenter};
+    int m_textSize{11};
+    // Proportion of the waveform height, like the legacy default
+    float m_textHeightLimit{0.333f};
 };
 
 class QmlWaveformRendererMarkRange
