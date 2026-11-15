@@ -30,8 +30,15 @@ const mixxx::Logger kLogger("PlayerManager");
 const QString kAppGroup = QStringLiteral("[App]");
 const QString kLegacyGroup = QStringLiteral("[Master]");
 
+#ifdef __ANDROID__
+// On phones the analysis of a freshly loaded track competes with the audio
+// and GUI threads for the few fast cores, which causes stutter while playing.
+// Analyze one track at a time.
+const int kNumberOfAnalyzerThreads = 1;
+#else
 // Utilize half of the available cores for adhoc analysis of tracks
 const int kNumberOfAnalyzerThreads = math_max(1, QThread::idealThreadCount() / 2);
+#endif
 
 const QRegularExpression kDeckRegex(QStringLiteral("^\\[Channel(\\d+)\\]$"));
 const QRegularExpression kSamplerRegex(QStringLiteral("^\\[Sampler(\\d+)\\]$"));
