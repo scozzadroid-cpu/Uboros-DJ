@@ -38,7 +38,9 @@ ApplicationWindow {
 
     Column {
         id: content
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
 
         move: Transition {
             NumberAnimation {
@@ -228,34 +230,19 @@ ApplicationWindow {
                 fadeTarget: effects
             }
         }
-        Skin.Library {
-            id: library
+    }
+    // The library fills the space below the Column. It must not be a child
+    // of the Column: its height would depend on the y the Column assigns,
+    // and with the animated "move" transition that y got stuck off screen.
+    Skin.Library {
+        id: library
 
-            compact: root.compact
-
-            // TEMP diagnostics: the library is invisible on Android
-            Timer {
-                interval: 4000
-                repeat: true
-                running: true
-                triggeredOnStart: true
-
-                onTriggered: {
-                    const p = library.mapToItem(null, 0, 0);
-                    console.log(`DIAG library x=${p.x} y=${p.y} w=${library.width} h=${library.height} visible=${library.visible} opacity=${library.opacity} z=${library.z} contentH=${content.height} winH=${root.height}`);
-                    for (let i = 0; i < content.children.length; i++) {
-                        const c = content.children[i];
-                        console.log(`DIAG content[${i}] ${c} y=${c.y} h=${c.height} visible=${c.visible} opacity=${c.opacity}`);
-                    }
-                    library.dumpGeometry();
-                }
-            }
-            height: Math.max(0, parent.height - y)
-            // Don't bind visibility to the height: an invisible item is not
-            // re-positioned by the Column, so it would never become visible again.
-            visible: !(root.compact && root.showMixer)
-            width: parent.width
-        }
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: content.bottom
+        compact: root.compact
+        visible: !(root.compact && root.showMixer)
     }
     Skin.Settings {
         id: settingsPopup
