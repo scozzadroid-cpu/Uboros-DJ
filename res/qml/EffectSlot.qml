@@ -53,9 +53,11 @@ Item {
                 if (root.slot.effectId != effectId)
                     root.slot.effectId = effectId;
             }
-            Component.onCompleted: root.slot.onEffectIdChanged()
+            Component.onCompleted: effectIdConnection.onEffectIdChanged()
 
             Connections {
+                id: effectIdConnection
+
                 function onEffectIdChanged() {
                     const rowCount = effectSelector.model.rowCount();
                     // TODO: Consider using an additional QHash in the

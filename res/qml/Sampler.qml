@@ -9,14 +9,14 @@ Rectangle {
     required property string group
     property bool minimized: false
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
-    property var currentTrack: deckPlayer.currentTrack
+    property var currentTrack: deckPlayer ? deckPlayer.currentTrack : null
 
     color: {
-        const trackColor = root.currentTrack.color;
-        if (!trackColor.valid)
+        const trackColor = root.currentTrack ? root.currentTrack.color : undefined;
+        if (!trackColor || !trackColor.valid)
             return Theme.backgroundColor;
 
-        return Qt.darker(root.currentTrack.color, 2);
+        return Qt.darker(trackColor, 2);
     }
     implicitHeight: gainKnob.height + 10
     Drag.active: dragArea.drag.active
@@ -26,7 +26,7 @@ Rectangle {
         let data = {
             "mixxx/player": group
         };
-        const trackLocationUrl = root.currentTrack.trackLocationUrl;
+        const trackLocationUrl = root.currentTrack ? root.currentTrack.trackLocationUrl : "";
         if (trackLocationUrl)
             data["text/uri-list"] = trackLocationUrl;
 
@@ -84,7 +84,7 @@ Rectangle {
     Text {
         id: label
 
-        text: root.currentTrack.title
+        text: root.currentTrack ? root.currentTrack.title : ""
         anchors.top: embedded.top
         anchors.left: playButton.right
         anchors.right: embedded.right
