@@ -109,8 +109,13 @@ bool WaveformWidgetRenderer::init() {
     if (!m_group.isEmpty()) {
         m_pRateRatioCO = std::make_unique<ControlProxy>(
                 m_group, QStringLiteral("rate_ratio"));
+#ifndef __ANDROID__
+        // On Android (QML skin) the waveform keeps its height whatever the
+        // TRIM and ReplayGain are, like on the Pioneer decks: with the gain
+        // applied, loud tracks were clipped and the waveform moved with TRIM.
         m_pGainControlObject = std::make_unique<ControlProxy>(
                 m_group, QStringLiteral("total_gain"));
+#endif
         m_pTrackSamplesControlObject = std::make_unique<ControlProxy>(
                 m_group, QStringLiteral("track_samples"));
 
