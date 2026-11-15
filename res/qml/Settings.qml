@@ -13,7 +13,8 @@ Popup {
     // Android back button closes the settings
     focus: true
     // Popup is not an Item, use the size of the window content it is shown in
-    readonly property bool compact: parent ? parent.height < 700 : false
+    readonly property bool compact: parent ? parent.height < 700 || parent.width < 1000 : false
+    readonly property bool narrow: parent ? parent.width < 600 : false
 
     property int activeCategoryIndex: 0
     // Only the categories that are implemented in QML. The others are still
@@ -39,7 +40,7 @@ Popup {
 
             Rectangle {
                 Layout.fillHeight: true
-                Layout.preferredWidth: root.compact ? 190 : 280
+                Layout.preferredWidth: root.narrow ? 120 : root.compact ? 190 : 280
                 border.color: Theme.darkGray3
                 border.width: 6
                 color: Theme.darkGray
