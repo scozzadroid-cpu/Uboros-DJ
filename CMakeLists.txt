@@ -3660,6 +3660,22 @@ if(PORTMIDI)
   )
 endif()
 
+# Android MIDI (NDK AMidi, API 29+)
+default_option(ANDROID_MIDI "Enable the Android AMidi backend for MIDI controllers" "ANDROID")
+if(ANDROID_MIDI)
+  if(NOT ANDROID)
+    message(FATAL_ERROR "The Android AMidi backend requires an Android build")
+  endif()
+  target_compile_definitions(mixxx-lib PUBLIC __ANDROID_MIDI__)
+  target_sources(
+    mixxx-lib
+    PRIVATE
+      src/controllers/midi/androidmidicontroller.cpp
+      src/controllers/midi/androidmidienumerator.cpp
+  )
+  target_link_libraries(mixxx-lib PRIVATE amidi)
+endif()
+
 # Protobuf
 add_subdirectory(src/proto)
 target_link_libraries(mixxx-lib PUBLIC mixxx-proto)

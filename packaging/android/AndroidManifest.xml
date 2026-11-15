@@ -69,4 +69,7 @@
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="true" />
+    <uses-feature
+        android:name="android.software.midi"
+        android:required="false" />
 </manifest>
