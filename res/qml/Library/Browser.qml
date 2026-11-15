@@ -132,10 +132,11 @@ Rectangle {
 
     Rectangle {
         anchors.fill: parent
-        anchors.topMargin: 7
-        anchors.leftMargin: 7
-        anchors.rightMargin: 25
-        anchors.bottomMargin: 40
+        anchors.topMargin: Qt.platform.os === "android" ? 4 : 7
+        anchors.leftMargin: Qt.platform.os === "android" ? 4 : 7
+        anchors.rightMargin: Qt.platform.os === "android" ? 6 : 25
+        anchors.bottomMargin: Qt.platform.os === "android" ? 40 : 7
+        radius: 6
         color: Theme.sunkenBackgroundColor
 
         ColumnLayout {
@@ -249,8 +250,13 @@ Rectangle {
                                         width: 10
                                         opacity: isTreeNode && hasChildren ? 1 : 0
                                         color: Theme.textMutedColor
-                                        font.pixelSize: 10
-                                        text: expanded ? "▼" : "▶"
+                                        // A chevron: the triangles are color emoji on
+                                        // Android or missing from the font
+                                        text: "\u203A"
+                                        font.bold: true
+                                        font.pixelSize: 16
+                                        horizontalAlignment: Text.AlignHCenter
+                                        rotation: expanded ? 90 : 0
                                     }
 
                                     Image {
@@ -349,13 +355,15 @@ Rectangle {
 
     // Android: USB drives that Android does not mount (e.g. FAT32 without a
     // partition table) are imported to the internal storage, without root
-    Button {
+    Skin.Button {
         visible: Qt.platform.os === "android"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 6
-        height: 30
+        anchors.margins: 4
+        height: 32
+        activeColor: Theme.white
+        normalColor: Theme.white
         text: qsTr("Import USB drive")
         onClicked: Mixxx.Library.importUsbDrives()
     }

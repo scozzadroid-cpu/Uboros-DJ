@@ -135,6 +135,26 @@ Rectangle {
         }
     }
 
+    Mixxx.ControlProxy {
+        id: trackLoadedControl
+
+        group: root.group
+        key: "track_loaded"
+    }
+
+    // Empty deck
+    Text {
+        visible: trackLoadedControl.value == 0
+        anchors.left: coverArt.right
+        anchors.leftMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        text: qsTr("Load a track")
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.textFontPixelSize
+        font.italic: true
+        color: Theme.textMutedColor
+    }
+
     Skin.EmbeddedText {
         id: infoBarTitle
 
@@ -153,6 +173,8 @@ Rectangle {
     Rectangle {
         id: infoBarVSeparator
 
+        // Hidden on an empty deck: it would cross the "Load a track" hint
+        opacity: trackLoadedControl.value != 0 ? 1 : 0
         anchors.left: coverArt.right
         anchors.right: root.right
         anchors.verticalCenter: root.verticalCenter
@@ -275,7 +297,24 @@ Rectangle {
         width: root.rightColumnWidth
         anchors.right: root.right
         anchors.rightMargin: 5
-        text: (ratio > 0) ? "+" + ratio.toFixed(2) : ratio.toFixed(2)
+        // Difference from the original BPM of the track and tempo change,
+        // like the CDJ display: "+2.0 (+1.6%)"
+        readonly property real bpmDelta: fileBpmControl.value > 0 ? bpmControl.value - fileBpmControl.value : 0
+        text: {
+            const percent = ((ratio > 0) ? "+" : "") + ratio.toFixed(1) + "%";
+            if (fileBpmControl.value <= 0)
+                return percent;
+            return ((bpmDelta > 0) ? "+" : "") + bpmDelta.toFixed(1) + " (" + percent + ")";
+        }
+        font.pixelSize: 11
+        color: Math.abs(ratio) < 0.05 ? Theme.textMutedColor : (ratio > 0 ? "#ff9a3c" : "#4ec3ff")
+
+        Mixxx.ControlProxy {
+            id: fileBpmControl
+
+            group: root.group
+            key: "file_bpm"
+        }
 
         Mixxx.ControlProxy {
             id: rateRatioControl
