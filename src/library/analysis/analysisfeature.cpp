@@ -8,6 +8,7 @@
 #include "library/analysis/dlganalysis.h"
 #include "library/library.h"
 #include "library/trackcollectionmanager.h"
+#include "mixer/playerinfo.h"
 #include "moc_analysisfeature.cpp"
 #include "sources/soundsourceproxy.h"
 #include "util/dnd.h"
@@ -60,7 +61,29 @@ AnalysisFeature::AnalysisFeature(
           m_pSidebarModel(make_parented<TreeItemModel>(this)),
           m_pAnalysisView(nullptr),
           m_title(m_baseTitle) {
+#ifdef __ANDROID__
+    connect(&PlayerInfo::instance(),
+            &PlayerInfo::currentPlayingDeckChanged,
+            this,
+            &AnalysisFeature::slotPlayingDeckChanged);
+    m_pausedForPlayback = PlayerInfo::instance().getCurrentPlayingDeck() >= 0;
+#endif
 }
+
+#ifdef __ANDROID__
+void AnalysisFeature::slotPlayingDeckChanged(int deck) {
+    const bool playing = deck >= 0;
+    if (playing == m_pausedForPlayback) {
+        return;
+    }
+    m_pausedForPlayback = playing;
+    if (playing) {
+        suspendAnalysis();
+    } else {
+        resumeAnalysis();
+    }
+}
+#endif
 
 void AnalysisFeature::resetTitle() {
     m_title = m_baseTitle;
@@ -179,7 +202,7 @@ void AnalysisFeature::analyzeTracks(const QList<AnalyzerScheduledTrack>& tracks)
         emit analysisActive(true);
     }
 
-    if (m_pTrackAnalysisScheduler->scheduleTracks(tracks) > 0) {
+    if (m_pTrackAnalysisScheduler->scheduleTracks(tracks) > 0 && !m_pausedForPlayback) {
         resumeAnalysis();
     }
 }

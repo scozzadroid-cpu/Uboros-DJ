@@ -94,6 +94,11 @@ class ControllerManager : public QObject {
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadUserMappingEnumerator;
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadSystemMappingEnumerator;
     bool m_skipPoll;
+#ifdef __ANDROID__
+    // Adaptive polling: 1 ms while the controller is in use, slower when it
+    // is idle (1000 wake-ups per second cost ~12% of a core on a phone).
+    mixxx::Duration m_lastPollActivity;
+#endif
     ControllerEnumerator* m_pAndroidMidiEnumerator = nullptr;
     QTimer* m_pHotplugTimer = nullptr;
     int m_midiDeviceGeneration = -1;
