@@ -12,6 +12,13 @@ class AndroidMidiEnumerator : public MidiEnumerator {
 
     QList<Controller*> queryDevices() override;
 
+    /// Counter that changes whenever Android reports an added or removed
+    /// MIDI device. Cheap to call; used for hotplug polling.
+    static int deviceGeneration();
+
   private:
     QList<Controller*> m_devices;
+    /// Controllers of unplugged devices. They are kept alive (closed) until
+    /// shutdown because other components may still hold pointers to them.
+    QList<Controller*> m_removedDevices;
 };

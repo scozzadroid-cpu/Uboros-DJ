@@ -27,6 +27,54 @@ public class MidiHelper {
     private static HandlerThread sHandlerThread = null;
     private static Handler sHandler = null;
 
+    // Incremented whenever a MIDI device is added or removed. Polled by the
+    // native side to rescan controllers (hotplug).
+    private static volatile int sDeviceGeneration = 0;
+    private static boolean sCallbackRegistered = false;
+
+    private static synchronized void ensureDeviceCallback(MidiManager midiManager) {
+        if (sCallbackRegistered || midiManager == null) {
+            return;
+        }
+        MidiManager.DeviceCallback callback = new MidiManager.DeviceCallback() {
+            @Override
+            public void onDeviceAdded(MidiDeviceInfo info) {
+                sDeviceGeneration++;
+                Log.i(TAG, "MIDI device added: " + getName(info));
+            }
+
+            @Override
+            public void onDeviceRemoved(MidiDeviceInfo info) {
+                sDeviceGeneration++;
+                Log.i(TAG, "MIDI device removed: " + getName(info));
+            }
+        };
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                midiManager.registerDeviceCallback(MidiManager.TRANSPORT_MIDI_BYTE_STREAM,
+                        new java.util.concurrent.Executor() {
+                            @Override
+                            public void execute(Runnable r) {
+                                getHandler().post(r);
+                            }
+                        },
+                        callback);
+            } else {
+                midiManager.registerDeviceCallback(callback, getHandler());
+            }
+            sCallbackRegistered = true;
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to register MIDI device callback: " + e.toString());
+        }
+    }
+
+    /// Returns a counter that changes whenever MIDI devices are added or
+    /// removed. Registers the device callback on first use.
+    public static int getDeviceGeneration(Context context) {
+        ensureDeviceCallback(getMidiManager(context));
+        return sDeviceGeneration;
+    }
+
     private static synchronized Handler getHandler() {
         if (sHandler == null) {
             sHandlerThread = new HandlerThread("MixxxMidiHelper");
@@ -54,6 +102,7 @@ public class MidiHelper {
         if (midiManager == null) {
             return new MidiDeviceInfo[0];
         }
+        ensureDeviceCallback(midiManager);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 Set<MidiDeviceInfo> devices =
