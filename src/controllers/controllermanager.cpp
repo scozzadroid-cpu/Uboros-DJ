@@ -340,12 +340,12 @@ void ControllerManager::setUpController(
 void ControllerManager::autoConfigureController(Controller* pController) {
 #ifdef __ANDROID_MIDI__
     const QString deviceName = sanitizeDeviceName(pController->getName());
-    if (m_pConfig->exists(ConfigKey("[Controller]", deviceName)) ||
-            m_pConfig->exists(ConfigKey(kSettingsGroup, deviceName))) {
-        return; // the user already made a choice for this device
+    if (!m_pConfig->getValueString(ConfigKey(kSettingsGroup, deviceName)).isEmpty()) {
+        return; // the user already chose a mapping for this device
     }
     if (pController->getPhysicalTransportProtocol() !=
             PhysicalTransportProtocol::USB) {
+        qDebug() << "Not auto-configuring non-USB controller" << pController->getName();
         return;
     }
     // Last word of the device name, e.g. "DDJ-FLX4" for

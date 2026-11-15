@@ -1,5 +1,7 @@
 #include "coreservices.h"
 
+#include <QGuiApplication>
+
 #include <QApplication>
 #include <QFileDialog>
 #include <QProcess>
@@ -442,6 +444,20 @@ void CoreServices::initializeSettings() {
 #endif
     QString settingsPath = m_cmdlineArgs.getSettingsPath();
     m_pSettingsManager = std::make_unique<SettingsManager>(settingsPath);
+#ifdef __ANDROID__
+    // Android apps are usually killed instead of being shut down, so the
+    // settings would never be written. Save them whenever the app leaves
+    // the foreground.
+    QObject::connect(qApp,
+            &QGuiApplication::applicationStateChanged,
+            qApp,
+            [this](Qt::ApplicationState state) {
+                if (state != Qt::ApplicationActive && m_pSettingsManager) {
+                    qInfo() << "Application state" << state << "- saving settings";
+                    m_pSettingsManager->save();
+                }
+            });
+#endif
 }
 
 void CoreServices::initializeLogging() {
