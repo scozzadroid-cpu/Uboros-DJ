@@ -497,6 +497,16 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
                 m_api = MIXXX_PORTAUDIO_DIRECTSOUND_STRING;
             }
 #endif
+#ifdef __ANDROID__
+            // PortAudio's Oboe host API ("android Oboe")
+            m_api = apiList.first();
+            for (const QString& api : std::as_const(apiList)) {
+                if (api.contains(QLatin1String("Oboe"), Qt::CaseInsensitive)) {
+                    m_api = api;
+                    break;
+                }
+            }
+#endif
 #ifdef Q_OS_IOS
             m_api = MIXXX_PORTAUDIO_IOSAUDIO_STRING;
 #elif defined(Q_OS_MACOS)
@@ -511,6 +521,33 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
         clearInputs();
         const QList<SoundDevicePointer> outputDevices =
                 soundManager->getDeviceList(m_api, true, false);
+#ifdef __ANDROID__
+        // Prefer a 4 channel USB DJ controller: main on channels 1-2,
+        // headphones on channels 3-4.
+        for (const auto& pDevice : outputDevices) {
+            if (pDevice->getNumOutputChannels() >= 4 &&
+                    pDevice->getDisplayName().contains(
+                            QLatin1String("USB"), Qt::CaseInsensitive)) {
+                addOutput(pDevice->getDeviceId(),
+                        AudioOutput(AudioPathType::Main,
+                                0,
+                                mixxx::audio::ChannelCount::stereo(),
+                                0));
+                addOutput(pDevice->getDeviceId(),
+                        AudioOutput(AudioPathType::Headphones,
+                                2,
+                                mixxx::audio::ChannelCount::stereo(),
+                                0));
+                defaultSampleRate = pDevice->getDefaultSampleRate();
+                qInfo() << "Default sound output: 4 channel device"
+                        << pDevice->getDisplayName();
+                break;
+            }
+        }
+        if (!m_outputs.isEmpty()) {
+            // done
+        } else
+#endif
         if (!outputDevices.isEmpty()) {
             for (const auto& pDevice : outputDevices) {
                 if (pDevice->getNumOutputChannels() < 2) {
