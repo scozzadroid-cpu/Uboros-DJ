@@ -3,7 +3,9 @@
 #include <qtextdocument.h>
 
 #include <QQmlEngineExtensionPlugin>
+#include <QQuickItem>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #ifdef __ANDROID__
 #include <QCoreApplication>
 #include <QJniObject>
@@ -11,6 +13,7 @@
 
 #include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
+#include "controllers/keyboard/keyboardeventfilter.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
@@ -197,6 +200,9 @@ QmlApplication::QmlApplication(
 
     m_pCoreServices->getControllerManager()->setUpDevices();
 
+    // Keyboard shortcuts (USB/Bluetooth keyboards, `adb shell input keyevent`).
+    app->installEventFilter(this);
+
     connect(&m_autoReload,
             &QmlAutoReload::triggered,
             this,
@@ -205,7 +211,32 @@ QmlApplication::QmlApplication(
             });
 }
 
+bool QmlApplication::eventFilter(QObject* pObj, QEvent* pEvent) {
+    const QEvent::Type type = pEvent->type();
+    if (m_pCoreServices &&
+            (type == QEvent::KeyPress || type == QEvent::KeyRelease ||
+                    type == QEvent::FocusOut)) {
+        // Only the window itself: the same key event is delivered again to
+        // the focused QQuickItem and must not be counted twice.
+        // qobject_cast, not dynamic_cast: the latter fails across Qt
+        // libraries on Android (see CODICE.md).
+        auto* pWindow = qobject_cast<QQuickWindow*>(pObj);
+        if (pWindow) {
+            const QQuickItem* pFocus = pWindow->activeFocusItem();
+            const bool typingText = pFocus &&
+                    (pFocus->inherits("QQuickTextInput") ||
+                            pFocus->inherits("QQuickTextEdit"));
+            const auto pKeyboard = m_pCoreServices->getKeyboardEventFilter();
+            if (!typingText && pKeyboard && pKeyboard->eventFilter(pObj, pEvent)) {
+                return true;
+            }
+        }
+    }
+    return QObject::eventFilter(pObj, pEvent);
+}
+
 QmlApplication::~QmlApplication() {
+    QCoreApplication::instance()->removeEventFilter(this);
     // Delete all the QML singletons in order to prevent leak detection in CoreService
     QmlDlgPreferencesProxy::s_pInstance.reset();
     m_visualsManager.reset();

@@ -24,6 +24,11 @@ class QmlApplication : public QObject {
   public slots:
     void loadQml(const QString& path);
 
+  protected:
+    // Feeds key events of the QML window to Mixxx's KeyboardEventFilter
+    // (the widget skin installs it on its widgets; QML had no keyboard).
+    bool eventFilter(QObject* pObj, QEvent* pEvent) override;
+
   private:
     std::unique_ptr<CoreServices> m_pCoreServices;
     std::unique_ptr<::VisualsManager> m_visualsManager;
