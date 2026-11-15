@@ -181,7 +181,8 @@ EngineBuffer::EngineBuffer(const QString& group,
     m_pTrackSamples = new ControlObject(ConfigKey(m_group, "track_samples"));
     m_pTrackSampleRate = new ControlObject(ConfigKey(m_group, "track_samplerate"));
 
-    m_pKeylock = new ControlPushButton(ConfigKey(m_group, "keylock"), true);
+    // Keylock ("Master Tempo") is on by default, as requested for the DJ use.
+    m_pKeylock = new ControlPushButton(ConfigKey(m_group, "keylock"), true, 1.0);
     m_pKeylock->setButtonMode(mixxx::control::ButtonMode::Toggle);
 
     m_pReplayGain = new ControlProxy(m_group, QStringLiteral("replaygain"), this);

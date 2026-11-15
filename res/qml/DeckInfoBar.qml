@@ -333,9 +333,27 @@ Rectangle {
         readonly property real bpmDelta: fileBpmControl.value > 0 ? bpmControl.value - fileBpmControl.value : 0
         text: {
             const percent = ((ratio > 0) ? "+" : "") + ratio.toFixed(1) + "%";
+            const range = " \u00b1" + Math.round(rateRangeControl.value * 100);
             if (fileBpmControl.value <= 0)
-                return percent;
-            return ((bpmDelta > 0) ? "+" : "") + bpmDelta.toFixed(1) + " (" + percent + ")";
+                return percent + range;
+            return ((bpmDelta > 0) ? "+" : "") + bpmDelta.toFixed(1) + " (" + percent + ")" + range;
+        }
+
+        // Tap to cycle the tempo range, shown like the CDJ "±10" (SHIFT + BEAT
+        // SYNC on the FLX4 is keylock now)
+        TapHandler {
+            onTapped: {
+                const ranges = [0.06, 0.10, 0.16, 0.25];
+                const current = ranges.findIndex(r => Math.abs(r - rateRangeControl.value) < 0.001);
+                rateRangeControl.value = ranges[(current + 1) % ranges.length];
+            }
+        }
+
+        Mixxx.ControlProxy {
+            id: rateRangeControl
+
+            group: root.group
+            key: "rateRange"
         }
         font.pixelSize: 11
         color: Math.abs(ratio) < 0.05 ? Theme.textMutedColor : (ratio > 0 ? "#ff9a3c" : "#4ec3ff")

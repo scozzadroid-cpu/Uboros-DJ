@@ -583,6 +583,13 @@ PioneerDDJFLX4.syncLongPressed = function(channel, control, value, status, group
     }
 };
 
+// SHIFT + BEAT SYNC: keylock on/off ("Master Tempo" on the CDJ). Keylock is
+// on by default (engine default). The tempo range is changed from the deck bar.
+PioneerDDJFLX4.toggleKeylock = function(_channel, _control, value, _status, group) {
+    if (value === 0) { return; } // ignore release
+    script.toggleControl(group, "keylock");
+};
+
 PioneerDDJFLX4.cycleTempoRange = function(_channel, _control, value, _status, group) {
     if (value === 0) { return; } // ignore release
 
