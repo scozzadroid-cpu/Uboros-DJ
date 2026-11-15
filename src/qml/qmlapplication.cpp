@@ -196,6 +196,20 @@ QmlApplication::QmlApplication(
         constexpr jint kFlagKeepScreenOn = 0x00000080;
         window.callMethod<void>("addFlags", "(I)V", kFlagKeepScreenOn);
     });
+
+    // "Do Not Disturb" while Mixxx runs ([Config],android_dnd, default on):
+    // notification sounds must not end up in the mix.
+    const bool dndEnabled = m_pCoreServices->getSettings()->getValue(
+            ConfigKey(QStringLiteral("[Config]"), QStringLiteral("android_dnd")),
+            true);
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (activity.isValid()) {
+        QJniObject::callStaticMethod<void>("org/mixxx/DoNotDisturb",
+                "start",
+                "(Landroid/app/Activity;Z)V",
+                activity.object(),
+                static_cast<jboolean>(dndEnabled));
+    }
 #endif
 
     m_pCoreServices->getControllerManager()->setUpDevices();
@@ -237,6 +251,15 @@ bool QmlApplication::eventFilter(QObject* pObj, QEvent* pEvent) {
 
 QmlApplication::~QmlApplication() {
     QCoreApplication::instance()->removeEventFilter(this);
+#ifdef __ANDROID__
+    QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (context.isValid()) {
+        QJniObject::callStaticMethod<void>("org/mixxx/DoNotDisturb",
+                "stop",
+                "(Landroid/content/Context;)V",
+                context.object());
+    }
+#endif
     // Delete all the QML singletons in order to prevent leak detection in CoreService
     QmlDlgPreferencesProxy::s_pInstance.reset();
     m_visualsManager.reset();
