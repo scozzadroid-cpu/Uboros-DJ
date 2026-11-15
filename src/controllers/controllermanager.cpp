@@ -366,7 +366,11 @@ void ControllerManager::autoConfigureController(Controller* pController) {
         const QString mappingProduct = mapping.getName()
                                                .section(QChar(' '), -1, -1, QString::SectionSkipEmpty)
                                                .toLower();
-        if (mappingProduct == product) {
+        // File names look like "Pioneer-DDJ-FLX4.midi.xml"
+        const QString fileName = QFileInfo(mapping.getPath()).fileName().toLower();
+        if (mappingProduct == product ||
+                fileName.endsWith(QStringLiteral("-") + product + MIDI_MAPPING_EXTENSION) ||
+                fileName == product + MIDI_MAPPING_EXTENSION) {
             matchPath = mapping.getPath();
             ++matches;
         }
