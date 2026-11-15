@@ -2369,6 +2369,12 @@ if(QT6)
     # copy_file_range@LIBC_U), so refuse installation on older releases
     # instead of crashing at startup.
     set_target_properties(mixxx PROPERTIES QT_ANDROID_MIN_SDK_VERSION 34)
+    # Not used on Android: the QML debugger server plugins and the PostgreSQL
+    # driver (the library is SQLite). Smaller APK, fewer libraries to load.
+    qt_import_plugins(mixxx
+      EXCLUDE_BY_TYPE qmltooling
+      EXCLUDE Qt6::QPSQLDriverPlugin
+    )
     set_target_properties(
       mixxx
       PROPERTIES QT_ANDROID_VERSION_NAME "${MIXXX_VERSION}"
