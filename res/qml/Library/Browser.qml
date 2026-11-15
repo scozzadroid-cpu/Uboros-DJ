@@ -242,4 +242,17 @@ Rectangle {
             }
         }
     }
+
+    // Android: USB drives that Android does not mount (e.g. FAT32 without a
+    // partition table) are imported to the internal storage, without root
+    Button {
+        visible: Qt.platform.os === "android"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 6
+        height: 30
+        text: qsTr("Import USB drive")
+        onClicked: Mixxx.Library.importUsbDrives()
+    }
 }

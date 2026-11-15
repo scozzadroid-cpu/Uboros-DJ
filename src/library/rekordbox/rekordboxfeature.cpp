@@ -271,6 +271,15 @@ QList<TreeItem*> findRekordboxDevices() {
     for (const QFileInfo& internalDir : internalDirs) {
         candidates.append({internalDir.fileName(), internalDir.absoluteFilePath()});
     }
+    // Drives imported without root by org.mixxx.UsbImporter, one folder per
+    // volume label
+    const QFileInfoList importedDirs =
+            QDir(internalStorage + QStringLiteral("/RekordboxUSB"))
+                    .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& importedDir : importedDirs) {
+        candidates.append({importedDir.fileName() + QStringLiteral(" (USB)"),
+                importedDir.absoluteFilePath()});
+    }
 
     for (const auto& [label, devicePath] : std::as_const(candidates)) {
         QFileInfo rbDBFileInfo(devicePath + QStringLiteral("/") + kPdbPath);

@@ -34,6 +34,9 @@ class QmlLibraryProxy : public QObject {
 
     QmlLibraryTrackListModel* model() const;
     Q_INVOKABLE void analyze(const mixxx::qml::QmlTrackProxy* track) const;
+    /// Android: copy the Rekordbox export of the connected USB drives to the
+    /// internal storage (no root needed). Returns false where unsupported.
+    Q_INVOKABLE bool importUsbDrives() const;
 
   private:
     static inline std::shared_ptr<Library> s_pLibrary;
