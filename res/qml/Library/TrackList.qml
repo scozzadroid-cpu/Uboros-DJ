@@ -82,10 +82,11 @@ Rectangle {
                 horizontalAlignment: Text.AlignLeft
                 verticalAlignment: Text.AlignVCenter
                 font.family: Theme.fontFamily
-                font.capitalization: Font.Capitalize
-                font.pixelSize: 12
-                font.weight: Font.Medium
-                color: Theme.textColor
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: 0.5
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                color: Theme.textMutedColor
             }
 
             Item {

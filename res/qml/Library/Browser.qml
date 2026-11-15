@@ -193,21 +193,9 @@ Rectangle {
                         readonly property var index: typeof treeView.index === "function" ? treeView.index(row, column) : treeView.modelIndex(column, row)
 
                         implicitWidth: treeView.width
-                        implicitHeight: depth == 0 ? 42 : 35
+                        implicitHeight: Qt.platform.os === "android" ? (depth == 0 ? 30 : 26) : (depth == 0 ? 42 : 35)
 
-                        // Rotate indicator when expanded by the user
-                        // (requires TreeView to have a selectionModel)
-                        property Animation indicatorAnimation: NumberAnimation {
-                            target: indicator
-                            property: "rotation"
-                            from: expanded ? 0 : 90
-                            to: expanded ? 90 : 0
-                            duration: 100
-                            easing.type: Easing.OutQuart
-                        }
-                        TableView.onPooled: indicatorAnimation.complete()
-                        TableView.onReused: if (current) indicatorAnimation.start()
-                        onExpandedChanged: indicator.rotation = expanded ? 90 : 0
+                        // The indicator shows ▶/▼ from the expanded state
 
                         Rectangle {
                             id: background
@@ -236,51 +224,58 @@ Rectangle {
                             }
 
                             Rectangle {
-                                width: 25
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10 + 15 * depth
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.right: parent.right
-                                color: current ? Theme.midGray : 'transparent'
+                                id: rowHighlight
 
-                                Repeater {
-                                    id: lineIcon
+                                anchors.fill: parent
+                                anchors.leftMargin: 3
+                                anchors.rightMargin: 3
+                                anchors.topMargin: 1
+                                anchors.bottomMargin: 1
+                                radius: 5
+                                color: current ? Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.35) : 'transparent'
+                                border.width: current ? 1 : 0
+                                border.color: Theme.accentColor
+
+                                Row {
                                     anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.leftMargin: 6 + 14 * depth
                                     anchors.verticalCenter: parent.verticalCenter
-                                    // The model gives the feature icon name (e.g. "rekordbox")
-                                    model: depth == 0 && !!icon ? 1 : 0
+                                    spacing: 5
+
+                                    Label {
+                                        id: indicator
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 10
+                                        opacity: isTreeNode && hasChildren ? 1 : 0
+                                        color: Theme.textMutedColor
+                                        font.pixelSize: 10
+                                        text: expanded ? "▼" : "▶"
+                                    }
+
                                     Image {
-                                        source: "../../images/library/ic_library_" + icon + ".svg"
-                                        height: 25
-                                        width: 25
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: depth == 0 && !!icon
+                                        // The model gives the feature icon name (e.g. "rekordbox")
+                                        source: depth == 0 && !!icon ? "../../images/library/ic_library_" + icon + ".svg" : ""
+                                        height: Qt.platform.os === "android" ? 18 : 22
+                                        width: height
+                                        sourceSize.width: 44
+                                        sourceSize.height: 44
+                                    }
+
+                                    Label {
+                                        id: labelItem
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - x - 6
+                                        elide: Text.ElideRight
+                                        font.weight: depth == 0 ? Font.Bold : Font.Medium
+                                        font.pixelSize: Qt.platform.os === "android" ? 12 : 14
+                                        text: label
+                                        color: current ? Theme.white : (depth == 0 ? Theme.textColor : Theme.textMutedColor)
                                     }
                                 }
 
-                                Label {
-                                    id: indicator
-                                    Layout.preferredWidth: indicator.implicitWidth
-                                    visible: isTreeNode && hasChildren
-                                    color: Theme.textColor
-                                    text: "▶"
-
-                                    anchors {
-                                        left: parent.left
-                                        verticalCenter: lineIcon.bottom
-                                    }
-                                }
-
-                                Label {
-                                    id: labelItem
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: depth == 0 && row == 0 ? 10 : 34
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    clip: true
-                                    font.weight: depth == 0 ? Font.Bold : Font.Medium
-                                    font.pixelSize: 14
-                                    text: label
-                                    color: Theme.textColor
-                                }
                                 Item {
                                     visible: rowMouseArea.containsMouse && isTreeNode && hasChildren
                                     id: newItem

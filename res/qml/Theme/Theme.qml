@@ -2,20 +2,20 @@ import QtQuick 2.12
 pragma Singleton
 
 QtObject {
-    property color accent: "#2D4EA1"
-    property color accentColor: "#3a60be"
-    property color backgroundColor: "#2E2E2E"
+    property color accent: "#24499f"
+    property color accentColor: "#2f6fe0"
+    property color backgroundColor: "#16181c"
     property color blue: "#01dcfc"
     property color bpmSliderBarColor: green
     property color buttonNormalColor: midGray
     property color crossfaderBarColor: red
     property color crossfaderOrientationColor: lightGray
-    property color darkGray: "#0f0f0f"
-    property color darkGray2: "#242424"
-    property color darkGray3: "#202020"
+    property color darkGray: "#0d0e11"
+    property color darkGray2: "#1d2026"
+    property color darkGray3: "#191b20"
     property color deckActiveColor: green
     property color deckBackgroundColor: darkGray
-    property color deckLineColor: darkGray2
+    property color deckLineColor: "#272b33"
     property color deckTextColor: white
     property color effectColor: yellow
     property color effectUnitColor: red
@@ -29,17 +29,17 @@ QtObject {
     property color knobBackgroundColor: "#262626"
     property color lightGray2: "#b0b0b0"
     property color lightGray: "#747474"
-    property color midGray: "#696969"
+    property color midGray: "#8a9099"
     property color panelSplitterBackground: backgroundColor
     property color panelSplitterHandleActive: lightGray2
     property color panelSplitterHandle: midGray
     property color pflActiveButtonColor: blue
     property color red: "#ea2a4e"
     property color samplerColor: blue
-    property color sunkenBackgroundColor: "#0C0C0C"
+    property color sunkenBackgroundColor: "#0b0c0f"
     property color textColor: white
     property color toolbarActiveColor: white
-    property color toolbarBackgroundColor: darkGray2
+    property color toolbarBackgroundColor: "#0f1114"
     property color volumeSliderBarColor: blue
     property color warningColor: "#7D3B3B"
     property color waveformBeatColor: lightGray
@@ -51,8 +51,22 @@ QtObject {
     property color waveformMarkerLoopColorDisabled: '#FFFFFF'
     property color waveformPostrollColor: midGray
     property color waveformPrerollColor: midGray
-    property color white: "#D9D9D9"
+    property color white: "#e4e7eb"
     property color yellow: "#fca001"
+    // Deck colors, like the Pioneer decks: 1 blue, 2 orange, 3 green, 4 magenta
+    readonly property var deckColors: ["#2fa8ff", "#ff8a2a", "#3ddc84", "#e05cff"]
+    function deckColor(group) {
+        const match = /(\d+)\]$/.exec(group || "");
+        const index = match ? parseInt(match[1]) - 1 : 0;
+        return deckColors[(index % deckColors.length + deckColors.length) % deckColors.length];
+    }
+    // Camelot wheel colors (1..12), as on the usual key wheels
+    function camelotColor(n) {
+        return Qt.hsla(((n - 1) * 30 + 90) % 360 / 360, 0.75, 0.55, 1);
+    }
+    property color textMutedColor: "#8a9099"
+    property color buttonBorderColor: "#2b3038"
+    property color buttonBackgroundColor: "#1f2329"
     property int buttonFontPixelSize: 10
     property int textFontPixelSize: 14
     property string fontFamily: "Open Sans"
