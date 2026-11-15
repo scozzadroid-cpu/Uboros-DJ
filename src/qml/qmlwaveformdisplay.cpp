@@ -40,6 +40,8 @@ QmlWaveformDisplay::QmlWaveformDisplay(QQuickItem* parent)
             this,
             &QmlWaveformDisplay::slotWindowChanged,
             Qt::DirectConnection);
+    // Restart the redraw cycle when the waveform is shown again
+    connect(this, &QQuickItem::visibleChanged, this, [this]() { update(); });
     slotWindowChanged(window());
 }
 
@@ -73,8 +75,12 @@ std::chrono::microseconds QmlWaveformDisplay::fromTimerToNextSync(const Performa
 void QmlWaveformDisplay::slotFrameSwapped() {
     m_timer.restart();
 
-    // continuous redraw
-    update();
+    // Continuous redraw, but only while there is something to show. Redrawing
+    // hidden or empty waveforms every frame keeps the whole window rendering
+    // at the display refresh rate (120 Hz on many phones) for nothing.
+    if (isVisible() && getTrackInfo()) {
+        update();
+    }
 }
 
 void QmlWaveformDisplay::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) {
