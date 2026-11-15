@@ -17,6 +17,52 @@ ApplicationWindow {
     // Phones / small tablets: the desktop layout needs ~1000 px of height.
     readonly property bool compact: height < 700
     readonly property bool isAndroid: Qt.platform.os === "android"
+    // Narrow window (portrait phone): popups must fit the width
+    readonly property bool narrow: width < 1000
+    // Portrait start screen on phones when no DJ controller is connected.
+    // The DJ view (decks, waveforms, library) is hidden meanwhile, so it
+    // does not render at all.
+    property bool dashboardMode: false
+    // The user chose the DJ view without a controller: do not switch back
+    property bool dashboardDismissed: false
+    readonly property int controllerCount: Mixxx.ControllerManager.knownDevices.length + Mixxx.ControllerManager.unknownDevices.length
+
+    function enterDjView() {
+        dashboardMode = false;
+        Mixxx.Config.setScreenOrientation(Mixxx.Config.ScreenOrientation.Landscape);
+    }
+    function enterDashboard() {
+        dashboardMode = true;
+        Mixxx.Config.setScreenOrientation(Mixxx.Config.ScreenOrientation.Portrait);
+    }
+
+    onControllerCountChanged: {
+        // Controller plugged in while on the dashboard: go to the DJ view
+        if (dashboardMode && controllerCount > 0)
+            enterDjView();
+        // Controller unplugged: back to the dashboard, unless the user
+        // explicitly chose the DJ view without a controller
+        else if (isAndroid && !dashboardMode && !dashboardDismissed && controllerCount === 0 && startupCheck.done)
+            enterDashboard();
+    }
+
+    // Controllers are enumerated (and hot-plugged on Android) shortly after
+    // startup: decide only after a short grace period.
+    Timer {
+        id: startupCheck
+
+        property bool done: false
+
+        interval: 2500
+        running: root.isAndroid
+        repeat: false
+
+        onTriggered: {
+            done = true;
+            if (root.controllerCount === 0)
+                root.enterDashboard();
+        }
+    }
     // In compact mode the decks are shown minimized (info bar only) unless
     // the on-screen mixer is requested; a hardware controller does the rest.
     readonly property bool decksMinimized: maximizeLibrary || (compact && !showMixer)
@@ -67,6 +113,7 @@ ApplicationWindow {
 
     Column {
         id: content
+        visible: !root.dashboardMode
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -290,13 +337,25 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.top: content.bottom
         compact: root.compact
-        visible: !(root.compact && (root.showMixer || root.waveformView))
+        visible: !root.dashboardMode && !(root.compact && (root.showMixer || root.waveformView))
+    }
+    Skin.PortraitDashboard {
+        id: dashboard
+
+        anchors.fill: parent
+        visible: root.dashboardMode
+
+        onContinueWithoutController: {
+            root.dashboardDismissed = true;
+            root.enterDjView();
+        }
+        onOpenSettings: settingsPopup.open()
     }
     Skin.Settings {
         id: settingsPopup
-        height: root.compact ? parent.height - 8 : Math.max(840, parent.height * 0.7)
+        height: (root.compact || root.narrow) ? parent.height - 8 : Math.max(840, parent.height * 0.7)
         modal: true
-        width: root.compact ? parent.width - 16 : Math.max(1400, parent.width * 0.8)
+        width: (root.compact || root.narrow) ? parent.width - 16 : Math.max(1400, parent.width * 0.8)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
 

@@ -29,6 +29,16 @@ class QmlConfigProxy : public QObject {
     Q_INVOKABLE bool waveformZoomSynchronization();
     Q_INVOKABLE double waveformDefaultZoom();
 
+    // Screen orientation requested to the OS (Android only, no-op elsewhere).
+    // Values of ScreenOrientation.
+    enum class ScreenOrientation {
+        Landscape,
+        Portrait,
+        Any,
+    };
+    Q_ENUM(ScreenOrientation)
+    Q_INVOKABLE void setScreenOrientation(mixxx::qml::QmlConfigProxy::ScreenOrientation orientation);
+
     static QmlConfigProxy* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
     static inline void registerUserSettings(UserSettingsPointer pConfig) {
         s_pUserSettings = std::move(pConfig);

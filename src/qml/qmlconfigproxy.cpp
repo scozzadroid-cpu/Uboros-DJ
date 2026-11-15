@@ -4,6 +4,11 @@
 #include "preferences/colorpalettesettings.h"
 #include "preferences/constants.h"
 
+#ifdef __ANDROID__
+#include <QCoreApplication>
+#include <QJniObject>
+#endif
+
 namespace {
 QVariantList paletteToQColorList(const ColorPalette& palette) {
     QVariantList colors;
@@ -83,6 +88,34 @@ QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine* pJsEng
         return nullptr;
     }
     return new QmlConfigProxy(s_pUserSettings, pQmlEngine);
+}
+
+void QmlConfigProxy::setScreenOrientation(ScreenOrientation orientation) {
+#ifdef __ANDROID__
+    // android.content.pm.ActivityInfo constants
+    constexpr jint kSensorLandscape = 6;
+    constexpr jint kSensorPortrait = 7;
+    constexpr jint kFullUser = 13;
+    jint value = kFullUser;
+    switch (orientation) {
+    case ScreenOrientation::Landscape:
+        value = kSensorLandscape;
+        break;
+    case ScreenOrientation::Portrait:
+        value = kSensorPortrait;
+        break;
+    case ScreenOrientation::Any:
+        break;
+    }
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([value]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (activity.isValid()) {
+            activity.callMethod<void>("setRequestedOrientation", "(I)V", value);
+        }
+    });
+#else
+    Q_UNUSED(orientation);
+#endif
 }
 
 } // namespace qml
