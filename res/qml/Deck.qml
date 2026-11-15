@@ -69,6 +69,95 @@ Item {
             anchors.fill: parent
             group: root.group
         }
+
+        // Deck state badges, like the CDJ display: MASTER (sync leader),
+        // SYNC, KEY LOCK and the active loop with its length in beats
+        Row {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.margins: 2
+            spacing: 3
+
+            component Badge: Rectangle {
+                property alias text: badgeText.text
+                property color tint: Theme.white
+
+                height: 13
+                width: badgeText.implicitWidth + 6
+                radius: 2
+                color: Qt.rgba(0, 0, 0, 0.65)
+                border.width: 1
+                border.color: tint
+
+                Text {
+                    id: badgeText
+
+                    anchors.centerIn: parent
+                    font.pixelSize: 9
+                    font.bold: true
+                    color: parent.tint
+                }
+            }
+
+            Badge {
+                visible: leaderControl.value > 0
+                text: "MASTER"
+                tint: "#ff9a3c"
+            }
+
+            Badge {
+                visible: syncControl.value > 0
+                text: "SYNC"
+                tint: "#4ec3ff"
+            }
+
+            Badge {
+                visible: keylockControl.value > 0
+                text: "KEY LOCK"
+                tint: "#c38bff"
+            }
+
+            Badge {
+                visible: loopControl.value > 0
+                text: "LOOP " + (loopSizeControl.value >= 1 ? Math.round(loopSizeControl.value) : "1/" + Math.round(1 / loopSizeControl.value))
+                tint: "#4ee04e"
+            }
+        }
+
+        Mixxx.ControlProxy {
+            id: leaderControl
+
+            group: root.group
+            key: "sync_leader"
+        }
+
+        Mixxx.ControlProxy {
+            id: syncControl
+
+            group: root.group
+            key: "sync_enabled"
+        }
+
+        Mixxx.ControlProxy {
+            id: keylockControl
+
+            group: root.group
+            key: "keylock"
+        }
+
+        Mixxx.ControlProxy {
+            id: loopControl
+
+            group: root.group
+            key: "loop_enabled"
+        }
+
+        Mixxx.ControlProxy {
+            id: loopSizeControl
+
+            group: root.group
+            key: "beatloop_size"
+        }
     }
 
     Skin.ControlSlider {
