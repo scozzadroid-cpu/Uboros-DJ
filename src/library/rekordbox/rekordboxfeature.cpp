@@ -249,6 +249,8 @@ QList<TreeItem*> findRekordboxDevices() {
     }
     devicePaths.removeDuplicates();
 
+    // label -> path of the places that may hold a Rekordbox export
+    QList<std::pair<QString, QString>> candidates;
     for (const QString& devicePath : std::as_const(devicePaths)) {
         const QStringList parts = devicePath.split(QChar('/'), Qt::SkipEmptyParts);
         // Only /storage/<name>
@@ -257,17 +259,31 @@ QList<TreeItem*> findRekordboxDevices() {
                 parts[1] == QStringLiteral("self")) {
             continue;
         }
-        QFileInfo rbDBFileInfo(devicePath + QStringLiteral("/") + kPdbPath);
-        qDebug() << "RekordboxFeature: checking Android volume" << devicePath
-                 << "export.pdb found:" << rbDBFileInfo.isFile();
+        candidates.append({parts[1], devicePath});
+    }
+    // A Rekordbox drive can also be copied to the shared internal storage,
+    // either to its root or to a folder in it. Android does not mount every
+    // USB drive, e.g. the ones without a partition table.
+    const QString internalStorage = QStringLiteral("/storage/emulated/0");
+    candidates.append({QStringLiteral("Internal Storage"), internalStorage});
+    const QFileInfoList internalDirs = QDir(internalStorage)
+                                               .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& internalDir : internalDirs) {
+        candidates.append({internalDir.fileName(), internalDir.absoluteFilePath()});
+    }
 
+    for (const auto& [label, devicePath] : std::as_const(candidates)) {
+        QFileInfo rbDBFileInfo(devicePath + QStringLiteral("/") + kPdbPath);
         if (rbDBFileInfo.exists() && rbDBFileInfo.isFile()) {
+            qDebug() << "RekordboxFeature: found Rekordbox export in" << devicePath;
             auto* pFoundDevice = new TreeItem(
-                    parts[1],
+                    label,
                     QVariant(QList<QString>{devicePath, IS_RECORDBOX_DEVICE}));
             foundDevices << pFoundDevice;
         }
     }
+    qDebug() << "RekordboxFeature: checked" << candidates.size()
+             << "Android locations," << foundDevices.size() << "Rekordbox export(s) found";
 #else // __APPLE__
     QFileInfoList devices = QDir(QStringLiteral("/Volumes")).entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
 
