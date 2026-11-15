@@ -130,6 +130,9 @@ Mixxx.LibrarySourceTree {
                     anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
                     source: cover_art
+                    // Decode a thumbnail, not the full size embedded cover
+                    sourceSize.width: 96
+                    sourceSize.height: 96
                     clip: true
                     asynchronous: true
                 }

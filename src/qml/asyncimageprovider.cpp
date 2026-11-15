@@ -8,7 +8,41 @@
 
 namespace {
 const QString kCoverArtPrefix = QStringLiteral("coverart/");
+
+// Covers embedded in files are often 1000-3000 px wide: decoding and
+// uploading them at full size costs tens of MB (RAM + GPU) per cover, while
+// the UI shows them at most a few hundred pixels wide. Without a requested
+// size, cap the longest side.
+constexpr int kMaxCoverSide = 512;
+
+QImage scaledCover(const QImage& image, QSize requestedSize) {
+    if (image.isNull()) {
+        return image;
+    }
+    if (requestedSize.width() > 0 || requestedSize.height() > 0) {
+        // One of the two dimensions may be 0 (= keep aspect ratio)
+        if (requestedSize.width() <= 0) {
+            requestedSize.setWidth(requestedSize.height() * image.width() / image.height());
+        } else if (requestedSize.height() <= 0) {
+            requestedSize.setHeight(requestedSize.width() * image.height() / image.width());
+        }
+        if (image.width() <= requestedSize.width() &&
+                image.height() <= requestedSize.height()) {
+            return image;
+        }
+        return image.scaled(requestedSize,
+                Qt::KeepAspectRatioByExpanding,
+                Qt::SmoothTransformation);
+    }
+    if (image.width() > kMaxCoverSide || image.height() > kMaxCoverSide) {
+        return image.scaled(kMaxCoverSide,
+                kMaxCoverSide,
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation);
+    }
+    return image;
 }
+} // namespace
 
 namespace mixxx {
 
@@ -59,7 +93,7 @@ void AsyncImageResponse::run() {
         QImage image = CoverArtUtils::extractEmbeddedCover(
                 mixxx::FileAccess(mixxx::FileInfo(trackLocation)));
         if (!image.isNull()) {
-            m_image = m_requestedSize.isValid() ? image.scaled(m_requestedSize) : image;
+            m_image = scaledCover(image, m_requestedSize);
         }
         emit finished();
         return;
@@ -74,11 +108,7 @@ void AsyncImageResponse::run() {
         break;
     case CoverInfo::LoadedImage::Result::Ok:
         DEBUG_ASSERT(!loadedImage.image.isNull());
-        if (m_requestedSize.isValid()) {
-            m_image = loadedImage.image.scaled(m_requestedSize);
-        } else {
-            m_image = loadedImage.image;
-        }
+        m_image = scaledCover(loadedImage.image, m_requestedSize);
         break;
     default:
         qWarning() << "ImageProvider: Failed to load cover art" << trackRef;
