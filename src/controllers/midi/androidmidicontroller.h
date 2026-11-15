@@ -48,6 +48,10 @@ class AndroidMidiController : public MidiController {
 
     PhysicalTransportProtocol getPhysicalTransportProtocol() const override;
 
+    const AndroidMidiDeviceInfo& deviceInfo() const {
+        return m_deviceInfo;
+    }
+
     QString getVendorString() const override {
         return m_deviceInfo.manufacturer;
     }

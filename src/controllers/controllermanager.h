@@ -68,6 +68,8 @@ class ControllerManager : public QObject {
     void slotShutdown();
     /// Calls poll() on all devices that have isPolling() true.
     void slotPollDevices();
+    /// Android: rescan MIDI devices when MidiManager reports a change.
+    void slotCheckMidiHotplug();
 
   private:
     void updateControllerList();
@@ -76,6 +78,11 @@ class ControllerManager : public QObject {
     void pollIfAnyControllersOpen();
     void openController(Controller* pController);
     void closeController(Controller* pController);
+    /// Load the configured mapping for pController and open it, if enabled.
+    void setUpController(Controller* pController, const QStringList& mappingPaths);
+    /// If pController has no configuration yet, enable it with the unique
+    /// system mapping whose name ends with the same product name.
+    void autoConfigureController(Controller* pController);
 
     UserSettingsPointer m_pConfig;
     ControllerLearningEventFilter* m_pControllerLearningEventFilter;
@@ -87,4 +94,7 @@ class ControllerManager : public QObject {
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadUserMappingEnumerator;
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadSystemMappingEnumerator;
     bool m_skipPoll;
+    ControllerEnumerator* m_pAndroidMidiEnumerator = nullptr;
+    QTimer* m_pHotplugTimer = nullptr;
+    int m_midiDeviceGeneration = -1;
 };

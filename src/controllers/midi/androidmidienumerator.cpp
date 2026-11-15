@@ -65,14 +65,30 @@ AndroidMidiEnumerator::~AndroidMidiEnumerator() {
     while (!m_devices.isEmpty()) {
         delete m_devices.takeLast();
     }
+    while (!m_removedDevices.isEmpty()) {
+        delete m_removedDevices.takeLast();
+    }
+}
+
+// static
+int AndroidMidiEnumerator::deviceGeneration() {
+    QJniObject context = QNativeInterface::QAndroidApplication::context();
+    const jint generation = QJniObject::callStaticMethod<jint>(kMidiHelperClass,
+            "getDeviceGeneration",
+            "(Landroid/content/Context;)I",
+            context.object<jobject>());
+    QJniEnvironment env;
+    env.checkAndClearExceptions();
+    return generation;
 }
 
 QList<Controller*> AndroidMidiEnumerator::queryDevices() {
     qDebug() << "Scanning Android MIDI devices:";
 
-    while (!m_devices.isEmpty()) {
-        delete m_devices.takeLast();
-    }
+    // Existing controllers are reused when their device/ports are still
+    // present, so open controllers keep running across a rescan (hotplug).
+    QList<Controller*> previousDevices = m_devices;
+    m_devices.clear();
 
     QJniEnvironment env;
     QJniObject context = QNativeInterface::QAndroidApplication::context();
@@ -82,6 +98,7 @@ QList<Controller*> AndroidMidiEnumerator::queryDevices() {
             context.object<jobject>());
     if (!deviceArray.isValid()) {
         qWarning() << "Unable to list Android MIDI devices";
+        m_devices = previousDevices;
         return m_devices;
     }
 
@@ -139,8 +156,30 @@ QList<Controller*> AndroidMidiEnumerator::queryDevices() {
             qDebug() << "  Linking input port" << portInfo.inputPortNumber
                      << "and output port" << portInfo.outputPortNumber
                      << "as" << portInfo.name;
-            m_devices.push_back(new AndroidMidiController(portInfo));
+            AndroidMidiController* pExisting = nullptr;
+            for (Controller* pController : std::as_const(previousDevices)) {
+                auto* pMidi = static_cast<AndroidMidiController*>(pController);
+                const AndroidMidiDeviceInfo& existing = pMidi->deviceInfo();
+                if (existing.deviceId == portInfo.deviceId &&
+                        existing.inputPortNumber == portInfo.inputPortNumber &&
+                        existing.outputPortNumber == portInfo.outputPortNumber) {
+                    pExisting = pMidi;
+                    break;
+                }
+            }
+            if (pExisting) {
+                previousDevices.removeOne(pExisting);
+                m_devices.push_back(pExisting);
+            } else {
+                m_devices.push_back(new AndroidMidiController(portInfo));
+            }
         }
+    }
+    // Devices that disappeared: ControllerManager closes them, we keep the
+    // objects alive to avoid dangling pointers.
+    for (Controller* pController : std::as_const(previousDevices)) {
+        qDebug() << " Android MIDI device removed:" << pController->getName();
+        m_removedDevices.push_back(pController);
     }
     return m_devices;
 }

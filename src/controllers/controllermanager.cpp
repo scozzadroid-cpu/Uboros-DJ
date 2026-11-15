@@ -21,6 +21,7 @@
 #endif
 
 #ifdef __ANDROID_MIDI__
+#include "controllers/midi/androidmidicontroller.h"
 #include "controllers/midi/androidmidienumerator.h"
 #endif
 
@@ -164,7 +165,17 @@ void ControllerManager::slotInitialize() {
     m_enumerators.append(new PortMidiEnumerator(m_pConfig));
 #endif
 #ifdef __ANDROID_MIDI__
-    m_enumerators.append(new AndroidMidiEnumerator());
+    m_pAndroidMidiEnumerator = new AndroidMidiEnumerator();
+    m_enumerators.append(m_pAndroidMidiEnumerator);
+    // Registers the MidiManager device callback before the first scan.
+    m_midiDeviceGeneration = AndroidMidiEnumerator::deviceGeneration();
+    m_pHotplugTimer = new QTimer(this);
+    m_pHotplugTimer->setInterval(1500);
+    connect(m_pHotplugTimer,
+            &QTimer::timeout,
+            this,
+            &ControllerManager::slotCheckMidiHotplug);
+    m_pHotplugTimer->start();
 #endif
 #ifdef __HSS1394__
     m_enumerators.append(new Hss1394Enumerator());
@@ -180,6 +191,10 @@ void ControllerManager::slotInitialize() {
 
 void ControllerManager::slotShutdown() {
     stopPolling();
+    if (m_pHotplugTimer) {
+        m_pHotplugTimer->stop();
+    }
+    m_pAndroidMidiEnumerator = nullptr;
 
     // Clear m_enumerators before deleting the enumerators to prevent other code
     // paths from accessing them.
@@ -259,62 +274,169 @@ void ControllerManager::slotSetUpDevices() {
     QStringList mappingPaths(getMappingPaths(m_pConfig));
 
     for (Controller* pController : deviceList) {
-        QString name = pController->getName();
-
         if (pController->isOpen()) {
             pController->close();
         }
-
-        // The filename for this device name.
-        QString deviceName = sanitizeDeviceName(name);
-
-        // Check if device is enabled
-        if (!m_pConfig->getValue(ConfigKey("[Controller]", deviceName), 0)) {
-            continue;
-        }
-
-        // Check if device has a configured mapping
-        QString mappingFilePath = getConfiguredMappingFileForDevice(deviceName);
-        if (mappingFilePath.isEmpty()) {
-            continue;
-        }
-
-        qDebug() << "Searching for controller mapping" << mappingFilePath
-                 << "in paths:" << mappingPaths.join(",");
-        QFileInfo mappingFile = findMappingFile(mappingFilePath, mappingPaths);
-        if (!mappingFile.exists()) {
-            qDebug() << "Could not find" << mappingFilePath << "in any mapping path.";
-            continue;
-        }
-
-        std::shared_ptr<LegacyControllerMapping> pMapping =
-                LegacyControllerMappingFileHandler::loadMapping(
-                        mappingFile, resourceMappingsPath(m_pConfig));
-
-        if (!pMapping) {
-            continue;
-        }
-        pMapping->loadSettings(m_pConfig, pController->getName());
-
-        // This runs on the main thread but LegacyControllerMapping is not thread safe, so clone it.
-        pController->setMapping(std::move(pMapping));
-
-        // If we are in safe mode, skip opening controllers.
-        if (CmdlineArgs::Instance().getSafeMode()) {
-            qDebug() << "We are in safe mode -- skipping opening controller.";
-            continue;
-        }
-
-        qDebug() << "Opening controller:" << name;
-
-        int value = pController->open(m_pConfig->getResourcePath());
-        if (value != 0) {
-            qWarning() << "There was a problem opening" << name;
-            continue;
-        }
+        setUpController(pController, mappingPaths);
     }
 
     pollIfAnyControllersOpen();
+}
+
+void ControllerManager::setUpController(
+        Controller* pController, const QStringList& mappingPaths) {
+    QString name = pController->getName();
+    autoConfigureController(pController);
+
+    // The filename for this device name.
+    QString deviceName = sanitizeDeviceName(name);
+
+    // Check if device is enabled
+    if (!m_pConfig->getValue(ConfigKey("[Controller]", deviceName), 0)) {
+        return;
+    }
+
+    // Check if device has a configured mapping
+    QString mappingFilePath = getConfiguredMappingFileForDevice(deviceName);
+    if (mappingFilePath.isEmpty()) {
+        return;
+    }
+
+    qDebug() << "Searching for controller mapping" << mappingFilePath
+             << "in paths:" << mappingPaths.join(",");
+    QFileInfo mappingFile = findMappingFile(mappingFilePath, mappingPaths);
+    if (!mappingFile.exists()) {
+        qDebug() << "Could not find" << mappingFilePath << "in any mapping path.";
+        return;
+    }
+
+    std::shared_ptr<LegacyControllerMapping> pMapping =
+            LegacyControllerMappingFileHandler::loadMapping(
+                    mappingFile, resourceMappingsPath(m_pConfig));
+
+    if (!pMapping) {
+        return;
+    }
+    pMapping->loadSettings(m_pConfig, pController->getName());
+
+    // This runs on the main thread but LegacyControllerMapping is not thread safe, so clone it.
+    pController->setMapping(std::move(pMapping));
+
+    // If we are in safe mode, skip opening controllers.
+    if (CmdlineArgs::Instance().getSafeMode()) {
+        qDebug() << "We are in safe mode -- skipping opening controller.";
+        return;
+    }
+
+    qDebug() << "Opening controller:" << name;
+
+    int value = pController->open(m_pConfig->getResourcePath());
+    if (value != 0) {
+        qWarning() << "There was a problem opening" << name;
+        return;
+    }
+}
+
+void ControllerManager::autoConfigureController(Controller* pController) {
+#ifdef __ANDROID_MIDI__
+    const QString deviceName = sanitizeDeviceName(pController->getName());
+    if (m_pConfig->exists(ConfigKey("[Controller]", deviceName)) ||
+            m_pConfig->exists(ConfigKey(kSettingsGroup, deviceName))) {
+        return; // the user already made a choice for this device
+    }
+    if (pController->getPhysicalTransportProtocol() !=
+            PhysicalTransportProtocol::USB) {
+        return;
+    }
+    // Last word of the device name, e.g. "DDJ-FLX4" for
+    // "AlphaTheta Corporation DDJ-FLX4".
+    const QString product = pController->getName()
+                                    .section(QChar(' '), -1, -1, QString::SectionSkipEmpty)
+                                    .toLower();
+    if (product.size() < 4) {
+        return;
+    }
+    MappingInfoEnumerator enumerator(resourceMappingsPath(m_pConfig));
+    enumerator.loadSupportedMappings();
+    const QList<MappingInfo> mappings =
+            enumerator.getMappingsByExtension(MIDI_MAPPING_EXTENSION);
+    QString matchPath;
+    int matches = 0;
+    for (const MappingInfo& mapping : mappings) {
+        const QString mappingProduct = mapping.getName()
+                                               .section(QChar(' '), -1, -1, QString::SectionSkipEmpty)
+                                               .toLower();
+        if (mappingProduct == product) {
+            matchPath = mapping.getPath();
+            ++matches;
+        }
+    }
+    if (matches != 1) {
+        qDebug() << "No unique mapping for" << pController->getName() << "found"
+                 << matches;
+        return;
+    }
+    qInfo() << "Auto-configuring" << pController->getName() << "with mapping"
+            << matchPath;
+    m_pConfig->set(ConfigKey(kSettingsGroup, deviceName), matchPath);
+    m_pConfig->setValue(ConfigKey("[Controller]", deviceName), 1);
+#else
+    Q_UNUSED(pController);
+#endif
+}
+
+void ControllerManager::slotCheckMidiHotplug() {
+#ifdef __ANDROID_MIDI__
+    if (!m_pAndroidMidiEnumerator) {
+        return;
+    }
+    const int generation = AndroidMidiEnumerator::deviceGeneration();
+    if (generation == m_midiDeviceGeneration) {
+        return;
+    }
+    m_midiDeviceGeneration = generation;
+    qInfo() << "Android MIDI devices changed, rescanning";
+
+    auto locker = lockMutex(&m_mutex);
+    QList<Controller*> oldControllers = m_controllers;
+    locker.unlock();
+
+    const QList<Controller*> midiControllers = m_pAndroidMidiEnumerator->queryDevices();
+
+    QList<Controller*> newControllers;
+    for (Controller* pController : std::as_const(oldControllers)) {
+        if (qobject_cast<AndroidMidiController*>(pController) &&
+                !midiControllers.contains(pController)) {
+            // Unplugged: close it, the enumerator keeps the object alive
+            if (pController->isOpen()) {
+                qInfo() << "Closing unplugged controller" << pController->getName();
+                // Not closeController(): that would also disable the device
+                // in the settings, and it must reopen when plugged back in.
+                pController->close();
+            }
+            continue;
+        }
+        newControllers.append(pController);
+    }
+    for (Controller* pController : midiControllers) {
+        if (!newControllers.contains(pController)) {
+            newControllers.append(pController);
+        }
+    }
+
+    locker.relock();
+    m_controllers = newControllers;
+    locker.unlock();
+    emit devicesChanged();
+
+    const QStringList mappingPaths(getMappingPaths(m_pConfig));
+    for (Controller* pController : midiControllers) {
+        if (!pController->isOpen()) {
+            setUpController(pController, mappingPaths);
+        }
+    }
+    pollIfAnyControllersOpen();
+#endif
 }
 
 void ControllerManager::pollIfAnyControllersOpen() {
