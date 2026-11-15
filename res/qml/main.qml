@@ -223,7 +223,9 @@ ApplicationWindow {
         Skin.Library {
             compact: root.compact
             height: Math.max(0, parent.height - y)
-            visible: height > 48
+            // Don't bind visibility to the height: an invisible item is not
+            // re-positioned by the Column, so it would never become visible again.
+            visible: !(root.compact && root.showMixer)
             width: parent.width
         }
     }

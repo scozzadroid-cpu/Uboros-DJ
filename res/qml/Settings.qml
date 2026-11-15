@@ -10,8 +10,15 @@ import "Theme"
 Popup {
     id: root
 
+    // Android back button closes the settings
+    focus: true
+    // Popup is not an Item, use the size of the window content it is shown in
+    readonly property bool compact: parent ? parent.height < 700 : false
+
     property int activeCategoryIndex: 0
-    property list<string> sections: ["SoundHardware", "Library", "Controller", "Interface", "MixerEffect", "AutoDJ", "Broadcast", "Recording", "Analyzer", "StatsPerformance"]
+    // Only the categories that are implemented in QML. The others are still
+    // placeholders upstream; the full widget preferences dialog covers them.
+    property list<string> sections: ["SoundHardware", "Controller"]
 
     readonly property var manager: managerItem
 
@@ -32,7 +39,7 @@ Popup {
 
             Rectangle {
                 Layout.fillHeight: true
-                Layout.preferredWidth: 280
+                Layout.preferredWidth: root.compact ? 190 : 280
                 border.color: Theme.darkGray3
                 border.width: 6
                 color: Theme.darkGray
@@ -182,13 +189,39 @@ Popup {
                 Layout.fillHeight: true
                 Layout.fillWidth: true
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredHeight: 36
-                    color: Theme.white
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    text: "Settings"
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    Text {
+                        anchors.centerIn: parent
+                        color: Theme.white
+                        font.pixelSize: 16
+                        font.weight: Font.DemiBold
+                        text: "Settings"
+                    }
+                    Skin.Button {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        activeColor: Theme.white
+                        implicitHeight: 36
+                        text: "All settings"
+
+                        onClicked: {
+                            root.close();
+                            Mixxx.PreferencesDialog.show();
+                        }
+                    }
+                    Skin.Button {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        activeColor: Theme.white
+                        implicitHeight: 36
+                        implicitWidth: 48
+                        text: "Close"
+
+                        onClicked: root.close()
+                    }
                 }
                 Rectangle {
                     id: tabBar
