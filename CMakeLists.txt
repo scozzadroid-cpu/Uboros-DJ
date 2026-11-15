@@ -2365,6 +2365,10 @@ if(QT6)
     )
     set_target_properties(mixxx PROPERTIES QT_ANDROID_ABIS "${ANDROID_ABI}")
     set_target_properties(mixxx PROPERTIES QT_ANDROID_PACKAGE_NAME "org.mixxx")
+    # The native code links against Android 14 libc symbols (e.g.
+    # copy_file_range@LIBC_U), so refuse installation on older releases
+    # instead of crashing at startup.
+    set_target_properties(mixxx PROPERTIES QT_ANDROID_MIN_SDK_VERSION 34)
     set_target_properties(
       mixxx
       PROPERTIES QT_ANDROID_VERSION_NAME "${MIXXX_VERSION}"
