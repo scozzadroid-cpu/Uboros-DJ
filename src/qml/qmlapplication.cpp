@@ -80,12 +80,36 @@ QmlApplication::QmlApplication(
         exit(-1);
     }
 
-    SoundDeviceStatus result = m_pCoreServices->getSoundManager()->setupDevices();
+    auto pSoundManager = m_pCoreServices->getSoundManager();
+    SoundDeviceStatus result = pSoundManager->setupDevices();
+#ifdef __ANDROID__
+    if (result != SoundDeviceStatus::Ok) {
+        // Typical case: the saved config uses a USB controller (e.g. the
+        // DDJ-FLX4) that is not plugged in. Instead of quitting, fall back to
+        // the default devices: a 4 channel USB device if present, otherwise the
+        // phone output. The fallback is not written to disk, so the saved
+        // config is used again on the next start with the controller attached.
+        qWarning() << "Configured sound devices unavailable:"
+                   << pSoundManager->getLastErrorMessage(result)
+                   << "- falling back to the default devices";
+        SoundManagerConfig fallbackConfig = pSoundManager->getConfig();
+        fallbackConfig.loadDefaults(pSoundManager.get(), SoundManagerConfig::DEVICES);
+        const bool persist = false;
+        result = pSoundManager->setConfig(fallbackConfig, persist);
+        if (result != SoundDeviceStatus::Ok) {
+            // Keep running without audio rather than closing the app: the
+            // devices can still be chosen in the sound preferences.
+            qCritical() << "Error setting up the default sound devices:"
+                        << pSoundManager->getLastErrorMessage(result);
+        }
+    }
+#else
     if (result != SoundDeviceStatus::Ok) {
         const int reInt = static_cast<int>(result);
         qCritical() << "Error setting up sound devices:" << reInt;
         exit(reInt);
     }
+#endif
 
     // FIXME: DlgPreferences has some initialization logic that must be executed
     // before the GUI is shown, at least for the effects system.

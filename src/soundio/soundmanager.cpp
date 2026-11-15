@@ -709,7 +709,7 @@ void SoundManager::closeActiveConfig(bool async) {
     closeDevices(sleepAfterClosing, async);
 }
 
-SoundDeviceStatus SoundManager::setConfig(const SoundManagerConfig& config) {
+SoundDeviceStatus SoundManager::setConfig(const SoundManagerConfig& config, bool persist) {
     SoundDeviceStatus status = SoundDeviceStatus::Ok;
     m_config = config;
     checkConfig();
@@ -717,7 +717,7 @@ SoundDeviceStatus SoundManager::setConfig(const SoundManagerConfig& config) {
     closeActiveConfig();
 
     status = setupDevices();
-    if (status == SoundDeviceStatus::Ok) {
+    if (status == SoundDeviceStatus::Ok && persist) {
         m_config.writeToDisk();
     }
     return status;
