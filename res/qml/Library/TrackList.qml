@@ -171,6 +171,11 @@ Rectangle {
             if (urls.length == 0)
                 return ;
 
+            const player = Mixxx.PlayerManager.getPlayer(group);
+            if (!player) {
+                console.warn(`No player for group ${group}`);
+                return;
+            }
             player.loadTrackFromLocationUrl(urls[0], play);
         }
 

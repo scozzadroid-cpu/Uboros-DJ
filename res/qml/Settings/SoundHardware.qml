@@ -592,9 +592,22 @@ Category {
             Layout.fillHeight: true
             Layout.minimumHeight: root.compact ? 360 : 0
             clip: true
-            AudioRouter {
-                id: router
+            // On phones the router is wider than the popup: scroll it horizontally
+            Flickable {
+                id: routerFlick
                 anchors.fill: parent
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentWidth: root.compact ? Math.max(width, 900) : width
+                contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
+                interactive: root.compact
+
+                AudioRouter {
+                    id: router
+                    width: routerFlick.contentWidth
+                    height: routerFlick.height
+                }
             }
             Rectangle {
                 anchors.fill: parent

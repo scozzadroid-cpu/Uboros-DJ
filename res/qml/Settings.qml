@@ -205,6 +205,7 @@ Popup {
                         anchors.verticalCenter: parent.verticalCenter
                         activeColor: Theme.white
                         implicitHeight: 36
+                        implicitWidth: 110
                         text: "All settings"
 
                         onClicked: {
