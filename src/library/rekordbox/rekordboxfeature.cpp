@@ -29,6 +29,7 @@
 #include "track/beats.h"
 #include "track/cue.h"
 #include "track/keyfactory.h"
+#include "track/keyutils.h"
 #include "track/track.h"
 #include "util/color/color.h"
 #include "util/db/dbconnectionpooled.h"
@@ -438,6 +439,15 @@ void insertTrack(
     float bpm = static_cast<float>(track->tempo() / 100.0);
     int bitrate = static_cast<int>(track->bitrate());
     QString key = keysMap[track->key_id()];
+    {
+        // Show the key in the notation chosen in the preferences (e.g.
+        // "4A (Fm)") like the rest of the library, instead of rekordbox's "Fm".
+        const auto chromaticKey = KeyUtils::guessKeyFromText(key);
+        const QString formatted = KeyUtils::keyToString(chromaticKey);
+        if (!formatted.isEmpty()) {
+            key = formatted;
+        }
+    }
     int playtime = static_cast<int>(track->duration());
     int rating = static_cast<int>(track->rating());
     QString comment = getText(track->comment());
