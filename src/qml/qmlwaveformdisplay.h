@@ -5,6 +5,8 @@
 #include <QQuickWindow>
 #include <QSGNode>
 #include <QSGSimpleRectNode>
+#include <QTimer>
+#include <atomic>
 #include <chrono>
 
 #include "qml/qmlplayerproxy.h"
@@ -108,6 +110,15 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     QColor m_backgroundColor{QColor(0, 0, 0, 255)};
 
     PerformanceTimer m_timer;
+
+    // Idle detection: when the play position and the zoom have not changed
+    // for a while (paused deck), redraw at a low rate instead of every frame.
+    // Written on the render thread during sync (GUI thread blocked), read on
+    // the GUI thread.
+    std::atomic<int> m_stillFrames{0};
+    int m_lastPosVSample{-1};
+    double m_lastZoom{-1.0};
+    QTimer m_idleTimer;
 
     std::chrono::milliseconds m_syncInterval;
     enum class DirtyFlag : int {
