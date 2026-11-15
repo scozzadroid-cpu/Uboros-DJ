@@ -394,6 +394,10 @@ void QmlControllerDeviceProxy::setMapping(QmlControllerMappingProxy* pMapping) {
     emit mappingChanged();
     setEdited();
 }
+QString QmlControllerDeviceProxy::activeMappingName() const {
+    std::shared_ptr<LegacyControllerMapping> pMapping = m_pInternal->getMapping();
+    return pMapping ? pMapping->name() : QString();
+}
 QString QmlControllerDeviceProxy::vendor() const {
     auto vendorId = m_pInternal->getVendorId();
     if (!vendorId) {
@@ -435,7 +439,9 @@ void QmlControllerDeviceProxy::clear() {
             m_pMapping = pMapping;
         }
     }
-    if (!m_mappings.isEmpty()) {
+    // Only fall back to an arbitrary matching mapping when the active one
+    // was not found, otherwise the active mapping would be overwritten.
+    if (!m_pMapping && !m_mappings.isEmpty()) {
         m_pMapping = *m_mappings.cbegin();
     }
     emit mappingChanged();

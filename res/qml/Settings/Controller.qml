@@ -15,11 +15,14 @@ Category {
         required property var device
         readonly property var mappings: Mixxx.ControllerManager.mappings(device.type)
 
+        // Compare by name: mapping proxies may be recreated, and devices
+        // without a product match have no mapping proxy at all.
         function mappingIndex() {
-            if (!card.device.mapping)
+            const name = card.device.mapping ? card.device.mapping.name : card.device.activeMappingName;
+            if (!name)
                 return -1;
             for (let i = 0; i < card.mappings.length; i++) {
-                if (card.mappings[i] === card.device.mapping)
+                if (card.mappings[i].name === name)
                     return i;
             }
             return -1;
