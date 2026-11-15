@@ -10,14 +10,16 @@ MouseArea {
 
     readonly property var library: Mixxx.Library
 
-    drag.target: value
+    // On touch screens dragging must scroll the list, not move the cell
+    drag.target: Qt.platform.os === "android" ? null : value
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     onClicked: (mouse) => {
         if (mouse.button === Qt.RightButton)
             contextMenu.popup()
     }
     onPressAndHold: (mouse) => {
-        if (mouse.source === Qt.MouseEventNotSynthesized)
+        // Long press opens the menu on touch screens too ("Load to" deck)
+        if (mouse.source === Qt.MouseEventNotSynthesized || Qt.platform.os === "android")
             contextMenu.popup()
     }
 
