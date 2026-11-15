@@ -172,6 +172,9 @@ Rectangle {
         anchors.right: root.right
         anchors.rightMargin: 5
         width: root.rightColumnWidth
+        // Current BPM (with the tempo fader applied), like on a CDJ
+        text: bpmControl.value > 0 ? bpmControl.value.toFixed(1) : "-"
+        font.bold: true
 
         Mixxx.ControlProxy {
             id: bpmControl
@@ -198,6 +201,60 @@ Rectangle {
 
             group: root.group
             key: "rate_ratio"
+        }
+    }
+
+    // Remaining time, like on a CDJ: red and blinking during the last 30 s of
+    // a playing track
+    Skin.EmbeddedText {
+        id: infoBarTime
+
+        readonly property real remaining: Math.max(0, durationControl.value * (1 - playPositionControl.value))
+        readonly property bool ending: playControl.value > 0 && durationControl.value > 0 && remaining < 30
+        property bool blink: false
+
+        anchors.top: infoBarVSeparator.bottom
+        anchors.bottom: infoBarHSeparator1.bottom
+        anchors.right: infoBarHSeparator2.left
+        width: root.rightColumnWidth
+        text: {
+            if (durationControl.value <= 0)
+                return "";
+            const seconds = Math.floor(remaining);
+            const minutes = Math.floor(seconds / 60);
+            const rest = seconds % 60;
+            return "-" + minutes + ":" + (rest < 10 ? "0" : "") + rest;
+        }
+        color: ending ? (blink ? Theme.white : "#ff3030") : Theme.deckTextColor
+        font.bold: ending
+
+        Timer {
+            interval: 500
+            repeat: true
+            running: infoBarTime.ending
+            onTriggered: infoBarTime.blink = !infoBarTime.blink
+            onRunningChanged: infoBarTime.blink = false
+        }
+
+        Mixxx.ControlProxy {
+            id: durationControl
+
+            group: root.group
+            key: "duration"
+        }
+
+        Mixxx.ControlProxy {
+            id: playPositionControl
+
+            group: root.group
+            key: "playposition"
+        }
+
+        Mixxx.ControlProxy {
+            id: playControl
+
+            group: root.group
+            key: "play"
         }
     }
 

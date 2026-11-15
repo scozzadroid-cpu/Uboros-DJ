@@ -21,7 +21,8 @@ Item {
 
             PropertyChanges {
                 target: root
-                implicitHeight: 66
+                // Info bar + the thin track overview (see Deck.qml)
+                implicitHeight: 97
             }
 
             AnchorChanges {
