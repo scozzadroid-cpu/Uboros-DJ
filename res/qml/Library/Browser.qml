@@ -22,6 +22,114 @@ Rectangle {
         root.model.activate(root.model.index(0, 0))
     }
 
+    // Controller navigation (e.g. the BROWSE encoder of a DJ controller):
+    // when [Library],focused_widget is the sidebar, the library move controls
+    // move the selection here. The source under the cursor is shown shortly
+    // after the cursor stops, and when the focus goes back to the track list.
+    Skin.FocusedWidgetControl {
+        id: focusedWidget
+    }
+
+    readonly property bool controllerFocus: focusedWidget.value == Skin.FocusedWidgetControl.WidgetKind.Sidebar
+    property bool activationPending: false
+
+    function currentViewRow() {
+        const current = featureSelection.currentIndex;
+        return current && current.valid ? featureView.rowAtIndex(current) : -1;
+    }
+
+    function moveSelection(offset) {
+        const rowCount = featureView.rows;
+        if (rowCount <= 0 || offset == 0)
+            return;
+        let row = root.currentViewRow();
+        row = row < 0 ? 0 : Math.max(0, Math.min(rowCount - 1, row + offset));
+        const index = featureView.index(row, 0);
+        featureSelection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+        featureView.positionViewAtRow(row, TableView.Contain);
+        root.activationPending = true;
+        activationTimer.restart();
+    }
+
+    function activateSelection() {
+        activationTimer.stop();
+        if (!root.activationPending)
+            return;
+        root.activationPending = false;
+        const row = root.currentViewRow();
+        if (row < 0)
+            return;
+        root.model.activate(featureView.index(row, 0));
+        // Show the children (sub-folders, playlists, USB drives...)
+        if (!featureView.isExpanded(row))
+            featureView.expand(row);
+    }
+
+    Timer {
+        id: activationTimer
+        interval: 500
+        onTriggered: root.activateSelection()
+    }
+
+    onControllerFocusChanged: {
+        if (root.controllerFocus) {
+            // Start from the source whose tracks are shown
+            if (root.currentViewRow() < 0) {
+                featureSelection.setCurrentIndex(featureView.index(0, 0), ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+            }
+        } else {
+            root.activateSelection();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveVertical"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus)
+                root.moveSelection(value);
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveUp"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus)
+                root.moveSelection(-1);
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveDown"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus)
+                root.moveSelection(1);
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "GoToItem"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus) {
+                root.activationPending = true;
+                root.activateSelection();
+            }
+        }
+    }
+
+    // Shows where the controller cursor is
+    Rectangle {
+        z: 1
+        anchors.fill: parent
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.white
+        visible: root.controllerFocus
+    }
+
     Rectangle {
         anchors.fill: parent
         anchors.topMargin: 7
@@ -79,9 +187,10 @@ Rectangle {
                         required property int row
                         required property int column
                         required property bool current
-                        // FIXME The signature for that function has changed after Qt 6.4.2 (currently shipped on Ubuntu 24.04)
+                        // FIXME The signature of modelIndex() has changed after Qt 6.4.2 (currently shipped on Ubuntu 24.04)
                         // See https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-2770811094 for further details
-                        readonly property var index: treeView.modelIndex(column, row)
+                        // Since Qt 6.4.3 it is modelIndex(row, column); index(row, column) only exists there.
+                        readonly property var index: typeof treeView.index === "function" ? treeView.index(row, column) : treeView.modelIndex(column, row)
 
                         implicitWidth: treeView.width
                         implicitHeight: depth == 0 ? 42 : 35
@@ -115,7 +224,7 @@ Rectangle {
                                     // populate the children (folders are listed lazily)
                                     const wasExpanded = expanded;
                                     const viewRow = row;
-                                    treeView.selectionModel.select(treeView.selectionModel.model.index(viewRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
+                                    treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
                                     treeView.model.activate(index)
                                     if (wasExpanded) {
                                         treeView.collapse(viewRow)

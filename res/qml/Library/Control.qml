@@ -69,6 +69,39 @@ Item {
         }
     }
 
+    // In the QML UI the focus between the sidebar (sources) and the track list
+    // is handled here: the legacy LibraryControl only handles widgets.
+    function toggleFocus() {
+        root.focusWidget = root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar ? Skin.FocusedWidgetControl.WidgetKind.LibraryView : Skin.FocusedWidgetControl.WidgetKind.Sidebar;
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocusForward"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.toggleFocus();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocusBackward"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.toggleFocus();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveFocus"
+        onValueChanged: (value) => {
+            if (value != 0)
+                root.toggleFocus();
+        }
+    }
+
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "MoveVertical"
