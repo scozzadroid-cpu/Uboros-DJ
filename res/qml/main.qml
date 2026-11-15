@@ -22,7 +22,7 @@ ApplicationWindow {
     readonly property bool decksMinimized: maximizeLibrary || (compact && !showMixer)
     readonly property int waveformCount: show4decks ? 4 : 2
     // "Waveform view" (compact only): library hidden, the waveforms take all
-    // the height left. Toggled by [Skin],show_library (FLX4 BROWSE press or
+    // the height left. Toggled by [Skin],show_library (FLX4 SHIFT + BROWSE press or
     // the "Waves" toolbar button).
     readonly property bool waveformView: compact && !showMixer && !maximizeLibrary && showLibraryControl.value === 0
     readonly property real waveformHeight: {
