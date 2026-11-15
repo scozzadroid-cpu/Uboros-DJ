@@ -144,13 +144,13 @@ Rectangle {
         key: "track_loaded"
     }
 
-    // Empty deck
+    // Empty deck, or track being opened: playback of the other deck goes on
     Text {
         visible: trackLoadedControl.value == 0
         anchors.left: coverArt.right
         anchors.leftMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        text: qsTr("Load a track")
+        text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : qsTr("Load a track")
         font.family: Theme.fontFamily
         font.pixelSize: Theme.textFontPixelSize
         font.italic: true
@@ -183,6 +183,35 @@ Rectangle {
         anchors.margins: 5
         height: 2
         color: root.lineColor
+    }
+
+    // Analysis of the loaded track (waveform, beats, key) in progress
+    Rectangle {
+        id: analysisBadge
+
+        readonly property real progress: root.deckPlayer ? root.deckPlayer.analysisProgress : -1
+
+        visible: progress >= 0 && trackLoadedControl.value != 0
+        z: 1
+        anchors.right: infoBarHSeparator1.left
+        anchors.rightMargin: 6
+        anchors.verticalCenter: infoBarArtist.verticalCenter
+        height: analysisText.implicitHeight + 4
+        width: analysisText.implicitWidth + 12
+        radius: height / 2
+        color: Theme.darkGray2
+        border.width: 1
+        border.color: Theme.accentColor
+
+        Text {
+            id: analysisText
+
+            anchors.centerIn: parent
+            text: qsTr("Analyzing %1%").arg(Math.round(analysisBadge.progress * 100))
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textFontPixelSize - 3
+            color: Theme.white
+        }
     }
 
     Skin.EmbeddedText {
