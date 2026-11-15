@@ -3,6 +3,7 @@
 #include <QAtomicInt>
 #include <QtDebug>
 
+#include "util/threadpriority.h"
 #include "analyzer/analyzersilence.h"
 #include "moc_cachingreaderworker.cpp"
 #include "sources/soundsourceproxy.h"
@@ -117,6 +118,10 @@ void CachingReaderWorker::run() {
     const auto id = lastId.fetchAndAddRelaxed(1) + 1;
     QThread::currentThread()->setObjectName(
             QStringLiteral("CachingReaderWorker ") + QString::number(id));
+    // This thread feeds the audio engine from the disk: it must win against
+    // analysis, GUI and library work, otherwise playback runs dry.
+    // (QThread::HighPriority is ignored on Linux/Android.)
+    mixxx::setCurrentThreadNice(mixxx::kThreadNiceAudio);
 
     Event::start(m_tag);
     while (!m_stop.loadAcquire()) {

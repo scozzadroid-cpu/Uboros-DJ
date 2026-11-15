@@ -48,6 +48,11 @@ class AnalysisFeature : public LibraryFeature {
     void onTrackAnalysisSchedulerProgress(AnalyzerProgress currentTrackProgress, int currentTrackNumber, int totalTracksCount);
     void onTrackAnalysisSchedulerFinished();
 
+#ifdef __ANDROID__
+    // Batch analysis is paused while a deck is playing: playback first.
+    void slotPlayingDeckChanged(int deck);
+#endif
+
   private:
     // Sets the title of this feature to the default name, given by
     // m_sAnalysisTitleName
@@ -67,4 +72,5 @@ class AnalysisFeature : public LibraryFeature {
 
     // The title is dynamic and reflects the current progress
     QString m_title;
+    bool m_pausedForPlayback{false};
 };

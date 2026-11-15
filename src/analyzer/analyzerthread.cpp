@@ -2,6 +2,7 @@
 
 #include <mutex>
 
+#include "util/threadpriority.h"
 #include "analyzer/analyzerbeats.h"
 #include "analyzer/analyzerebur128.h"
 #include "analyzer/analyzergain.h"
@@ -88,6 +89,12 @@ AnalyzerThread::AnalyzerThread(
 }
 
 void AnalyzerThread::doRun() {
+    // Playback has priority over analysis. QThread priorities are ignored on
+    // Linux/Android, set the nice value: batch analysis (library) lowest,
+    // analysis of loaded tracks low.
+    mixxx::setCurrentThreadNice((m_modeFlags & AnalyzerModeFlags::LowPriority)
+                    ? mixxx::kThreadNiceLowest
+                    : mixxx::kThreadNiceBackground);
     std::unique_ptr<AnalysisDao> pAnalysisDao;
     // The thread-local database connection  must not be closed
     // before returning from this function.

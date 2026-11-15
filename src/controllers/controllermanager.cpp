@@ -50,6 +50,11 @@ const mixxx::Duration ControllerManager::kPollInterval = mixxx::Duration::fromMi
 #endif
 
 namespace {
+#ifdef __ANDROID__
+// Poll interval while no MIDI message arrived for kPollIdleAfter
+constexpr int kIdlePollIntervalMs = 4;
+const mixxx::Duration kPollIdleAfter = mixxx::Duration::fromMillis(2000);
+#endif
 /// Strip slashes and spaces from device name, so that it can be used as config
 /// key or a filename.
 QString sanitizeDeviceName(QString name) {
@@ -503,13 +508,27 @@ void ControllerManager::slotPollDevices() {
     }
 
     mixxx::Duration start = mixxx::Time::elapsed();
+    bool activity = false;
     for (Controller* pDevice : std::as_const(m_controllers)) {
         if (pDevice->isOpen() && pDevice->isPolling()) {
-            pDevice->poll();
+            activity |= pDevice->poll();
         }
     }
 
     mixxx::Duration duration = mixxx::Time::elapsed() - start;
+#ifdef __ANDROID__
+    if (activity) {
+        m_lastPollActivity = start;
+        if (m_pollTimer.interval() != kPollInterval.toIntegerMillis()) {
+            m_pollTimer.setInterval(kPollInterval.toIntegerMillis());
+        }
+    } else if (start - m_lastPollActivity > kPollIdleAfter &&
+            m_pollTimer.interval() != kIdlePollIntervalMs) {
+        m_pollTimer.setInterval(kIdlePollIntervalMs);
+    }
+#else
+    Q_UNUSED(activity);
+#endif
     if (duration > kPollInterval) {
         m_skipPoll = true;
     }
