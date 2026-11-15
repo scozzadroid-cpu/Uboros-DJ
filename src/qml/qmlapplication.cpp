@@ -187,6 +187,11 @@ QmlApplication::QmlApplication(
                 "(Landroid/view/WindowManager$LayoutParams;)V",
                 params.object());
         qInfo() << "Requested 60 Hz refresh rate for the main window";
+        // A DJ app must not let the screen turn off (and lock) while it is
+        // in the foreground. WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON:
+        // only active while this window is visible, no permission needed.
+        constexpr jint kFlagKeepScreenOn = 0x00000080;
+        window.callMethod<void>("addFlags", "(I)V", kFlagKeepScreenOn);
     });
 #endif
 
