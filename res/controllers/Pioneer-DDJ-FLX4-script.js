@@ -189,7 +189,9 @@ PioneerDDJFLX4.beta = PioneerDDJFLX4.alpha/32;
 
 // Multiplier for fast seek through track using SHIFT+JOGWHEEL
 PioneerDDJFLX4.fastSeekScale = 150;
-PioneerDDJFLX4.bendScale = 0.8;
+// Pitch bend with the side of the jog wheel: half of the stock 0.8, which
+// was too coarse for nudging two synced tracks
+PioneerDDJFLX4.bendScale = 0.4;
 
 PioneerDDJFLX4.tempoRanges = [0.06, 0.10, 0.16, 0.25];
 
@@ -569,17 +571,18 @@ PioneerDDJFLX4.cueLoopCallRight = function(_channel, _control, value, _status, g
 // press of the same button.
 //
 
+// Like rekordbox: a press turns sync on (the deck follows the tempo and the
+// beat of the master deck and the button stays lit) or off. A long press makes
+// the deck the sync master.
 PioneerDDJFLX4.syncPressed = function(channel, control, value, status, group) {
-    if (engine.getValue(group, "sync_enabled") && value > 0) {
-        engine.setValue(group, "sync_enabled", 0);
-    } else {
-        engine.setValue(group, "beatsync", value);
-    }
+    if (value === 0) { return; } // ignore release
+    script.toggleControl(group, "sync_enabled");
 };
 
 PioneerDDJFLX4.syncLongPressed = function(channel, control, value, status, group) {
     if (value) {
         engine.setValue(group, "sync_enabled", 1);
+        engine.setValue(group, "sync_leader", 1);
     }
 };
 
