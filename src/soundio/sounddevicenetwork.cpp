@@ -280,6 +280,18 @@ void SoundDeviceNetwork::writeProcess(SINT framesPerBuffer) {
         if (pWorker.isNull()) {
             continue;
         }
+        if (!pWorker->threadWaiting()) {
+            // Not streaming (e.g. a broadcast profile that is disabled or not
+            // connected yet). Keep its frame counter in sync with the stream
+            // clock instead of reporting the missing frames as underflows.
+            // When it connects it flushes its FIFO and starts from "now".
+            const qint64 behindFrames =
+                    pWorker->getStreamTimeFrames() - pWorker->framesWritten();
+            if (behindFrames > 0) {
+                pWorker->addFramesWritten(behindFrames);
+            }
+            continue;
+        }
 
         workerWriteProcess(pWorker,
                 outChunkSize, readAvailable,
