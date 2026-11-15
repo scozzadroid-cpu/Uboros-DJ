@@ -73,7 +73,9 @@ class SoundManager : public QObject {
     // Get a list of host APIs supported by PortAudio.
     QList<QString> getHostAPIList() const;
     SoundManagerConfig getConfig() const;
-    SoundDeviceStatus setConfig(const SoundManagerConfig& config);
+    // persist = false applies the config without writing it to disk, e.g.
+    // for a temporary fallback while the configured device is missing.
+    SoundDeviceStatus setConfig(const SoundManagerConfig& config, bool persist = true);
     // Due to a bug in in PulseAudio, we must give at least 5 seconds of cool
     // down before performing further audio related operation. This sleep
     // happens during the function call by default (synchronous blocking), but
