@@ -41,6 +41,8 @@ Rectangle {
                     Layout.preferredWidth: cover_art ? 75 : 0
                     fillMode: Image.PreserveAspectFit
                     source: cover_art
+                    sourceSize.width: 150
+                    sourceSize.height: 150
                     clip: true
                     asynchronous: true
                 }

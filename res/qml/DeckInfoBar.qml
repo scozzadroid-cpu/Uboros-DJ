@@ -47,6 +47,8 @@ Rectangle {
         anchors.margins: 5
         width: height
         source: root.currentTrack ? root.currentTrack.coverArtUrl : ""
+        sourceSize.width: 160
+        sourceSize.height: 160
         visible: false
         asynchronous: true
     }
