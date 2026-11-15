@@ -185,8 +185,13 @@ bool ProxyTrackModel::filterAcceptsRow(int sourceRow,
     tokens.removeDuplicates();
 
     const QList<int>& filterColumns = m_pTrackModel->searchColumns();
-    QAbstractItemModel* itemModel =
-            dynamic_cast<QAbstractItemModel*>(m_pTrackModel);
+    // The source model is m_pTrackModel itself (see the constructor). No
+    // cross-cast from TrackModel: dynamic_cast to Qt classes is unreliable on
+    // Android and a null model would crash here.
+    const QAbstractItemModel* itemModel = sourceModel();
+    VERIFY_OR_DEBUG_ASSERT(itemModel) {
+        return true;
+    }
 
     for (const auto& token : std::as_const(tokens)) {
         bool tokenMatch = false;
