@@ -91,7 +91,7 @@ Item {
                 }
             }
             LibraryComponent.Browser {
-                SplitView.minimumHeight: 200
+                SplitView.minimumHeight: root.compact ? 80 : 200
                 SplitView.preferredHeight: 500
                 SplitView.fillHeight: true
 
@@ -99,6 +99,7 @@ Item {
             }
 
             Skin.PreviewDeck {
+                visible: !root.compact
                 SplitView.minimumHeight: 100
                 SplitView.preferredHeight: 100
                 SplitView.maximumHeight: 200

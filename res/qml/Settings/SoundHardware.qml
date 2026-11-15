@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import Mixxx 1.0 as Mixxx
 import ".." as Skin
 import "../Theme"
@@ -8,7 +9,10 @@ Category {
     id: root
 
     label: "Sound hardware"
-    tabs: ["engine", "delays", "stats"]
+    tabs: ["engine", "delays"]
+
+    // Phone-sized window: stack the engine columns and scroll the page.
+    readonly property bool compact: (Window.window ? Window.window.height : 1080) < 700
 
     property bool hasChanges: router.hasChanges
     property bool committing: false
@@ -192,8 +196,21 @@ Category {
         load()
     }
 
-    ColumnLayout {
+    Flickable {
+        id: pageFlick
+
         anchors.fill: parent
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        contentHeight: root.compact ? pageLayout.implicitHeight : height
+        contentWidth: width
+        interactive: root.compact
+
+    ColumnLayout {
+        id: pageLayout
+
+        width: pageFlick.width
+        height: root.compact ? implicitHeight : pageFlick.height
 
         Item {
             id: tabSection
@@ -207,8 +224,9 @@ Category {
                 }
                 anchors.left: parent.left
                 anchors.right: parent.right
-                RowLayout {
+                GridLayout {
                     id: engine
+                    columns: root.compact ? 1 : 3
                     anchors.left: parent.left
                     anchors.right: parent.right
                     ColumnLayout {
@@ -331,6 +349,7 @@ Category {
                     }
                     Item {
                         Layout.preferredWidth: 70
+                        visible: !root.compact
                     }
                     ColumnLayout {
                         Layout.alignment: Qt.AlignTop
@@ -571,6 +590,8 @@ Category {
             label: "Router"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: root.compact ? 360 : 0
+            clip: true
             AudioRouter {
                 id: router
                 anchors.fill: parent
@@ -625,6 +646,7 @@ Category {
                 }
             }
         }
+    }
     }
     Connections {
         target: Mixxx.SoundManager
