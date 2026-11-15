@@ -21,12 +21,25 @@ ApplicationWindow {
     // the on-screen mixer is requested; a hardware controller does the rest.
     readonly property bool decksMinimized: maximizeLibrary || (compact && !showMixer)
     readonly property int waveformCount: show4decks ? 4 : 2
+    // "Waveform view" (compact only): library hidden, the waveforms take all
+    // the height left. Toggled by [Skin],show_library (FLX4 BROWSE press or
+    // the "Waves" toolbar button).
+    readonly property bool waveformView: compact && !showMixer && !maximizeLibrary && showLibraryControl.value === 0
     readonly property real waveformHeight: {
         if (!compact)
             return 120;
         // The on-screen mixer needs the whole height on a phone
         if (showMixer)
             return 0;
+        if (waveformView) {
+            // Everything in the Column except the waveforms themselves
+            const others = toolbar.height + decks12.height
+                    + (crossfader.visible ? crossfader.height : 0)
+                    + (decks34.visible ? decks34.height : 0)
+                    + (samplers.visible ? samplers.height : 0)
+                    + (effects.visible ? effects.height : 0);
+            return Math.max(32, Math.floor((height - others) / waveformCount));
+        }
         // Share ~26% of the window between the visible waveforms, the
         // library needs the rest.
         return Math.max(32, Math.min(120, Math.floor(height * 0.26 / waveformCount)));
@@ -34,6 +47,21 @@ ApplicationWindow {
 
     color: Theme.backgroundColor
     height: 1080
+
+    Mixxx.ControlProxy {
+        id: showLibraryControl
+
+        group: "[Skin]"
+        key: "show_library"
+
+        // Library and Mixer buttons switch the waveform view off
+        onValueChanged: (value) => {
+            if (value === 0 && root.compact) {
+                root.showMixer = false;
+                root.maximizeLibrary = false;
+            }
+        }
+    }
     visible: true
     width: 1920
 
@@ -73,7 +101,12 @@ ApplicationWindow {
                     text: "Library"
 
                     // In compact mode Library and Mixer share the same space
-                    onCheckedChanged: if (checked && root.compact) root.showMixer = false
+                    onCheckedChanged: {
+                        if (checked && root.compact) {
+                            root.showMixer = false;
+                            showLibraryControl.value = 1;
+                        }
+                    }
                 }
                 Skin.Button {
                     id: showEffectsButton
@@ -94,7 +127,21 @@ ApplicationWindow {
                     text: "Mixer"
                     visible: root.compact
 
-                    onCheckedChanged: if (checked) root.maximizeLibrary = false
+                    onCheckedChanged: {
+                        if (checked) {
+                            root.maximizeLibrary = false;
+                            showLibraryControl.value = 1;
+                        }
+                    }
+                }
+                Skin.Button {
+                    id: waveformViewButton
+                    activeColor: Theme.white
+                    checked: root.waveformView
+                    text: "Waves"
+                    visible: root.compact
+
+                    onClicked: showLibraryControl.value = showLibraryControl.value === 0 ? 1 : 0
                 }
                 Item {
                     Layout.fillWidth: true
@@ -243,7 +290,7 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.top: content.bottom
         compact: root.compact
-        visible: !(root.compact && root.showMixer)
+        visible: !(root.compact && (root.showMixer || root.waveformView))
     }
     Skin.Settings {
         id: settingsPopup

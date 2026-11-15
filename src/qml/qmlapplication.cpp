@@ -9,6 +9,7 @@
 #include <QJniObject>
 #endif
 
+#include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
@@ -137,6 +138,13 @@ QmlApplication::QmlApplication(
         }
     }
 
+    // Skin state shared by the QML toolbar and controller mappings.
+    m_pShowLibrary = std::make_unique<ControlPushButton>(
+            ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("show_library")),
+            false,
+            1.0);
+    m_pShowLibrary->setButtonMode(mixxx::control::ButtonMode::Toggle);
+
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();
     for (const QString& group : visualGroups) {
@@ -197,6 +205,7 @@ QmlApplication::~QmlApplication() {
     QmlDlgPreferencesProxy::s_pInstance.reset();
     m_visualsManager.reset();
     m_pAppEngine.reset();
+    m_pShowLibrary.reset();
     m_pCoreServices.reset();
 }
 
