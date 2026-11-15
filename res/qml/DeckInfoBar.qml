@@ -222,11 +222,64 @@ Rectangle {
         anchors.left: infoBarVSeparator.left
         anchors.right: infoBarHSeparator1.left
         anchors.bottom: infoBarHSeparator1.bottom
+        anchors.rightMargin: statusChips.visible ? statusChips.width + 10 : 0
         horizontalAlignment: Text.AlignLeft
         font.bold: false
         font.pixelSize: Theme.textFontPixelSize - 1
         color: Theme.textMutedColor
         elide: Text.ElideRight
+    }
+
+    // Deck state like the CDJ display, in the free space of the artist row:
+    // always shown, lit when on
+    Row {
+        id: statusChips
+
+        visible: trackLoadedControl.value != 0 && !analysisBadge.visible
+        anchors.right: infoBarHSeparator1.left
+        anchors.rightMargin: 6
+        anchors.verticalCenter: infoBarArtist.verticalCenter
+        spacing: 3
+
+        Skin.StatusChip {
+            text: "MASTER"
+            tint: "#ff9a3c"
+            active: syncLeaderControl.value > 0
+        }
+
+        Skin.StatusChip {
+            text: "SYNC"
+            tint: "#4ec3ff"
+            active: syncEnabledControl.value > 0
+        }
+
+        Skin.StatusChip {
+            // Master Tempo, as the CDJ calls keylock
+            text: "MT"
+            tint: "#c38bff"
+            active: keylockStateControl.value > 0
+        }
+
+        Mixxx.ControlProxy {
+            id: syncLeaderControl
+
+            group: root.group
+            key: "sync_leader"
+        }
+
+        Mixxx.ControlProxy {
+            id: syncEnabledControl
+
+            group: root.group
+            key: "sync_enabled"
+        }
+
+        Mixxx.ControlProxy {
+            id: keylockStateControl
+
+            group: root.group
+            key: "keylock"
+        }
     }
 
     Rectangle {
