@@ -9,6 +9,8 @@
 #include "engine/channels/enginedeck.h"
 #include "engine/enginemixer.h"
 #include "library/library.h"
+#include "library/rekordbox/deviceanalysisstore.h"
+#include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "mixer/auxiliary.h"
 #include "mixer/deck.h"
@@ -880,6 +882,16 @@ void PlayerManager::slotLoadTrackIntoNextAvailableSampler(TrackPointer pTrack) {
 void PlayerManager::slotAnalyzeTrack(TrackPointer track) {
     VERIFY_OR_DEBUG_ASSERT(track) {
         return;
+    }
+    // A track of a USB drive loaded before the drive's pre-analysis reached
+    // it: take the analysis stored on the drive (MIXXX/ANLZ) instead of
+    // analyzing again and overwriting it. Does nothing for other tracks or
+    // when the analysis cache already has the waveform.
+    if (m_pLibrary && track->getId().isValid()) {
+        mixxx::deviceanalysis::importIfAvailable(track,
+                m_pLibrary->trackCollectionManager()
+                        ->internalCollection()
+                        ->getAnalysisDAO());
     }
     if (m_pTrackAnalysisScheduler) {
         if (m_pTrackAnalysisScheduler->scheduleTrack(track->getId())) {
