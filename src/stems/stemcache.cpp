@@ -1,8 +1,13 @@
 #include "stems/stemcache.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
+#include <QFileInfo>
+#include <QMutex>
+#include <QHash>
 #include <QStandardPaths>
+#include <QStorageInfo>
 #include <algorithm>
 #include <cstring>
 
@@ -32,6 +37,44 @@ QString cacheDir() {
             QStringLiteral("/stems");
 }
 
+// A track takes ~30 MB per minute: keep about 20 tracks, and never leave
+// the phone with less than 2 GB free because of the stems
+constexpr qint64 kMaxCacheBytes = qint64(3) << 30;
+constexpr qint64 kMinFreeBytes = qint64(2) << 30;
+
+QMutex s_openMutex;
+QHash<QString, int> s_openPaths; // caches mapped right now (per deck), never removed
+
+/// Removes the least recently used caches until the limits are met.
+/// keepBytes: room needed for the cache about to be created.
+void pruneCache(qint64 keepBytes) {
+    QFileInfoList files = QDir(cacheDir()).entryInfoList(
+            {QStringLiteral("*.stemcache")}, QDir::Files);
+    std::sort(files.begin(), files.end(), [](const QFileInfo& a, const QFileInfo& b) {
+        return a.lastModified() < b.lastModified();
+    });
+    qint64 total = keepBytes;
+    for (const auto& file : std::as_const(files)) {
+        total += file.size();
+    }
+    qint64 free = QStorageInfo(cacheDir()).bytesAvailable() - keepBytes;
+    QMutexLocker locker(&s_openMutex);
+    for (const auto& file : std::as_const(files)) {
+        if (total <= kMaxCacheBytes && free >= kMinFreeBytes) {
+            break;
+        }
+        if (s_openPaths.contains(file.absoluteFilePath())) {
+            continue;
+        }
+        if (QFile::remove(file.absoluteFilePath())) {
+            kLogger.info() << "Removed the old stems" << file.fileName()
+                           << file.size() / (1 << 20) << "MB";
+            total -= file.size();
+            free += file.size();
+        }
+    }
+}
+
 } // namespace
 
 StemCache::StemCache(const QString& path, long frames)
@@ -44,6 +87,11 @@ StemCache::~StemCache() {
         m_file.unmap(m_pReady - kHeaderSize);
     }
     m_file.close();
+    QMutexLocker locker(&s_openMutex);
+    const QString path = QFileInfo(m_file.fileName()).absoluteFilePath();
+    if (--s_openPaths[path] <= 0) {
+        s_openPaths.remove(path);
+    }
 }
 
 std::shared_ptr<StemCache> StemCache::open(const QString& trackLocation,
@@ -59,10 +107,19 @@ std::shared_ptr<StemCache> StemCache::open(const QString& trackLocation,
                                     .left(24);
     const QString path = cacheDir() + QChar('/') + QString::fromLatin1(hash) +
             QStringLiteral(".stemcache");
+    {
+        QMutexLocker locker(&s_openMutex);
+        ++s_openPaths[QFileInfo(path).absoluteFilePath()];
+    }
+    if (!QFile::exists(path)) {
+        pruneCache(kHeaderSize + qint64(frames) * kSlots * qint64(sizeof(int16_t)));
+    }
     std::shared_ptr<StemCache> pCache(new StemCache(path, frames));
     if (!pCache->map(sampleRate)) {
         return nullptr;
     }
+    // The modification time orders the caches by last use
+    pCache->m_file.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
     return pCache;
 }
 
