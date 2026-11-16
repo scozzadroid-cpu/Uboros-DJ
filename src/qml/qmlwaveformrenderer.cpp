@@ -11,7 +11,9 @@
 #include "util/assert.h"
 #include "waveform/renderers/allshader/waveformrenderbeat.h"
 #include "waveform/renderers/allshader/waveformrendererendoftrack.h"
+#include "qml/qmlconfigproxy.h"
 #include "waveform/renderers/allshader/waveformrendererfiltered.h"
+#include "waveform/renderers/allshader/waveformrendererfilteredgpu.h"
 #include "waveform/renderers/allshader/waveformrendererhsv.h"
 #include "waveform/renderers/allshader/waveformrendererpreroll.h"
 #include "waveform/renderers/allshader/waveformrendererrgb.h"
@@ -122,8 +124,19 @@ QmlWaveformRendererFactory::Renderer QmlWaveformRendererRGB::create(
 
 QmlWaveformRendererFactory::Renderer QmlWaveformRendererFiltered::create(
         WaveformWidgetRenderer* waveformWidget) const {
+    // Drawn by the GPU unless the user (or the first start check) chose the
+    // CPU, see WaveformRendererFilteredGpu. Not for the split stereo signal
+    if (mixxx::qml::QmlConfigProxy::useWaveformGpu() &&
+            !m_options.testFlag(::WaveformRendererSignalBase::Option::SplitStereoSignal)) {
+        auto pRenderer = std::make_unique<allshader::WaveformRendererFilteredGpu>(
+                waveformWidget, m_options);
+        setup(pRenderer.get());
+        return QmlWaveformRendererFactory::Renderer{pRenderer.get(), std::move(pRenderer)};
+    }
+    // Not stacked: the second argument is bRgbStacked (it was given
+    // m_ignoreStem, which setup() sets below)
     auto pRenderer = std::make_unique<allshader::WaveformRendererFiltered>(
-            waveformWidget, m_ignoreStem, m_options);
+            waveformWidget, false, m_options);
 
     setup(pRenderer.get());
     return QmlWaveformRendererFactory::Renderer{pRenderer.get(), std::move(pRenderer)};

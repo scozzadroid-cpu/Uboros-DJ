@@ -612,6 +612,10 @@ void allshader::WaveformRenderMark::updateMarkImage(WaveformMarkPointer pMark) {
         pGraphics->updateTexture(m_waveformRenderer->getContext(),
                 pMark->generateImage(
                         m_waveformRenderer->getDevicePixelRatio()));
+        // Up to date again: nothing cleared the flag, so a mark whose color
+        // or label had changed once was painted again (QPainter, then a new
+        // texture) on every frame, ~30% of the render thread on a phone
+        pGraphics->m_obsolete = false;
     }
 }
 void allshader::WaveformRenderMark::updateEndMarkImage(WaveformMarkPointer pMark) {
@@ -627,6 +631,10 @@ void allshader::WaveformRenderMark::updateEndMarkImage(WaveformMarkPointer pMark
         pGraphics->updateTexture(m_waveformRenderer->getContext(),
                 pMark->generateEndImage(
                         m_waveformRenderer->getDevicePixelRatio()));
+        // Up to date again: nothing cleared the flag, so a mark whose color
+        // or label had changed once was painted again (QPainter, then a new
+        // texture) on every frame, ~30% of the render thread on a phone
+        pGraphics->m_obsolete = false;
     }
 }
 

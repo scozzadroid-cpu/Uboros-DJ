@@ -3914,6 +3914,7 @@ if(QML)
       src/waveform/renderers/allshader/waveformrendermarkrange.cpp
       src/waveform/renderers/allshader/waveformrendererslipmode.cpp
       src/waveform/renderers/allshader/waveformrendererfiltered.cpp
+      src/waveform/renderers/allshader/waveformrendererfilteredgpu.cpp
       src/waveform/renderers/allshader/waveformrendererhsv.cpp
       src/waveform/renderers/allshader/waveformrenderersimple.cpp
       # The following sources need to be in this target to get QML_ELEMENT properly interpreted

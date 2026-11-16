@@ -167,6 +167,14 @@ QSGNode* QmlWaveformDisplay::updatePaintNode(QSGNode* node, UpdatePaintNodeData*
         pBgNode->appendChildNode(pTopNode);
         pClipNode->appendChildNode(pBgNode);
         init();
+        // The renderers are made here, after setPlayer() gave the track: a
+        // display created with a track already loaded (e.g. made again by
+        // the GPU waveform switch) showed no cue marks
+        if (getTrackInfo()) {
+            for (auto* pRenderer : std::as_const(m_rendererStack)) {
+                pRenderer->onSetTrack();
+            }
+        }
     }
 
     if (m_dirtyFlag.testFlag(DirtyFlag::Background)) {
