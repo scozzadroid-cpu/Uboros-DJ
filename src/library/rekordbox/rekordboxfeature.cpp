@@ -1,6 +1,7 @@
 #include "library/rekordbox/rekordboxfeature.h"
 
 #include <QElapsedTimer>
+#include <optional>
 #include <QtConcurrentRun>
 
 #include "library/library.h"
@@ -958,6 +959,70 @@ void setHotCue(TrackPointer track,
     }
 }
 
+struct ConstantTempoGrid {
+    double firstBeatMs;  // on the first downbeat, in rekordbox time
+    double beatLengthMs; // exact, not rounded like the exported tempo
+};
+
+/// rekordbox stores every beat in whole milliseconds and its tempo in
+/// hundredths of a BPM. Read one by one, a constant 122.98 BPM grid has
+/// intervals alternating between 487 and 488 ms, so Beats::fromBeatPositions()
+/// starts a new marker on almost every beat and the BPM display and SYNC
+/// follow that rounding noise. Using the exported tempo instead is no better:
+/// it is rounded too (up to 0.08 BPM off on real exports), which drifts by
+/// tens of ms over a track.
+///
+/// Fit a line through all the beats instead. If no beat is further from it
+/// than the millisecond rounding allows, the grid is constant and the fitted
+/// slope is its true beat length. Real tempo changes and hand-edited grids
+/// fail the test and keep their beat map.
+std::optional<ConstantTempoGrid> fitConstantTempoGrid(
+        const std::vector<std::unique_ptr<rekordbox_anlz_t::beat_grid_beat_t>>&
+                gridBeats) {
+    // Rounding to whole ms leaves at most 0.5 ms; allow a little more for
+    // the sample-accurate positions rekordbox rounds from.
+    constexpr double kToleranceMs = 1.0;
+    constexpr std::size_t kMinBeats = 16;
+    const std::size_t n = gridBeats.size();
+    if (n < kMinBeats) {
+        return std::nullopt;
+    }
+    // Least squares of time against beat index, centred for precision
+    const double meanIndex = (n - 1) / 2.0;
+    double meanTime = 0;
+    for (const auto& beat : gridBeats) {
+        meanTime += beat->time();
+    }
+    meanTime /= n;
+    double sxy = 0;
+    double sxx = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double dx = i - meanIndex;
+        sxy += dx * (gridBeats[i]->time() - meanTime);
+        sxx += dx * dx;
+    }
+    const double beatLengthMs = sxy / sxx;
+    // 20..400 BPM
+    if (!(beatLengthMs > 150 && beatLengthMs < 3000)) {
+        return std::nullopt;
+    }
+    const double zeroMs = meanTime - meanIndex * beatLengthMs;
+    std::optional<std::size_t> firstDownbeat;
+    for (std::size_t i = 0; i < n; ++i) {
+        const double fitted = zeroMs + i * beatLengthMs;
+        if (std::fabs(gridBeats[i]->time() - fitted) > kToleranceMs) {
+            return std::nullopt;
+        }
+        if (!firstDownbeat && gridBeats[i]->beat_number() == 1) {
+            firstDownbeat = i;
+        }
+    }
+    // Mixxx counts bars from the grid anchor: put it on a rekordbox downbeat
+    // so the bar markers match the CDJ.
+    return ConstantTempoGrid{zeroMs + firstDownbeat.value_or(0) * beatLengthMs,
+            beatLengthMs};
+}
+
 void readAnalyze(TrackPointer track,
         mixxx::audio::SampleRate sampleRate,
         double timingOffset,
@@ -991,9 +1056,10 @@ void readAnalyze(TrackPointer track,
                     static_cast<rekordbox_anlz_t::beat_grid_tag_t*>(
                             section->body());
 
+            const auto& gridBeats = *beatGridTag->beats();
             QVector<mixxx::audio::FramePos> beats;
 
-            for (const auto& beat : *beatGridTag->beats()) {
+            for (const auto& beat : gridBeats) {
                 double time = static_cast<double>(beat->time()) - timingOffset;
                 // Ensure no offset times are less than 1
                 if (time < 1) {
@@ -1001,13 +1067,32 @@ void readAnalyze(TrackPointer track,
                 }
                 beats << mixxx::audio::FramePos(sampleRateKhz * static_cast<double>(time));
             }
+            if (beats.size() < 2) {
+                break;
+            }
 
-            const auto pBeats = mixxx::Beats::fromBeatPositions(
-                    sampleRate,
-                    beats,
-                    beatsSubversion);
+            mixxx::BeatsPointer pBeats;
+            const auto constantGrid = fitConstantTempoGrid(gridBeats);
+            if (constantGrid) {
+                double firstBeatMs = constantGrid->firstBeatMs - timingOffset;
+                // Whole bars, so the anchor stays on a downbeat
+                while (firstBeatMs < 1) {
+                    firstBeatMs += 4 * constantGrid->beatLengthMs;
+                }
+                pBeats = mixxx::Beats::fromConstTempo(sampleRate,
+                        mixxx::audio::FramePos(sampleRateKhz * firstBeatMs),
+                        mixxx::Bpm(60000.0 / constantGrid->beatLengthMs),
+                        beatsSubversion);
+            } else {
+                pBeats = mixxx::Beats::fromBeatPositions(
+                        sampleRate,
+                        beats,
+                        beatsSubversion);
+            }
             const bool set = track->trySetBeats(pBeats);
-            qDebug() << "Rekordbox beat grid:" << beats.size() << "beats, first at"
+            qDebug() << "Rekordbox beat grid:" << beats.size()
+                     << (constantGrid ? "beats, constant tempo, first at"
+                                      : "beats, beat map, first at")
                      << (beats.isEmpty() ? 0.0 : beats.first().value() / sampleRateKhz)
                      << "ms, timing offset" << timingOffset << "ms, changed:" << set
                      << "for:" << track->getTitle();
