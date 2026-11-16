@@ -6,6 +6,7 @@
 #include "analyzer/analyzerbeats.h"
 #include "analyzer/analyzerebur128.h"
 #include "analyzer/analyzergain.h"
+#include "analyzer/analyzergridalign.h"
 #include "analyzer/analyzerkey.h"
 #include "analyzer/analyzersilence.h"
 #include "analyzer/analyzerwaveform.h"
@@ -120,6 +121,8 @@ void AnalyzerThread::doRun() {
     // and enabled by explicitly setting the mode flag.
     const bool enforceBpmDetection = (m_modeFlags & AnalyzerModeFlags::WithBeats) != 0;
     m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerBeats>(m_pConfig, enforceBpmDetection)));
+    // After AnalyzerBeats: measures the rekordbox grid that one kept
+    m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerGridAlign>(m_pConfig)));
     m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerKey>(m_pConfig)));
     m_analyzers.push_back(AnalyzerWithState(std::make_unique<AnalyzerSilence>(m_pConfig)));
     DEBUG_ASSERT(!m_analyzers.empty());
