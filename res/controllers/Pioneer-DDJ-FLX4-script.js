@@ -39,8 +39,10 @@
 //
 //      * Secondary pad modes (trial attempts complex and too experimental)
 //        * Keyboard mode
-//        * Pad FX1
-//        * Pad FX2
+//
+//      * PAD FX1 / PAD FX2: momentary effects on the deck while a pad is held
+//        (effect unit 2 = deck 1, unit 3 = deck 2), see PioneerDDJFLX4.padFx.
+//        Pad 8 of each bank is a RELEASE FX that ends the track.
 //
 //      * SMART FADER: crossfader on/off (LED on = crossfader active). Off: decks 1
 //        and 2 are not affected by the crossfader, so moving it by mistake does
@@ -263,6 +265,7 @@ PioneerDDJFLX4.init = function() {
     PioneerDDJFLX4.crossfaderActive = true;
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, true);
     engine.setValue("[EffectRack1_EffectUnit1]", "show_focus", 1);
+    PioneerDDJFLX4.initPadFx();
 
     engine.makeConnection("[Channel1]", "vu_meter", PioneerDDJFLX4.vuMeterUpdate);
     engine.makeConnection("[Channel2]", "vu_meter", PioneerDDJFLX4.vuMeterUpdate);
@@ -459,6 +462,91 @@ PioneerDDJFLX4.beatFxChannel2 = function(_channel, control, value, _status, grou
     if (value === 0x7f) { enableChannel = 1; }
 
     engine.setValue(group, "group_[Channel2]_enable", enableChannel);
+};
+
+//
+// PAD FX1 / PAD FX2
+//
+// Momentary effects on the deck's own channel while a pad is held, like the
+// PAD FX of rekordbox. Effect unit 2 serves deck 1 and unit 3 deck 2; Mixxx
+// loads Echo, Reverb, Flanger and Bitcrusher in them when they are empty.
+// Pad 8 of each bank is a RELEASE FX: it ends the track (vinyl brake, echo
+// out). SHIFT + pad does the same as the pad.
+//
+
+PioneerDDJFLX4.padFx = {
+    // PAD FX1
+    0x10: {slots: [1]},          // Echo
+    0x11: {slots: [2]},          // Reverb
+    0x12: {slots: [3]},          // Flanger
+    0x13: {slots: [4]},          // Bitcrusher
+    0x14: {roll: "0.5"},         // Roll 1/2
+    0x15: {roll: "0.25"},        // Roll 1/4
+    0x16: {roll: "0.125"},       // Roll 1/8
+    0x17: {release: "brake"},    // RELEASE FX: vinyl brake
+    // PAD FX2
+    0x50: {slots: [1, 2]},       // Echo + Reverb
+    0x51: {slots: [3, 2]},       // Flanger + Reverb
+    0x52: {slots: [4, 1]},       // Bitcrusher + Echo
+    0x53: {roll: "1"},           // Roll 1
+    0x54: {roll: "0.0625"},      // Roll 1/16
+    0x55: {roll: "2"},           // Roll 2
+    0x56: {release: "spinback"}, // RELEASE FX: backspin
+    0x57: {release: "echoOut"},  // RELEASE FX: echo out (stops, the echo rings while held)
+};
+
+PioneerDDJFLX4.padFxUnit = function(group) {
+    return group === "[Channel1]" ? "[EffectRack1_EffectUnit2]" : "[EffectRack1_EffectUnit3]";
+};
+
+PioneerDDJFLX4.initPadFx = function() {
+    const decks = ["[Channel1]", "[Channel2]"];
+    for (const deck of decks) {
+        const unit = PioneerDDJFLX4.padFxUnit(deck);
+        for (let ch = 1; ch <= 4; ch++) {
+            engine.setValue(unit, "group_[Channel" + ch + "]_enable", "[Channel" + ch + "]" === deck ? 1 : 0);
+        }
+        engine.setValue(unit, "mix", 0.6);
+        engine.setValue(unit, "enabled", 1);
+        for (let slot = 1; slot <= 4; slot++) {
+            engine.setValue(unit.replace("]", "_Effect" + slot + "]"), "enabled", 0);
+        }
+    }
+};
+
+PioneerDDJFLX4.padFxPressed = function(_channel, control, value, status, group) {
+    const fx = PioneerDDJFLX4.padFx[control];
+    if (fx === undefined) {
+        return;
+    }
+    const pressed = value > 0;
+    const unit = PioneerDDJFLX4.padFxUnit(group);
+    const deckNumber = group === "[Channel1]" ? 1 : 2;
+
+    // Pad light while held
+    midi.sendShortMsg(status, control, pressed ? 0x7F : 0x00);
+
+    if (fx.slots !== undefined) {
+        for (const slot of fx.slots) {
+            engine.setValue(unit.replace("]", "_Effect" + slot + "]"), "enabled", pressed ? 1 : 0);
+        }
+    } else if (fx.roll !== undefined) {
+        engine.setValue(group, "beatlooproll_" + fx.roll + "_activate", pressed ? 1 : 0);
+    } else if (fx.release === "brake") {
+        if (pressed) {
+            engine.brake(deckNumber, true);
+        }
+    } else if (fx.release === "spinback") {
+        if (pressed) {
+            engine.spinback(deckNumber, true);
+        }
+    } else if (fx.release === "echoOut") {
+        // The echo keeps ringing after the stop while the pad is held
+        engine.setValue(unit.replace("]", "_Effect1]"), "enabled", pressed ? 1 : 0);
+        if (pressed) {
+            engine.setValue(group, "play", 0);
+        }
+    }
 };
 
 //
