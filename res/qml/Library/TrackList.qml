@@ -275,6 +275,7 @@ Rectangle {
             required property string file_url
             required property url cover_art
             required property int row
+            required property bool played
 
             implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
@@ -288,6 +289,7 @@ Rectangle {
                 property url file_url: item.file_url
                 property url cover_art: item.cover_art
                 property int row: item.row
+                property bool played: item.played
                 property var tableView: view
                 property var capabilities: root.model ? root.model.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
                 sourceComponent: delegate

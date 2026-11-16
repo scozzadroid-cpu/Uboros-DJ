@@ -50,12 +50,16 @@ Mixxx.LibrarySourceTree {
         return null;
     }
     readonly property var referenceKey: referenceDeck ? Harmony.fromChromaticKey(referenceDeck.key.value) : null
+    readonly property color playedTextColor: "#6f8fb0"
     readonly property real referenceBpm: referenceDeck ? referenceDeck.bpm.value : 0
 
     component DefaultDelegate: LibraryComponent.Cell {
         id: cell
         readonly property var caps: capabilities
-        property color textColor: Theme.textColor
+        // Tracks already played in this session: dimmer text, like the
+        // history colour of a CDJ browser
+        readonly property color baseTextColor: played ? root.playedTextColor : Theme.textColor
+        property color textColor: baseTextColor
         property bool textBold: false
         // FIXME: https://bugreports.qt.io/browse/QTBUG-111789
         Binding on Drag.active {
@@ -103,7 +107,7 @@ Mixxx.LibrarySourceTree {
     // Green: same key or compatible on the Camelot wheel
     component KeyDelegate: DefaultDelegate {
         readonly property int match: Harmony.compatibility(Harmony.fromText(display), root.referenceKey)
-        textColor: match == 2 ? "#4ee04e" : (match == 1 ? "#a6e36b" : Theme.textColor)
+        textColor: match == 2 ? "#4ee04e" : (match == 1 ? "#a6e36b" : baseTextColor)
         textBold: match > 0
     }
 
@@ -111,7 +115,7 @@ Mixxx.LibrarySourceTree {
     // yellow: within 6%
     component BpmDelegate: DefaultDelegate {
         readonly property real distance: Harmony.bpmDistancePercent(display, root.referenceBpm)
-        textColor: distance <= 3 ? "#4ee04e" : (distance <= 6 ? "#e3c85a" : Theme.textColor)
+        textColor: distance <= 3 ? "#4ee04e" : (distance <= 6 ? "#e3c85a" : baseTextColor)
         textBold: distance <= 6
     }
 

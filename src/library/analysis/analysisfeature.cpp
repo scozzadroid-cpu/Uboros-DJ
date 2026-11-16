@@ -174,14 +174,17 @@ void AnalysisFeature::analyzeTracks(const QList<AnalyzerScheduledTrack>& tracks)
                 numAnalyzerThreads,
                 getAnalyzerModeFlags(m_pConfig));
 
-        connect(m_pTrackAnalysisScheduler.get(),
-                &TrackAnalysisScheduler::progress,
-                m_pAnalysisView,
-                &DlgAnalysis::onTrackAnalysisSchedulerProgress);
-        connect(m_pTrackAnalysisScheduler.get(),
-                &TrackAnalysisScheduler::finished,
-                m_pAnalysisView,
-                &DlgAnalysis::onTrackAnalysisSchedulerFinished);
+        // No widget view in the QML interface
+        if (m_pAnalysisView) {
+            connect(m_pTrackAnalysisScheduler.get(),
+                    &TrackAnalysisScheduler::progress,
+                    m_pAnalysisView,
+                    &DlgAnalysis::onTrackAnalysisSchedulerProgress);
+            connect(m_pTrackAnalysisScheduler.get(),
+                    &TrackAnalysisScheduler::finished,
+                    m_pAnalysisView,
+                    &DlgAnalysis::onTrackAnalysisSchedulerFinished);
+        }
         connect(m_pTrackAnalysisScheduler.get(),
                 &TrackAnalysisScheduler::progress,
                 this,

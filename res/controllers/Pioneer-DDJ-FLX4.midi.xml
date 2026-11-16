@@ -769,122 +769,122 @@
             <control>
                 <description>EQ HI - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter3</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x27</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ MID - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter2</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x2B</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ LOW - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter1</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x2F</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ HI - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter3</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x07</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ MID - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter2</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x0B</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ LOW - rotate</description>
                 <group>[EqualizerRack1_[Channel1]_Effect1]</group>
-                <key>parameter1</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB0</status>
                 <midino>0x0F</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
 
             <control>
                 <description>EQ HI - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter3</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x27</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ MID - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter2</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x2B</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ LOW - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter1</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x2F</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ HI - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter3</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x07</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ MID - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter2</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x0B</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>EQ LOW - rotate</description>
                 <group>[EqualizerRack1_[Channel2]_Effect1]</group>
-                <key>parameter1</key>
+                <key>PioneerDDJFLX4.eqKnob</key>
                 <status>0xB1</status>
                 <midino>0x0F</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
 
@@ -935,41 +935,41 @@
             <control>
                 <description>FILTER CH1 - rotate - Filter Effect Knob</description>
                 <group>[QuickEffectRack1_[Channel1]]</group>
-                <key>super1</key>
+                <key>PioneerDDJFLX4.filterKnob</key>
                 <status>0xB6</status>
                 <midino>0x17</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>FILTER CH1 - rotate - Filter Effect Knob</description>
                 <group>[QuickEffectRack1_[Channel1]]</group>
-                <key>super1</key>
+                <key>PioneerDDJFLX4.filterKnob</key>
                 <status>0xB6</status>
                 <midino>0x37</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>FILTER CH2 - rotate - Filter Effect Knob</description>
                 <group>[QuickEffectRack1_[Channel2]]</group>
-                <key>super1</key>
+                <key>PioneerDDJFLX4.filterKnob</key>
                 <status>0xB6</status>
                 <midino>0x18</midino>
                 <options>
-                    <fourteen-bit-msb/>
+                    <Script-Binding/>
                 </options>
             </control>
             <control>
                 <description>FILTER CH2 - rotate - Filter Effect Knob</description>
                 <group>[QuickEffectRack1_[Channel2]]</group>
-                <key>super1</key>
+                <key>PioneerDDJFLX4.filterKnob</key>
                 <status>0xB6</status>
                 <midino>0x38</midino>
                 <options>
-                    <fourteen-bit-lsb/>
+                    <Script-Binding/>
                 </options>
             </control>
 
@@ -1022,7 +1022,7 @@
             <control>
                 <description>BEAT FX CH SELECT CH1 - slide - Select FX on DECK 1</description>
                 <group>[EffectRack1_EffectUnit1]</group>
-                <key>PioneerDDJFLX4.beatFxChannel1</key>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
                 <status>0x94</status>
                 <midino>0x10</midino>
                 <options>
@@ -1032,7 +1032,7 @@
             <control>
                 <description>BEAT FX CH SELECT CH2 - slide - Select FX on DECK 2</description>
                 <group>[EffectRack1_EffectUnit1]</group>
-                <key>PioneerDDJFLX4.beatFxChannel2</key>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
                 <status>0x95</status>
                 <midino>0x11</midino>
                 <options>
@@ -3557,6 +3557,156 @@
                 <key>PioneerDDJFLX4.padFxPressed</key>
                 <status>0x9A</status>
                 <midino>0x57</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+                    <control>
+                <description>SMART CFX - hold + EQ knob = stem volume</description>
+                <group>[Master]</group>
+                <key>PioneerDDJFLX4.smartCfxPressed</key>
+                <status>0x96</status>
+                <midino>0x00</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>SMART CFX +SHIFT - hold + EQ knob = stem volume</description>
+                <group>[Master]</group>
+                <key>PioneerDDJFLX4.smartCfxPressed</key>
+                <status>0x96</status>
+                <midino>0x08</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x94</status>
+                <midino>0x11</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x94</status>
+                <midino>0x12</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x94</status>
+                <midino>0x13</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x94</status>
+                <midino>0x14</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x95</status>
+                <midino>0x10</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x95</status>
+                <midino>0x12</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x95</status>
+                <midino>0x13</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x95</status>
+                <midino>0x14</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x96</status>
+                <midino>0x10</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x96</status>
+                <midino>0x11</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x96</status>
+                <midino>0x12</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x96</status>
+                <midino>0x13</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>BEAT FX CH SELECT - possible switch position message</description>
+                <group>[EffectRack1_EffectUnit1]</group>
+                <key>PioneerDDJFLX4.beatFxChannelSelect</key>
+                <status>0x96</status>
+                <midino>0x14</midino>
                 <options>
                     <Script-Binding/>
                 </options>

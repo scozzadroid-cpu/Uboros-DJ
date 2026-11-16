@@ -48,8 +48,9 @@
 //        and 2 are not affected by the crossfader, so moving it by mistake does
 //        nothing; on: the previous crossfader assignment is restored.
 //
+//      * SMART CFX held + EQ HIGH/MID/LOW = stem volumes (vocals / melody / drums)
+//
 //  Not implemented yet (but might be in the future):
-//      * Smart CFX
 
 var PioneerDDJFLX4 = {};
 
@@ -279,6 +280,24 @@ PioneerDDJFLX4.init = function() {
     engine.softTakeover("[EffectRack1_EffectUnit1_Effect2]", "meta", true);
     engine.softTakeover("[EffectRack1_EffectUnit1_Effect3]", "meta", true);
     engine.softTakeover("[EffectRack1_EffectUnit1]", "mix", true);
+    for (let deck = 1; deck <= 2; deck++) {
+        for (let p = 1; p <= 3; p++) {
+            engine.softTakeover("[EqualizerRack1_[Channel" + deck + "]_Effect1]", "parameter" + p, true);
+        }
+        PioneerDDJFLX4.applyFilterResonance("[QuickEffectRack1_[Channel" + deck + "]]");
+        // A new track (re)loads the Quick Effect preset: set the Q again
+        engine.makeConnection("[Channel" + deck + "]", "track_loaded", function() {
+            PioneerDDJFLX4.applyFilterResonance("[QuickEffectRack1_[Channel" + deck + "]]");
+        });
+    }
+    // Until the CH SELECT switch is moved its position is unknown: BEAT FX
+    // on both decks (1&2) rather than on none.
+    if (!engine.getValue("[EffectRack1_EffectUnit1]", "group_[Channel1]_enable") &&
+            !engine.getValue("[EffectRack1_EffectUnit1]", "group_[Channel2]_enable")) {
+        engine.setValue("[EffectRack1_EffectUnit1]", "group_[Channel1]_enable", 1);
+        engine.setValue("[EffectRack1_EffectUnit1]", "group_[Channel2]_enable", 1);
+    }
+    PioneerDDJFLX4.focusedFxGroup();
 
     const samplerCount = 16;
     if (engine.getValue("[App]", "num_samplers") < samplerCount) {
@@ -374,7 +393,13 @@ PioneerDDJFLX4.toggleFxLight = function(_value, _group, _control) {
 };
 
 PioneerDDJFLX4.focusedFxGroup = function() {
-    const focusedFx = engine.getValue("[EffectRack1_EffectUnit1]", "focused_effect");
+    let focusedFx = engine.getValue("[EffectRack1_EffectUnit1]", "focused_effect");
+    // 0 = no focus: BEAT FX ON/OFF and LEVEL/DEPTH would address a slot
+    // that does not exist ("_Effect0"), so they did nothing at all.
+    if (focusedFx < 1) {
+        focusedFx = 1;
+        engine.setValue("[EffectRack1_EffectUnit1]", "focused_effect", 1);
+    }
     return "[EffectRack1_EffectUnit1_Effect" + focusedFx + "]";
 };
 
@@ -438,9 +463,8 @@ PioneerDDJFLX4.beatFxOnOffPressed = function(_channel, _control, value) {
 PioneerDDJFLX4.beatFxOnOffShiftPressed = function(_channel, _control, value) {
     if (value === 0) { return; }
 
-    engine.setParameter("[EffectRack1_EffectUnit1]", "mix", 0);
-    engine.softTakeoverIgnoreNextValue("[EffectRack1_EffectUnit1]", "mix");
-
+    // Only switch the slots off: zeroing "mix" here left every later BEAT FX
+    // silent until the LEVEL/DEPTH knob was moved past the soft takeover.
     for (let i = 1; i <= 3; i++) {
         engine.setValue("[EffectRack1_EffectUnit1_Effect" + i + "]", "enabled", 0);
     }
@@ -448,20 +472,163 @@ PioneerDDJFLX4.beatFxOnOffShiftPressed = function(_channel, _control, value) {
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.shiftBeatFx, false);
 };
 
-PioneerDDJFLX4.beatFxChannel1 = function(_channel, control, value, _status, group) {
-    let enableChannel = 0;
+// BEAT FX CH SELECT (CH1 / CH2 / 1&2). The FLX4 reports the position of the
+// switch with note-on/off messages: 0x94 0x10 = CH1, 0x95 0x11 = CH2; the 1&2
+// position turns both off (or sends its own note). Every candidate message is
+// bound here and the routing is derived from the whole state, so any of these
+// variants ends in the right routing: CH1 -> deck 1, CH2 -> deck 2, otherwise
+// both decks.
+PioneerDDJFLX4.beatFxChannelState = {};
 
-    if (value === 0x7f) { enableChannel = 1; }
-
-    engine.setValue(group, "group_[Channel1]_enable", enableChannel);
+PioneerDDJFLX4.applyBeatFxRouting = function() {
+    const state = PioneerDDJFLX4.beatFxChannelState;
+    const ch1 = state["0x94 0x10"] === true;
+    const ch2 = state["0x95 0x11"] === true || state["0x94 0x11"] === true;
+    let deck1 = true;
+    let deck2 = true;
+    if (ch1 && !ch2) {
+        deck2 = false;
+    } else if (ch2 && !ch1) {
+        deck1 = false;
+    }
+    for (const otherKey in state) {
+        if (state[otherKey] === true && otherKey !== "0x94 0x10" &&
+                otherKey !== "0x95 0x11" && otherKey !== "0x94 0x11") {
+            // A dedicated 1&2 note
+            deck1 = true;
+            deck2 = true;
+        }
+    }
+    const unit = "[EffectRack1_EffectUnit1]";
+    engine.setValue(unit, "group_[Channel1]_enable", deck1 ? 1 : 0);
+    engine.setValue(unit, "group_[Channel2]_enable", deck2 ? 1 : 0);
 };
 
-PioneerDDJFLX4.beatFxChannel2 = function(_channel, control, value, _status, group) {
-    let enableChannel = 0;
+PioneerDDJFLX4.beatFxChannelSelect = function(_channel, control, value, status) {
+    const key = "0x" + status.toString(16) + " 0x" + (control < 0x10 ? "0" : "") + control.toString(16);
+    PioneerDDJFLX4.beatFxChannelState[key] = value > 0;
+    // Warning level: the Android log keeps only warnings (switch position, rare)
+    console.warn("BEAT FX CH SELECT " + key + " = " + value);
+    PioneerDDJFLX4.applyBeatFxRouting();
+};
 
-    if (value === 0x7f) { enableChannel = 1; }
+// Old names kept for mappings that still reference them
+PioneerDDJFLX4.beatFxChannel1 = PioneerDDJFLX4.beatFxChannelSelect;
+PioneerDDJFLX4.beatFxChannel2 = PioneerDDJFLX4.beatFxChannelSelect;
 
-    engine.setValue(group, "group_[Channel2]_enable", enableChannel);
+//
+// FILTER (CFX knob)
+//
+// The Quick Effect filter sweeps 22 kHz -> 13 Hz (LPF) and 13 Hz -> 22 kHz
+// (HPF) on each half of the knob, so a few degrees around the centre already
+// cut a lot and the ends are useless. Here the knob gets a small dead zone in
+// the middle, a gentler curve and a range like a DJM (LPF down to ~100 Hz,
+// HPF up to ~7 kHz), and the filter a resonant Q.
+//
+
+PioneerDDJFLX4.filter = {
+    deadZone: 0.04,          // fraction of the knob around the centre with no filter
+    curve: 1.4,              // > 1 = finer control near the centre
+    lpfMaxFraction: 0.72,    // 22050 Hz * (13/22050)^0.72 = ~105 Hz
+    hpfMinFraction: 0.12,    // ~30 Hz, below that a high-pass is inaudible
+    hpfMaxFraction: 0.845,   // ~7 kHz
+    q: 0.72,                 // normalized Q: 0.4 * 10^0.72 = ~2.1 (Butterworth = 0.707 -> 0.25)
+    msb: {},
+    lsb: {},
+};
+
+PioneerDDJFLX4.applyFilterResonance = function(group) {
+    const effectGroup = group.replace("]]", "]_Effect1]");
+    // Only the built-in Filter (LPF, Q, HPF) has its Q as parameter 2
+    if (engine.getValue(effectGroup, "num_parameters") === 3) {
+        engine.setParameter(effectGroup, "parameter2", PioneerDDJFLX4.filter.q);
+    }
+};
+
+PioneerDDJFLX4.filterKnob = function(_channel, control, value, _status, group) {
+    const f = PioneerDDJFLX4.filter;
+    const base = control & 0x1F;
+    if (control >= 0x20) {
+        f.lsb[base] = value;
+    } else {
+        f.msb[base] = value;
+        f.lsb[base] = 0;
+    }
+    const raw = ((f.msb[base] || 0) * 128 + (f.lsb[base] || 0)) / 16383;
+    const offset = raw - 0.5;
+    const distance = Math.max(0, Math.abs(offset) - f.deadZone) / (0.5 - f.deadZone);
+    const shaped = Math.pow(Math.min(distance, 1), f.curve);
+    let super1 = 0.5;
+    if (distance > 0 && offset < 0) {
+        super1 = 0.5 - 0.5 * shaped * f.lpfMaxFraction;
+    } else if (distance > 0) {
+        super1 = 0.5 + 0.5 * (f.hpfMinFraction + shaped * (f.hpfMaxFraction - f.hpfMinFraction));
+    }
+    PioneerDDJFLX4.applyFilterResonance(group);
+    engine.setParameter(group, "super1", super1);
+};
+
+//
+// EQ knobs and SMART CFX = stems
+//
+// Holding SMART CFX turns the EQ knobs of each deck into stem volumes: HIGH =
+// vocals (stem 4), MID = melody (bass + other, stems 2 and 3), LOW = drums
+// (stem 1). Centre and right = full volume, left = down to silence. Releasing
+// SMART CFX gives the knobs back to the EQ with soft takeover, so the EQ does
+// not jump to where the knob was left. Decks without stems ignore the knobs
+// while SMART CFX is held.
+//
+
+PioneerDDJFLX4.smartCfxHeld = false;
+PioneerDDJFLX4.eqMsb = {};
+PioneerDDJFLX4.eqLsb = {};
+
+// MSB control number -> EQ parameter and stems
+PioneerDDJFLX4.eqKnobs = {
+    0x07: {parameter: "parameter3", stems: [4]},    // HIGH = vocals
+    0x0B: {parameter: "parameter2", stems: [2, 3]}, // MID = bass + other
+    0x0F: {parameter: "parameter1", stems: [1]},    // LOW = drums
+};
+
+PioneerDDJFLX4.stemVolumeFromKnob = function(knob) {
+    if (knob >= 0.5) {
+        return 1;
+    }
+    return Math.pow(knob / 0.5, 1.5);
+};
+
+PioneerDDJFLX4.eqKnob = function(_channel, control, value, status, group) {
+    const base = control & 0x1F;
+    const knob = PioneerDDJFLX4.eqKnobs[base];
+    if (knob === undefined) {
+        return;
+    }
+    const key = status + ":" + base;
+    if (control >= 0x20) {
+        PioneerDDJFLX4.eqLsb[key] = value;
+    } else {
+        PioneerDDJFLX4.eqMsb[key] = value;
+        PioneerDDJFLX4.eqLsb[key] = 0;
+    }
+    const v = ((PioneerDDJFLX4.eqMsb[key] || 0) * 128 + (PioneerDDJFLX4.eqLsb[key] || 0)) / 16383;
+    const deck = group.match(/\[EqualizerRack1_\[Channel(\d+)\]_Effect1\]/)[1];
+
+    if (PioneerDDJFLX4.smartCfxHeld) {
+        if (engine.getValue("[Channel" + deck + "]", "stem_count") < 1) {
+            return;
+        }
+        const volume = PioneerDDJFLX4.stemVolumeFromKnob(v);
+        for (const stem of knob.stems) {
+            engine.setValue("[Channel" + deck + "_Stem" + stem + "]", "volume", volume);
+        }
+        return;
+    }
+    engine.setParameter(group, knob.parameter, v);
+};
+
+PioneerDDJFLX4.smartCfxPressed = function(_channel, _control, value) {
+    PioneerDDJFLX4.smartCfxHeld = value > 0;
+    midi.sendShortMsg(0x96, 0x00, value > 0 ? 0x7F : 0x00);
 };
 
 //
@@ -495,6 +662,9 @@ PioneerDDJFLX4.padFx = {
     0x57: {release: "echoOut"},  // RELEASE FX: echo out (stops, the echo rings while held)
 };
 
+// Meta knob of slots 1-4 of the PAD FX units (Echo, Reverb, Flanger, Bitcrusher)
+PioneerDDJFLX4.padFxMeta = [0.5, 0.7, 0.8, 0.75];
+
 PioneerDDJFLX4.padFxUnit = function(group) {
     return group === "[Channel1]" ? "[EffectRack1_EffectUnit2]" : "[EffectRack1_EffectUnit3]";
 };
@@ -506,10 +676,16 @@ PioneerDDJFLX4.initPadFx = function() {
         for (let ch = 1; ch <= 4; ch++) {
             engine.setValue(unit, "group_[Channel" + ch + "]_enable", "[Channel" + ch + "]" === deck ? 1 : 0);
         }
-        engine.setValue(unit, "mix", 0.6);
+        engine.setValue(unit, "mix", 0.8);
+        engine.setValue(unit, "super1", 0.5);
         engine.setValue(unit, "enabled", 1);
         for (let slot = 1; slot <= 4; slot++) {
-            engine.setValue(unit.replace("]", "_Effect" + slot + "]"), "enabled", 0);
+            const slotGroup = unit.replace("]", "_Effect" + slot + "]");
+            engine.setValue(slotGroup, "enabled", 0);
+            // With the manifest defaults Reverb (send 0) and Bitcrusher
+            // (16 bit, no downsampling) are silent: give each pad a clear
+            // amount of effect through the slot's meta knob.
+            engine.setParameter(slotGroup, "meta", PioneerDDJFLX4.padFxMeta[slot - 1]);
         }
     }
 };

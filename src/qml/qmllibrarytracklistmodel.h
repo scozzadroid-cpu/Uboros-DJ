@@ -20,7 +20,8 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
         Track = Qt::UserRole,
         FileURL,
         CoverArt,
-        Delegate
+        Delegate,
+        Played
     };
     Q_ENUM(Roles);
 
