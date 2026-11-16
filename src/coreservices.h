@@ -124,6 +124,10 @@ class CoreServices : public QObject {
     /// Tear down CoreServices that were previously initialized by `initialize()`.
     void finalize();
 
+    /// Writes the modified tracks loaded in decks, samplers and preview decks
+    /// to the database (Android: the app is killed, not shut down).
+    void saveLoadedTracks();
+
     std::shared_ptr<SettingsManager> m_pSettingsManager;
     std::shared_ptr<mixxx::ControlIndicatorTimer> m_pControlIndicatorTimer;
     std::shared_ptr<EffectsManager> m_pEffectsManager;
