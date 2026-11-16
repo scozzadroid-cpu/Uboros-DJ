@@ -308,4 +308,54 @@ Rectangle {
             // }
         }
     }
+
+    // USB drive being read / prepared (Mixxx.Analysis.deviceBusy)
+    Rectangle {
+        id: deviceBusyBanner
+
+        readonly property string busyText: Mixxx.Analysis.deviceBusy
+        visible: busyText !== ""
+        z: 50
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 36
+        width: busyLabel.implicitWidth + 48
+        height: busyLabel.implicitHeight + 18
+        radius: height / 2
+        color: "#e6141c24"
+        border.width: 1
+        border.color: Theme.accentColor
+
+        Rectangle {
+            id: busyDot
+
+            anchors.left: parent.left
+            anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            width: 10
+            height: 10
+            radius: 5
+            color: Theme.accentColor
+
+            SequentialAnimation on opacity {
+                running: deviceBusyBanner.visible
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.2; duration: 500 }
+                NumberAnimation { to: 1.0; duration: 500 }
+            }
+        }
+
+        Text {
+            id: busyLabel
+
+            anchors.left: busyDot.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            text: deviceBusyBanner.busyText
+            color: Theme.white
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textFontPixelSize
+            font.bold: true
+        }
+    }
 }

@@ -72,6 +72,19 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
 
     TreeItemModel* sidebarModel() const override;
 
+    /// The feature of the running library (one per application), for the
+    /// QML interface's "Loading USB drive" notice
+    static RekordboxFeature* instance() {
+        return s_pInstance;
+    }
+    /// What the feature is doing with a USB drive ("" when idle)
+    QString busyText() const {
+        return m_busyText;
+    }
+
+  signals:
+    void busyTextChanged(const QString& text);
+
   public slots:
     void activate() override;
     void activateChild(const QModelIndex& index) override;
@@ -103,6 +116,9 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QTimer m_preanalysisTimer;
     QString m_preanalysisPlaylist;
     int m_preanalysisRow = 0;
+    QString m_busyText;
+    void setBusyText(const QString& text);
+    static inline RekordboxFeature* s_pInstance = nullptr;
     QList<AnalyzerScheduledTrack> m_preanalysisTracks;
     QTimer m_exportTimer;
     QList<TrackId> m_exportQueue;
