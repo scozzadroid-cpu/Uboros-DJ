@@ -301,6 +301,18 @@ class AudioSource : public UrlResource, public virtual /*implements*/ IAudioSour
         return m_frameIndexRange.length();
     }
 
+    /// Android fork (from BiteDJ): narrow the readable frame index range
+    /// to the range that was actually decodable, once a short read has been
+    /// *confirmed* to be about the file's content and not about the storage
+    /// (e.g. by re-opening the file and reading the same range again).
+    ///
+    /// readSampleFrames() deliberately no longer shrinks the range itself:
+    /// shrinking is irreversible for the lifetime of the track load.
+    ///
+    /// Returns true if the range actually narrowed. An empty range is refused.
+    bool shrinkReadableFrameIndexRange(
+            IndexRange readableFrameIndexRange);
+
     // The index of the first frame.
     SINT frameIndexMin() const {
         DEBUG_ASSERT(m_frameIndexRange.start() <= m_frameIndexRange.end());
