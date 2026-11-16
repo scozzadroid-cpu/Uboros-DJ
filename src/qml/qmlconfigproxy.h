@@ -19,6 +19,15 @@ class QmlConfigProxy : public QObject {
     Q_PROPERTY(bool waveformGpu READ waveformGpu WRITE setWaveformGpu NOTIFY waveformGpuChanged)
     // Whether this GPU can draw them (OpenGL ES 3 with vertex texture fetch)
     Q_PROPERTY(bool waveformGpuSupported READ waveformGpuSupported CONSTANT)
+    // OLED burn-in protection: whites a bit dimmer, the DJ view moved by a
+    // couple of pixels every few minutes. No cost per frame.
+    Q_PROPERTY(bool burnInProtection READ burnInProtection WRITE setBurnInProtection NOTIFY burnInProtectionChanged)
+    // Screen turned black (nothing drawn, audio goes on) after these minutes
+    // without DJ controller input or touches; 0 = never
+    Q_PROPERTY(int screenOffMinutes READ screenOffMinutes WRITE setScreenOffMinutes NOTIFY screenOffMinutesChanged)
+    // Set by QML while the screen is black: the touch that wakes it is
+    // swallowed (does not press what is under the finger)
+    Q_PROPERTY(bool screenAsleep READ screenAsleep WRITE setScreenAsleep NOTIFY screenAsleepChanged)
   public:
     explicit QmlConfigProxy(
             UserSettingsPointer pConfig,
@@ -51,6 +60,15 @@ class QmlConfigProxy : public QObject {
     Q_ENUM(ScreenOrientation)
     Q_INVOKABLE void setScreenOrientation(mixxx::qml::QmlConfigProxy::ScreenOrientation orientation);
 
+    bool burnInProtection() const;
+    void setBurnInProtection(bool enabled);
+    int screenOffMinutes() const;
+    void setScreenOffMinutes(int minutes);
+    bool screenAsleep() const {
+        return m_screenAsleep;
+    }
+    void setScreenAsleep(bool asleep);
+
     static QmlConfigProxy* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
     static inline void registerUserSettings(UserSettingsPointer pConfig) {
         s_pUserSettings = std::move(pConfig);
@@ -62,8 +80,20 @@ class QmlConfigProxy : public QObject {
 
   signals:
     void waveformGpuChanged(bool enabled);
+    void burnInProtectionChanged(bool enabled);
+    void screenOffMinutesChanged(int minutes);
+    void screenAsleepChanged(bool asleep);
+    /// DJ controller input or a touch (GUI thread)
+    void userActivity();
+
+  protected:
+    bool eventFilter(QObject* pObject, QEvent* pEvent) override;
 
   private:
+    bool m_screenAsleep = false;
+    // Swallowing the rest of the touch that woke the screen
+    bool m_swallowingTouch = false;
+
     static inline UserSettingsPointer s_pUserSettings = nullptr;
 
     const UserSettingsPointer m_pConfig;

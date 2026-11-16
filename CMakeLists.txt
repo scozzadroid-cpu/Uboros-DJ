@@ -1669,6 +1669,7 @@ add_library(
   src/util/sample.cpp
   src/util/sandbox.cpp
   src/util/screensaver.cpp
+  src/util/useractivity.cpp
   src/util/screensavermanager.cpp
   src/util/semanticversion.cpp
   src/util/stat.cpp

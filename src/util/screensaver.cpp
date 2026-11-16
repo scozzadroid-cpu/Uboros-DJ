@@ -16,6 +16,7 @@ https://github.com/awjackson/bsnes-classic/blob/038e2e051ffc8abe7c56a3bf27e3016c
 **/
 
 #include "util/screensaver.h"
+#include "util/useractivity.h"
 
 #include <QDebug>
 #include <QtGlobal>
@@ -354,8 +355,10 @@ void ScreenSaverHelper::uninhibitInternal() {
 #elif defined(Q_OS_ANDROID)
 
 QJniObject ScreenSaverHelper::s_wakeLock = {};
-// Screensavers are not supported
+// No system screensaver: wakes the screen that the "screen off when idle"
+// option turned black (QML), see UserActivity
 void ScreenSaverHelper::triggerUserActivity() {
+    UserActivity::notify();
 }
 void ScreenSaverHelper::inhibitInternal() {
     if (!ScreenSaverHelper::s_wakeLock.isValid()) {

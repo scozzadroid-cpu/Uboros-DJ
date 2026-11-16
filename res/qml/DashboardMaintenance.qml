@@ -252,6 +252,31 @@ ColumnLayout {
         onSwitched: value => Mixxx.Config.waveformGpu = value
     }
 
+    // ------------------------------------------------------------------ Screen
+    SectionTitle {
+        text: qsTr("Screen (OLED)")
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        on: Mixxx.Config.burnInProtection
+        subtitle: qsTr("Against burn-in on OLED screens: whites a bit dimmer, the view moves by 2 pixels every 3 minutes. No cost for the graphics chip")
+        title: qsTr("Burn-in protection")
+
+        onSwitched: value => Mixxx.Config.burnInProtection = value
+    }
+    Skin.DashboardAction {
+        readonly property var choices: [0, 2, 5, 10, 15]
+
+        Layout.fillWidth: true
+        subtitle: qsTr("Black screen after this time without touching the controller or the screen; the music goes on. The controller wakes it (and works as usual), a touch only wakes it. Tap to change")
+        title: Mixxx.Config.screenOffMinutes > 0 ? qsTr("Screen off when idle: after %1 min").arg(Mixxx.Config.screenOffMinutes) : qsTr("Screen off when idle: never")
+
+        onClicked: {
+            const index = choices.indexOf(Mixxx.Config.screenOffMinutes);
+            Mixxx.Config.screenOffMinutes = choices[(index + 1) % choices.length];
+        }
+    }
+
     // ------------------------------------------------------------------- Cache
     SectionTitle {
         text: qsTr("Cache")
