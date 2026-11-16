@@ -4,6 +4,7 @@
 #include <QQmlApplicationEngine>
 
 #include "coreservices.h"
+#include "soundio/soundmanagerconfig.h"
 #include "qmlautoreload.h"
 
 class ControlObject;
@@ -44,6 +45,13 @@ class QmlApplication : public QObject {
 
     std::unique_ptr<QQmlApplicationEngine> m_pAppEngine;
     QmlAutoReload m_autoReload;
+
+    // Android: started without the configured sound device (e.g. the DDJ-FLX4
+    // plugged in after Mixxx) and fell back to the phone output. When a USB
+    // device appears, the saved configuration is tried again.
+    void tryRestoreSoundConfig();
+    bool m_soundFallback = false;
+    std::unique_ptr<SoundManagerConfig> m_pSavedSoundConfig;
 };
 
 } // namespace qml

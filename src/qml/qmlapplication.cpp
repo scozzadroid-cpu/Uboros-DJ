@@ -9,6 +9,7 @@
 #ifdef __ANDROID__
 #include <QCoreApplication>
 #include <QJniObject>
+#include <QTimer>
 #endif
 
 #include "control/controlobject.h"
@@ -102,7 +103,9 @@ QmlApplication::QmlApplication(
         qWarning() << "Configured sound devices unavailable:"
                    << pSoundManager->getLastErrorMessage(result)
                    << "- falling back to the default devices";
-        SoundManagerConfig fallbackConfig = pSoundManager->getConfig();
+        m_pSavedSoundConfig = std::make_unique<SoundManagerConfig>(pSoundManager->getConfig());
+        m_soundFallback = true;
+        SoundManagerConfig fallbackConfig = *m_pSavedSoundConfig;
         fallbackConfig.loadDefaults(pSoundManager.get(), SoundManagerConfig::DEVICES);
         const bool persist = false;
         result = pSoundManager->setConfig(fallbackConfig, persist);
@@ -353,6 +356,20 @@ QmlApplication::QmlApplication(
 #endif
 
     m_pCoreServices->getControllerManager()->setUpDevices();
+#ifdef __ANDROID__
+    // The controller's USB audio appears together with its MIDI port (a bit
+    // later): retry the saved sound configuration after a USB device change
+    connect(m_pCoreServices->getControllerManager().get(),
+            &ControllerManager::devicesChanged,
+            this,
+            [this]() {
+                if (!m_soundFallback) {
+                    return;
+                }
+                QTimer::singleShot(1000, this, [this]() { tryRestoreSoundConfig(); });
+                QTimer::singleShot(4000, this, [this]() { tryRestoreSoundConfig(); });
+            });
+#endif
 
     // Keyboard shortcuts (USB/Bluetooth keyboards, `adb shell input keyevent`).
     app->installEventFilter(this);
@@ -427,6 +444,25 @@ void QmlApplication::loadQml(const QString& path) {
     if (m_pAppEngine->rootObjects().isEmpty()) {
         qCritical() << "Failed to load QML file" << path;
     }
+}
+
+void QmlApplication::tryRestoreSoundConfig() {
+    if (!m_soundFallback || !m_pSavedSoundConfig) {
+        return;
+    }
+    auto pSoundManager = m_pCoreServices->getSoundManager();
+    // The device list was made before the device was plugged in
+    pSoundManager->clearAndQueryDevices();
+    const bool persist = false;
+    if (pSoundManager->setConfig(*m_pSavedSoundConfig, persist) == SoundDeviceStatus::Ok) {
+        m_soundFallback = false;
+        qInfo() << "Configured sound devices available again: using them";
+        return;
+    }
+    qInfo() << "Configured sound devices still unavailable";
+    SoundManagerConfig fallbackConfig = *m_pSavedSoundConfig;
+    fallbackConfig.loadDefaults(pSoundManager.get(), SoundManagerConfig::DEVICES);
+    pSoundManager->setConfig(fallbackConfig, persist);
 }
 
 } // namespace qml
