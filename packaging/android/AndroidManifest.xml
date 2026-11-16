@@ -58,18 +58,22 @@
 
         <!-- Optional home-screen entry, disabled by default. A rooted helper
              (e.g. the "DJ mode" Magisk module) can enable it with
-             `pm enable org.mixxx/org.mixxx.DjHome` to use Mixxx as the launcher. -->
-        <activity-alias
+             `pm enable org.mixxx/org.mixxx.DjHome` to use Mixxx as the launcher.
+             It is a trampoline to the normal Mixxx task (see DjHome.java). -->
+        <activity
             android:name="org.mixxx.DjHome"
-            android:targetActivity="org.qtproject.qt.android.bindings.QtActivity"
             android:enabled="false"
-            android:exported="true">
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity-alias>
+        </activity>
 
         <provider
             android:name="androidx.core.content.FileProvider"
