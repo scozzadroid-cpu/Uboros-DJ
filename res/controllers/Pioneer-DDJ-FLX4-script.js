@@ -1045,12 +1045,28 @@ PioneerDDJFLX4.tempoSliderMSB = function(channel, control, value, status, group)
 
 PioneerDDJFLX4.tempoSliderLSB = function(channel, control, value, status, group) {
     const fullValue = (PioneerDDJFLX4.highResMSB[group].tempoSlider << 7) + value;
+    let rate = 1 - (fullValue / 0x2000);
 
-    engine.setValue(
-        group,
-        "rate",
-        1 - (fullValue / 0x2000)
-    );
+    // Snap the resulting tempo to 0.05 BPM steps (xxx.x0 / xxx.x5), so the
+    // two-decimal BPM on the deck lands on round values: Mixxx's speed is
+    // 1 + rate_dir * rateRange * rate, times the file BPM.
+    const fileBpm = engine.getValue(group, "file_bpm");
+    const range = engine.getValue(group, "rateRange");
+    const dir = engine.getValue(group, "rate_dir") || 1;
+    if (fileBpm > 0 && range > 0) {
+        const bpm = fileBpm * (1 + dir * range * rate);
+        // Nearest 0.05 step, else (at the ends of the range) the next step
+        // towards the centre
+        for (const snapped of [Math.round(bpm * 20) / 20,
+            Math.floor(bpm * 20) / 20, Math.ceil(bpm * 20) / 20]) {
+            const snappedRate = (snapped / fileBpm - 1) / (dir * range);
+            if (snappedRate >= -1 && snappedRate <= 1) {
+                rate = snappedRate;
+                break;
+            }
+        }
+    }
+    engine.setValue(group, "rate", rate);
 };
 
 //

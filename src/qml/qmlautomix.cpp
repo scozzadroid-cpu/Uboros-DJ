@@ -412,7 +412,7 @@ bool QmlAutoMix::prepareNextDeck(Deck* pPlaying, Deck* pNext) {
     }
     pNext->startFrame = startFrame;
     pNext->keylock.set(1);
-    pNext->quantize.set(1);
+    // No quantize: sync aligns the phase; quantize would stay on afterwards
     pNext->pitchAdjust.set(m_pendingKeyShift);
     pNext->seekToFrame(startFrame);
     if (pPlaying) {
@@ -569,7 +569,7 @@ void QmlAutoMix::startTransition(Deck* pPlaying, Deck* pNext) {
             meta.setParameter(0.6);
         }
     }
-    // Start muted (stems/EQ), then the fader; sync + quantize align the beat
+    // Start muted (stems/EQ), then the fader; sync aligns the beat
     applyTransition(0);
     pNext->play.set(1);
     m_state = State::Mixing;

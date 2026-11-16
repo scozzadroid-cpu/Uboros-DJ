@@ -458,7 +458,7 @@ Rectangle {
         anchors.rightMargin: 5
         width: root.rightColumnWidth
         // Current BPM (with the tempo fader applied), like on a CDJ
-        text: bpmControl.value > 0 ? bpmControl.value.toFixed(1) : "-"
+        text: bpmControl.value > 0 ? bpmControl.value.toFixed(2) : "-"
         font.bold: true
         font.pixelSize: 17
         color: Theme.white
@@ -489,7 +489,7 @@ Rectangle {
             const range = " \u00b1" + Math.round(rateRangeControl.value * 100);
             if (fileBpmControl.value <= 0)
                 return percent + range;
-            return ((bpmDelta > 0) ? "+" : "") + bpmDelta.toFixed(1) + " (" + percent + ")" + range;
+            return ((bpmDelta > 0) ? "+" : "") + bpmDelta.toFixed(2) + " (" + percent + ")" + range;
         }
 
         // Tap to cycle the tempo range, shown like the CDJ "±10" (SHIFT + BEAT
