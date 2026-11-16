@@ -26,6 +26,7 @@ namespace AudioCallbackStats {
 namespace detail {
 inline std::atomic<quint32> s_callbacks{0};
 inline std::atomic<quint32> s_overBudget{0};
+inline std::atomic<quint32> s_overBudgetTotal{0}; // never reset
 inline std::atomic<quint32> s_underflows{0};
 inline std::atomic<quint32> s_underflowCodes{0}; // bit n = code n was seen
 inline std::atomic<qint64> s_sumDurationNs{0};
@@ -56,6 +57,7 @@ inline void recordCallback(qint64 durationNs,
     storeMax(&s_maxGapNs, gapNs);
     if (durationNs > budgetNs) {
         s_overBudget.fetch_add(1, std::memory_order_relaxed);
+        s_overBudgetTotal.fetch_add(1, std::memory_order_relaxed);
     }
     if (s_budgetNs.load(std::memory_order_relaxed) != budgetNs) {
         s_budgetNs.store(budgetNs, std::memory_order_relaxed);
@@ -71,6 +73,12 @@ inline void recordUnderflow(int code) {
     if (code >= 0 && code < 32) {
         s_underflowCodes.fetch_or(1u << code, std::memory_order_relaxed);
     }
+}
+
+/// Callbacks over budget since the start (for consumers that compare two
+/// readings, e.g. the stem separation checking it does not disturb the audio)
+inline quint32 overBudgetTotal() {
+    return detail::s_overBudgetTotal.load(std::memory_order_relaxed);
 }
 
 /// Main thread, once: starts the 5 s reporting timer, owned by parent.
