@@ -243,7 +243,9 @@ void CachingReader::process() {
             // Result of a read request (with a chunk)
             // Every request comes back exactly once, read or discarded
             DEBUG_ASSERT(m_readRequestsInFlight > 0);
-            --m_readRequestsInFlight;
+            if (m_readRequestsInFlight > 0) {
+                --m_readRequestsInFlight;
+            }
             DEBUG_ASSERT(atomicLoadRelaxed(m_state) != STATE_IDLE);
             DEBUG_ASSERT(
                     update.status == CHUNK_READ_SUCCESS ||
@@ -288,6 +290,10 @@ void CachingReader::process() {
                     DEBUG_ASSERT(atomicLoadRelaxed(m_state) == STATE_TRACK_LOADING);
                     freeAllChunks();
                 }
+                // Every request of the old track has come back by now (the
+                // worker discards them before loading): a counting error can
+                // not outlive a track and leave fast search silent
+                m_readRequestsInFlight = 0;
                 // Reset the readable frame index range
                 m_readableFrameIndexRange = update.readableFrameIndexRange();
                 m_state.storeRelease(STATE_TRACK_LOADED);
