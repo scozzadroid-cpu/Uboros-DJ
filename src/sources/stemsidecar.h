@@ -15,4 +15,10 @@ namespace mixxx {
 /// Returns the sidecar path, or an empty string.
 QString stemSidecarForTrack(const QString& trackLocation);
 
+/// Whether stems can be played for this track: a stem file itself or a
+/// track with a stem sidecar. Cheap enough for every row of a track list
+/// (GUI thread only): the drive roots and the MIXXX/STEMS listings are
+/// cached, a listing for 10 s.
+bool trackHasStems(const QString& trackLocation);
+
 } // namespace mixxx
