@@ -286,7 +286,12 @@ PioneerDDJFLX4.init = function() {
     engine.softTakeover("[EffectRack1_EffectUnit1_Effect1]", "meta", true);
     engine.softTakeover("[EffectRack1_EffectUnit1_Effect2]", "meta", true);
     engine.softTakeover("[EffectRack1_EffectUnit1_Effect3]", "meta", true);
-    engine.softTakeover("[EffectRack1_EffectUnit1]", "mix", true);
+    // LEVEL/DEPTH = dry/wet, absolute like the console (no soft takeover:
+    // with it, Mixxx kept a saved 100% while the knob sat at 0, and BEAT FX
+    // played at full level). The FLX4 does not report the knob at startup,
+    // so the level starts at 0 until the knob is moved.
+    engine.softTakeover("[EffectRack1_EffectUnit1]", "mix", false);
+    engine.setValue("[EffectRack1_EffectUnit1]", "mix", 0);
     for (let deck = 1; deck <= 2; deck++) {
         for (let p = 1; p <= 3; p++) {
             engine.softTakeover("[EqualizerRack1_[Channel" + deck + "]_Effect1]", "parameter" + p, true);
@@ -431,7 +436,6 @@ PioneerDDJFLX4.focusedFxGroup = function() {
 
 PioneerDDJFLX4.beatFxLevelDepthRotate = function(_channel, _control, value) {
     if (PioneerDDJFLX4.shiftButtonDown[0] || PioneerDDJFLX4.shiftButtonDown[1]) {
-        engine.softTakeoverIgnoreNextValue("[EffectRack1_EffectUnit1]", "mix");
         engine.setParameter(PioneerDDJFLX4.focusedFxGroup(), "meta", value / 0x7F);
     } else {
         engine.softTakeoverIgnoreNextValue(PioneerDDJFLX4.focusedFxGroup(), "meta");
