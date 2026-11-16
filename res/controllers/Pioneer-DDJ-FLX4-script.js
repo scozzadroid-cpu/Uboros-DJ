@@ -305,6 +305,12 @@ PioneerDDJFLX4.init = function() {
         engine.setValue("[EffectRack1_EffectUnit1]", "group_[Channel2]_enable", 1);
     }
     PioneerDDJFLX4.focusedFxGroup();
+    for (let slot = 1; slot <= 3; slot++) {
+        const slotGroup = "[EffectRack1_EffectUnit1_Effect" + slot + "]";
+        PioneerDDJFLX4.ensureBeatFxMeta(0, slotGroup);
+        engine.makeConnection(slotGroup, "loaded_effect", PioneerDDJFLX4.ensureBeatFxMeta);
+    }
+    engine.setValue("[EffectRack1_EffectUnit1]", "enabled", 1);
 
     const samplerCount = 16;
     if (engine.getValue("[App]", "num_samplers") < samplerCount) {
@@ -397,6 +403,19 @@ PioneerDDJFLX4.toggleFxLight = function(_value, _group, _control) {
 
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.beatFx, enabled);
     PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.shiftBeatFx, enabled);
+};
+
+// Mixxx loads Echo, Reverb and Flanger with their meta knob at 0, where
+// they are silent (Echo/Reverb send and Flanger mix follow the meta): BEAT
+// FX ON did nothing audible. A BEAT FX slot whose meta is 0 starts at this
+// depth, at startup and whenever another effect is selected.
+PioneerDDJFLX4.beatFxDefaultMeta = 0.5;
+
+PioneerDDJFLX4.ensureBeatFxMeta = function(_value, group) {
+    if (engine.getParameter(group, "meta") < 0.02) {
+        engine.setParameter(group, "meta", PioneerDDJFLX4.beatFxDefaultMeta);
+        engine.softTakeoverIgnoreNextValue(group, "meta");
+    }
 };
 
 PioneerDDJFLX4.focusedFxGroup = function() {

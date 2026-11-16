@@ -173,6 +173,11 @@ QmlApplication::QmlApplication(
                                 effectIds.at(i));
                 if (pManifest) {
                     effectSlots.at(i)->loadEffectWithDefaults(pManifest);
+                    // The manifests have a meta default of 0, where Echo,
+                    // Reverb and Flanger are silent
+                    ControlObject::set(ConfigKey(effectSlots.at(i)->getGroup(),
+                                               QStringLiteral("meta")),
+                            0.5);
                 }
             }
             qInfo() << "Effect unit" << unitIndex + 1 << "was empty, loaded" << effectIds;
