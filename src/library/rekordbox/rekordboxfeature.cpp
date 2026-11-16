@@ -21,7 +21,9 @@
 #include "library/dao/trackschema.h"
 #include "library/library.h"
 #include "library/queryutil.h"
+#include "library/rekordbox/deviceanalysisstore.h"
 #include "library/rekordbox/rekordboxconstants.h"
+#include "library/dao/analysisdao.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
@@ -1435,6 +1437,19 @@ RekordboxFeature::RekordboxFeature(
             &QTimer::timeout,
             this,
             &RekordboxFeature::preanalyzeNextBatch);
+    m_exportTimer.setSingleShot(true);
+    connect(&m_exportTimer,
+            &QTimer::timeout,
+            this,
+            &RekordboxFeature::exportNextAnalyses);
+    connect(pLibrary,
+            &Library::onTrackAnalyzerProgress,
+            this,
+            &RekordboxFeature::onTrackAnalyzerProgress);
+    connect(pLibrary->trackCollectionManager()->internalCollection(),
+            &TrackCollection::tracksChanged,
+            this,
+            &RekordboxFeature::onTracksChanged);
 
     m_title = tr("Rekordbox");
 
@@ -1744,6 +1759,16 @@ void RekordboxFeature::preanalyzeNextBatch() {
         const QModelIndex index = m_pPreanalysisModel->index(m_preanalysisRow, 0);
         TrackPointer pTrack = m_pPreanalysisModel->getTrack(index);
         if (pTrack && pTrack->getId().isValid()) {
+            AnalysisDao& analysisDao = m_pLibrary->trackCollectionManager()
+                                               ->internalCollection()
+                                               ->getAnalysisDAO();
+            // Analysis already on the device: no need to analyze again
+            mixxx::deviceanalysis::importIfAvailable(pTrack, analysisDao);
+            // Analysis made here but not on the device yet
+            if (mixxx::deviceanalysis::needsExport(pTrack, analysisDao) &&
+                    !m_exportQueue.contains(pTrack->getId())) {
+                m_exportQueue.append(pTrack->getId());
+            }
             m_preanalysisTracks.append(AnalyzerScheduledTrack(pTrack->getId()));
         }
     }
@@ -1758,4 +1783,61 @@ void RekordboxFeature::preanalyzeNextBatch() {
         emit m_pLibrary->analyzeTracks(m_preanalysisTracks);
     }
     m_preanalysisTracks.clear();
+    // Analyses made before that are not on the device yet
+    if (!m_exportQueue.isEmpty() && !m_exportTimer.isActive()) {
+        qInfo() << "Device analysis:" << m_exportQueue.size()
+                << "track(s) to store on the device";
+        m_exportTimer.start(3000);
+    }
+}
+
+void RekordboxFeature::onTrackAnalyzerProgress(TrackId trackId, AnalyzerProgress progress) {
+    if (progress < kAnalyzerProgressDone || !trackId.isValid()) {
+        return;
+    }
+    onTracksChanged(QSet<TrackId>{trackId});
+}
+
+void RekordboxFeature::onTracksChanged(const QSet<TrackId>& trackIds) {
+    for (const TrackId& trackId : trackIds) {
+        if (trackId.isValid() && !m_exportQueue.contains(trackId)) {
+            m_exportQueue.append(trackId);
+        }
+    }
+    if (!m_exportQueue.isEmpty() && !m_exportTimer.isActive()) {
+        m_exportTimer.start(3000);
+    }
+}
+
+void RekordboxFeature::exportNextAnalyses() {
+    // Never write to the device while a deck plays from it
+    if (PlayerInfo::instance().getCurrentPlayingDeck() >= 0) {
+        m_exportTimer.start(5000);
+        return;
+    }
+    AnalysisDao& analysisDao =
+            m_pLibrary->trackCollectionManager()->internalCollection()->getAnalysisDAO();
+    constexpr int kBatchSize = 4;
+    for (int i = 0; i < kBatchSize && !m_exportQueue.isEmpty(); ++i) {
+        const TrackId trackId = m_exportQueue.takeFirst();
+        const TrackPointer pTrack =
+                m_pLibrary->trackCollectionManager()->getTrackById(trackId);
+        if (!pTrack ||
+                mixxx::deviceanalysis::deviceRootForFile(pTrack->getLocation()).isEmpty()) {
+            continue;
+        }
+        const auto result = mixxx::deviceanalysis::exportAnalysis(pTrack, analysisDao);
+        if (result == mixxx::deviceanalysis::ExportResult::ReadOnly) {
+            if (!m_exportReadOnlyLogged) {
+                qInfo() << "Device analysis: the device is read-only, analyses"
+                           " stay in Mixxx's cache";
+                m_exportReadOnlyLogged = true;
+            }
+            m_exportQueue.clear();
+            return;
+        }
+    }
+    if (!m_exportQueue.isEmpty()) {
+        m_exportTimer.start(200);
+    }
 }

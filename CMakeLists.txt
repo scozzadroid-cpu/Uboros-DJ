@@ -1441,6 +1441,7 @@ add_library(
   src/library/recording/dlgrecording.cpp
   src/library/recording/dlgrecording.ui
   src/library/recording/recordingfeature.cpp
+  src/library/rekordbox/deviceanalysisstore.cpp
   src/library/rekordbox/rekordboxfeature.cpp
   src/library/rhythmbox/rhythmboxfeature.cpp
   src/library/scanner/importfilestask.cpp
