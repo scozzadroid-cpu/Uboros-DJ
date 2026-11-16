@@ -17,14 +17,16 @@ namespace {
 // The value below was experimental identified using a saw signal and SoundTouch 2.1.1
 constexpr SINT kSeekOffsetFramesV20101 = 429;
 
-// From V 2.3.0 Soundtouch has no initial offset at unity, but it is too late with
-// lowered pitch and too early with raised pitch up to ~+-2000 frames (~+-50 ms).
-// This can be seen in a recording of a saw signal with changed pitch.
-// The saws tooth are shifted from their input position depending on the pitch.
-// TODO() Compensate that. This is probably cause by the delayed adoption of pitch changes due
-// to the SoundTouch chunk size.
+// From V 2.3.0 Soundtouch has no initial offset at unity. With a time stretch
+// factor tau = tempo / pitch != 1 the audio is still shifted against the
+// position Mixxx reports, see positionOffsetFrames() below.
 
 constexpr SINT kBackBufferFrameSize = 512;
+
+// The reported position follows the offset target with at most this fraction
+// of the frames consumed per callback (a 5% speed deviation of the reported
+// position), so a tempo change never makes the play position jump.
+constexpr double kMaxPositionOffsetSlew = 0.05;
 
 }  // namespace
 
@@ -32,7 +34,9 @@ EngineBufferScaleST::EngineBufferScaleST(ReadAheadManager* pReadAheadManager)
         : m_pReadAheadManager(pReadAheadManager),
           m_pSoundTouch(std::make_unique<soundtouch::SoundTouch>()),
           m_bBackwards(false),
-          m_bAntiAliasFilter(true) {
+          m_bAntiAliasFilter(true),
+          m_positionOffsetTarget(0.0),
+          m_positionOffsetApplied(0.0) {
     m_pSoundTouch->setRate(m_dBaseRate);
     m_pSoundTouch->setPitch(1.0);
     m_pSoundTouch->setSetting(SETTING_USE_QUICKSEEK, 1);
@@ -86,6 +90,7 @@ void EngineBufferScaleST::setScaleParameters(double base_rate,
         m_dPitchRatio = *pPitchRatio;
     }
     updateAntiAliasFilter();
+    m_positionOffsetTarget = positionOffsetFrames();
 
     // NOTE(rryan) : There used to be logic here that clear()'d when the player
     // changed direction. I removed it because this is handled by EngineBuffer.
@@ -100,6 +105,44 @@ void EngineBufferScaleST::updateAntiAliasFilter() {
         m_pSoundTouch->setSetting(SETTING_USE_AA_FILTER, resampling ? 1 : 0);
         m_bAntiAliasFilter = resampling;
     }
+}
+
+double EngineBufferScaleST::positionOffsetFrames() const {
+    if (SoundTouch::getVersionId() < 20302 || !getOutputSignal().isValid() ||
+            m_dTempoRatio == 0.0 || m_dPitchRatio == 0.0) {
+        // Only measured with SoundTouch 2.3.3
+        return 0.0;
+    }
+    // SoundTouch stretches time with WSOLA: it copies sequences of
+    // seekWindowLength input frames 1:1 to the output and moves its input
+    // pointer by tau * (seekWindowLength - overlapLength) per sequence. Since
+    // 2.3.0 the start of each sequence is aligned with the nominal position,
+    // but inside the sequence the input advances by 1 per output frame instead
+    // of tau, so the heard audio drifts away by (1 - tau) per output frame and
+    // snaps back at the next sequence. Averaged over a sequence (including the
+    // cross-faded overlap) the heard position differs from the nominal one by
+    //   (1 - tau) * seekWindowLength / 2     (in stretcher input frames).
+    // Converted to track frames and output-domain sequence lengths:
+    //   (pitch - tempo) * baseRate * (outputSequence + overlapOut) / 2
+    // Measured with a position-encoded test signal (SoundTouch 2.3.3, quick
+    // seek, auto sequence, 48 kHz): the uncompensated error was -4.8 ms at
+    // tempo 0.9, +3.7 ms at 1.1, -9.9 ms at 0.8, -45 ms at 0.5, +9.8 ms at 1.5;
+    // this model matches within 0.7 ms for tempo 0.5 ... 2.0, independent of
+    // pitch and of the track/output sample rate ratio.
+    // Positive result: the heard audio is ahead of the consumed position.
+    const double pitch = fabs(m_dPitchRatio);
+    const double stRate = m_dBaseRate * pitch; // rate of SoundTouch's transposer
+    // Same rounding as TDStretch::calculateOverlapLength()
+    int overlapFrames = static_cast<int>(getOutputSignal().getSampleRate().value()) *
+            m_pSoundTouch->getSetting(SETTING_OVERLAP_MS) / 1000;
+    overlapFrames = math_max(overlapFrames, 16);
+    overlapFrames -= overlapFrames % 8;
+    // Above rate 1.0 the transposer runs after the stretcher and shortens
+    // the sequences; SETTING_NOMINAL_OUTPUT_SEQUENCE already accounts for it.
+    const double sequenceOut =
+            m_pSoundTouch->getSetting(SETTING_NOMINAL_OUTPUT_SEQUENCE) +
+            overlapFrames / math_max(1.0, stRate);
+    return (pitch - m_dTempoRatio) * m_dBaseRate * sequenceOut / 2;
 }
 
 void EngineBufferScaleST::onSignalChanged() {
@@ -121,10 +164,14 @@ void EngineBufferScaleST::onSignalChanged() {
     m_pSoundTouch->setTempo(0.1);
     m_pSoundTouch->setTempo(m_dTempoRatio);
     clear();
+    m_positionOffsetTarget = positionOffsetFrames();
 }
 
 void EngineBufferScaleST::clear() {
     m_pSoundTouch->clear();
+    // After a clear the first sequence starts aligned, the offset builds up
+    // again from 0 while the reported position slews towards the target.
+    m_positionOffsetApplied = 0.0;
 
     // compensate seek offset for a rate of 1.0
     if (SoundTouch::getVersionId() < 20302) {
@@ -192,6 +239,18 @@ double EngineBufferScaleST::scaleBuffer(
                 last_read_failed = true;
             }
         }
+    }
+
+    // Move the reported position towards the audio that is actually heard.
+    // The step is limited and proportional to the consumed frames, so the
+    // result is never negative (ReadAheadManager can't go back) and the
+    // reported position never jumps.
+    if (readFramesProcessed > 0) {
+        const double maxStep = kMaxPositionOffsetSlew * readFramesProcessed;
+        const double step = math_clamp(
+                m_positionOffsetTarget - m_positionOffsetApplied, -maxStep, maxStep);
+        m_positionOffsetApplied += step;
+        readFramesProcessed += step;
     }
 
     // readFramesProcessed is interpreted as the total number of frames

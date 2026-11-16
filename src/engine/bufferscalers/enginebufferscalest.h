@@ -53,4 +53,13 @@ class EngineBufferScaleST : public EngineBufferScale {
     // underruns. Enabled only when the rate is not 1.0.
     void updateAntiAliasFilter();
     bool m_bAntiAliasFilter;
+
+    // Average offset (track frames) between the audio SoundTouch outputs and
+    // the position given by the consumed frames, for the current parameters.
+    // The position reported to EngineBuffer is corrected by this value, like
+    // the start delay compensation of EngineBufferScaleRubberBand, so the play
+    // position and the beat distance used by sync match the audio.
+    double positionOffsetFrames() const;
+    double m_positionOffsetTarget;
+    double m_positionOffsetApplied;
 };
