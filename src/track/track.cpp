@@ -1446,6 +1446,11 @@ bool Track::setStemInfosWhileLocked(QList<StemInfo> stemInfos) {
     return true;
 }
 
+void Track::setStemInfos(QList<StemInfo> stemInfos) {
+    auto locked = lockMutex(&m_qMutex);
+    setStemInfosWhileLocked(std::move(stemInfos));
+}
+
 bool Track::importPendingStemInfosWhileLocked() {
     const QList<StemInfo> stemInfos =
             mixxx::StemInfoImporter::importStemInfos(

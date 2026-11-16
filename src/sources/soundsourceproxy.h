@@ -69,6 +69,14 @@ class SoundSourceProxy {
             TrackPointer pTrack,
             mixxx::SoundSourceProviderPointer pProvider);
 
+    /// Opens the audio of the track from another file (a stem sidecar of
+    /// the track, see sources/stemsidecar.h) with the given provider. The
+    /// track's stream info is updated from that file.
+    SoundSourceProxy(
+            TrackPointer pTrack,
+            const QUrl& audioUrl,
+            mixxx::SoundSourceProviderPointer pProvider);
+
     /// The track object that has been passed at construction.
     ///
     /// Holding an internal pointer to the track object ensures

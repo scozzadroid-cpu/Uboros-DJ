@@ -348,6 +348,9 @@ class Track : public QObject {
     void setCuePoints(const QList<CuePointer>& cuePoints);
 
 #ifdef __STEM__
+    /// Stems of the audio that is played instead of the file itself (stem
+    /// sidecar on a USB drive), or none. Not stored in the library.
+    void setStemInfos(QList<StemInfo> stemInfos);
     QList<StemInfo> getStemInfo() const {
         const QMutexLocker lock(&m_qMutex);
         // lock thread-unsafe copy constructors of QList

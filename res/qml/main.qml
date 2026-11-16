@@ -192,8 +192,30 @@ ApplicationWindow {
 
                     onClicked: showLibraryControl.value = showLibraryControl.value === 0 ? 1 : 0
                 }
+                Skin.Button {
+                    id: autoMixButton
+                    activeColor: "#4ee04e"
+                    checkable: true
+                    checked: Mixxx.AutoMix.active
+                    text: "Auto Mix"
+
+                    onClicked: Mixxx.AutoMix.active = !Mixxx.AutoMix.active
+                }
+                Text {
+                    // What Auto Mix is doing: next track, countdown, mixing
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 8
+                    visible: Mixxx.AutoMix.active
+                    text: Mixxx.AutoMix.status
+                    color: "#a6e36b"
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.textFontPixelSize - 1
+                    verticalAlignment: Text.AlignVCenter
+                }
                 Item {
                     Layout.fillWidth: true
+                    visible: !Mixxx.AutoMix.active
                 }
                 Skin.Button {
                     id: showDevToolsButton

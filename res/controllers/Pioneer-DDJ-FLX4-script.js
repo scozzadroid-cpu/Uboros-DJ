@@ -539,7 +539,7 @@ PioneerDDJFLX4.filter = {
     hpfEndHz: 9000,     // fully right: only the hi-hats are left
     minHz: 13,          // range of the Filter parameters
     maxHz: 22050,
-    q: 0.72,            // normalized Q: 0.4 * 10^0.72 = ~2.1 (Butterworth 0.707)
+    q: 0.86,            // normalized Q: 0.4 * 10^0.86 = ~2.9 (Butterworth 0.707)
     msb: {},
     lsb: {},
 };
@@ -599,8 +599,8 @@ PioneerDDJFLX4.filterKnob = function(_channel, control, value, _status, group) {
 // vocals (stem 4), MID = melody (bass + other, stems 2 and 3), LOW = drums
 // (stem 1). Centre and right = full volume, left = down to silence. Releasing
 // SMART CFX gives the knobs back to the EQ with soft takeover, so the EQ does
-// not jump to where the knob was left. Decks without stems ignore the knobs
-// while SMART CFX is held.
+// not jump to where the knob was left. A deck without stems keeps its EQ
+// while SMART CFX is held (its deck shows a notice).
 //
 
 PioneerDDJFLX4.smartCfxHeld = false;
@@ -637,10 +637,9 @@ PioneerDDJFLX4.eqKnob = function(_channel, control, value, status, group) {
     const v = ((PioneerDDJFLX4.eqMsb[key] || 0) * 128 + (PioneerDDJFLX4.eqLsb[key] || 0)) / 16383;
     const deck = group.match(/\[EqualizerRack1_\[Channel(\d+)\]_Effect1\]/)[1];
 
-    if (PioneerDDJFLX4.smartCfxHeld) {
-        if (engine.getValue("[Channel" + deck + "]", "stem_count") < 1) {
-            return;
-        }
+    // SMART CFX held: stems, but a deck without stems keeps its EQ (the deck
+    // shows "No stems - EQ")
+    if (PioneerDDJFLX4.smartCfxHeld && engine.getValue("[Channel" + deck + "]", "stem_count") > 0) {
         const volume = PioneerDDJFLX4.stemVolumeFromKnob(v);
         for (const stem of knob.stems) {
             engine.setValue("[Channel" + deck + "_Stem" + stem + "]", "volume", volume);
@@ -668,6 +667,8 @@ PioneerDDJFLX4.resetStems = function() {
 
 PioneerDDJFLX4.smartCfxPressed = function(_channel, _control, value) {
     PioneerDDJFLX4.smartCfxHeld = value > 0;
+    // Deck overlay in the QML interface (control missing on the desktop)
+    engine.setValue("[Skin]", "stem_mode", value > 0 ? 1 : 0);
     midi.sendShortMsg(0x96, 0x00, value > 0 ? 0x7F : 0x00);
     if (value > 0) {
         const now = Date.now();
