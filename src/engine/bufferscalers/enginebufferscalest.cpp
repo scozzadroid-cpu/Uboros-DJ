@@ -185,7 +185,9 @@ double EngineBufferScaleST::scaleBuffer(
                     qDebug() << "ReadAheadManager::getNextSamples() returned "
                                 "zero samples repeatedly. Padding with silence.";
                     SampleUtil::clear(m_bufferBack.data(), m_bufferBack.size());
-                    m_pSoundTouch->putSamples(m_bufferBack.data(), m_bufferBack.size());
+                    // putSamples() takes frames, not samples
+                    m_pSoundTouch->putSamples(m_bufferBack.data(),
+                            getOutputSignal().samples2frames(m_bufferBack.size()));
                 }
                 last_read_failed = true;
             }
