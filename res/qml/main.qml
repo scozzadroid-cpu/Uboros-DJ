@@ -217,6 +217,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     visible: !Mixxx.AutoMix.active
                 }
+                Skin.BeatFxIndicator {
+                    Layout.rightMargin: 6
+                }
                 Skin.Button {
                     id: showDevToolsButton
                     activeColor: Theme.white
