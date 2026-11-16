@@ -77,6 +77,9 @@ class QmlPlayerProxy : public QObject {
     void setAnalysisProgress(double progress);
 
     TrackPointer m_pCurrentTrack;
+    // One proxy per loaded track, shared by every QML reader: each proxy
+    // builds the beat, cue and stem models of the whole track
+    QPointer<QmlTrackProxy> m_pCurrentTrackProxy;
     bool m_isLoading{false};
     double m_analysisProgress{-1.0};
 };

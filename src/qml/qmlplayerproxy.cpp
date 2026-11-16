@@ -124,9 +124,16 @@ void QmlPlayerProxy::slotTrackUnloaded(TrackPointer pOldTrack) {
 }
 
 QmlTrackProxy* QmlPlayerProxy::currentTrack() {
-    auto* pTrack = new QmlTrackProxy(m_pCurrentTrack, this);
-    QQmlEngine::setObjectOwnership(pTrack, QQmlEngine::JavaScriptOwnership);
-    return pTrack;
+    if (m_pCurrentTrackProxy && m_pCurrentTrackProxy->internal() == m_pCurrentTrack) {
+        return m_pCurrentTrackProxy;
+    }
+    if (m_pCurrentTrackProxy) {
+        // Bindings still holding it are re-evaluated with trackChanged
+        m_pCurrentTrackProxy->deleteLater();
+    }
+    m_pCurrentTrackProxy = new QmlTrackProxy(m_pCurrentTrack, this);
+    QQmlEngine::setObjectOwnership(m_pCurrentTrackProxy, QQmlEngine::CppOwnership);
+    return m_pCurrentTrackProxy;
 }
 
 void QmlPlayerProxy::slotLoadingTrack(TrackPointer pNewTrack, TrackPointer pOldTrack) {
