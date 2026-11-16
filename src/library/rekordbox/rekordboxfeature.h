@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "analyzer/analyzerprogress.h"
 #include <QTimer>
 
 #include "analyzer/analyzerscheduledtrack.h"
@@ -84,6 +85,11 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     // then queues their analysis (waveforms), so that loading a track later
     // does not wait for "Analyzing". Writes only to Mixxx's own database.
     void preanalyzeNextBatch();
+    // Analysis stored ON the device (MIXXX/ANLZ, see deviceanalysisstore.h):
+    // queued after an analysis or a change, written while no deck plays
+    void onTrackAnalyzerProgress(TrackId trackId, AnalyzerProgress progress);
+    void onTracksChanged(const QSet<TrackId>& trackIds);
+    void exportNextAnalyses();
 
   private:
     QString formatRootViewHtml() const;
@@ -97,6 +103,9 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QString m_preanalysisPlaylist;
     int m_preanalysisRow = 0;
     QList<AnalyzerScheduledTrack> m_preanalysisTracks;
+    QTimer m_exportTimer;
+    QList<TrackId> m_exportQueue;
+    bool m_exportReadOnlyLogged = false;
 
     QFutureWatcher<QList<TreeItem*>> m_devicesFutureWatcher;
     QFuture<QList<TreeItem*>> m_devicesFuture;

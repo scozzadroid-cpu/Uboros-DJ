@@ -529,9 +529,14 @@ void Library::addFeature(LibraryFeature* feature) {
 }
 
 void Library::onPlayerManagerTrackAnalyzerProgress(
-        TrackId /*trackId*/, AnalyzerProgress /*analyzerProgress*/) {
+        TrackId trackId, AnalyzerProgress analyzerProgress) {
     if (m_pAnalysisFeature) {
         m_pAnalysisFeature->suspendAnalysis();
+    }
+    // Also report the analysis of loaded tracks (e.g. to store it on the
+    // track's device)
+    if (analyzerProgress >= kAnalyzerProgressDone) {
+        emit onTrackAnalyzerProgress(trackId, analyzerProgress);
     }
 }
 
