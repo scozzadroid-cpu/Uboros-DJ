@@ -56,21 +56,6 @@
                 android:value="--qml --log-level info --log-flush-level warning" />
         </activity>
 
-        <!-- Optional home-screen entry, disabled by default. A rooted helper
-             (e.g. the "DJ mode" Magisk module) can enable it with
-             `pm enable org.mixxx/org.mixxx.DjHome` to use Mixxx as the launcher. -->
-        <activity-alias
-            android:name="org.mixxx.DjHome"
-            android:targetActivity="org.qtproject.qt.android.bindings.QtActivity"
-            android:enabled="false"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity-alias>
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.qtprovider"
