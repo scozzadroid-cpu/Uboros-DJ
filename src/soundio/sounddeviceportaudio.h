@@ -90,6 +90,8 @@ class SoundDevicePortAudio : public SoundDevice {
     int m_invalidTimeInfoCount;
     PerformanceTimer m_clkRefTimer;
     PaTime m_lastCallbackEntrytoDacSecs;
+    // Time between the starts of the last two clock reference callbacks
+    qint64 m_callbackGapNs;
     std::atomic<int> m_callbackResult;
     std::mutex m_finishedMutex;
     std::condition_variable m_finishedCV;

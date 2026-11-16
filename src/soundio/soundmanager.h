@@ -9,6 +9,7 @@
 #include "audio/types.h"
 #include "control/pollingcontrolproxy.h"
 #include "engine/sidechain/enginenetworkstream.h"
+#include "soundio/audiocallbackstats.h"
 #include "preferences/usersettings.h"
 #include "soundio/sounddevice.h"
 #include "soundio/soundmanagerconfig.h"
@@ -105,6 +106,7 @@ class SoundManager : public QObject {
 
     void underflowHappened(int code) {
         m_underflowHappened = 1;
+        mixxx::AudioCallbackStats::recordUnderflow(code);
         // Disable the engine warnings by default, because printing a warning is a
         // locking function that will make the problem worse
         if (CmdlineArgs::Instance().getDeveloper()) {
