@@ -206,33 +206,43 @@ void QmlConfigProxy::setScreenAsleep(bool asleep) {
 }
 
 bool QmlConfigProxy::eventFilter(QObject* pObject, QEvent* pEvent) {
+    // Only the events for the window itself, not the copies Qt Quick hands
+    // on to the items
+    if (!pObject->isWindowType()) {
+        return QObject::eventFilter(pObject, pEvent);
+    }
     switch (pEvent->type()) {
     case QEvent::TouchBegin:
     case QEvent::MouseButtonPress:
-        // Only the events for the window itself, not the copies Qt Quick
-        // hands on to the items
-        if (!pObject->isWindowType()) {
-            break;
-        }
-        emit userActivity();
         if (m_screenAsleep) {
-            // This touch only wakes the screen
-            m_swallowingTouch = true;
+            // This touch only wakes the screen: swallow it to its end, and
+            // the mouse events Qt synthesizes from it (they may follow the
+            // touch end)
+            emit userActivity();
             setScreenAsleep(false);
+            m_swallowingTouch = true;
+            m_swallowTimer.start();
             return true;
         }
+        if (m_swallowingTouch || isSwallowWindowOpen()) {
+            return true;
+        }
+        emit userActivity();
         break;
     case QEvent::TouchUpdate:
     case QEvent::MouseMove:
-        if (m_swallowingTouch && pObject->isWindowType()) {
+        if (m_swallowingTouch || isSwallowWindowOpen()) {
             return true;
         }
         break;
     case QEvent::TouchEnd:
     case QEvent::TouchCancel:
     case QEvent::MouseButtonRelease:
-        if (m_swallowingTouch && pObject->isWindowType()) {
+    case QEvent::MouseButtonDblClick:
+        if (m_swallowingTouch || isSwallowWindowOpen()) {
             m_swallowingTouch = false;
+            // Keep the short window open for the synthesized release
+            m_swallowTimer.start();
             return true;
         }
         break;
@@ -240,6 +250,11 @@ bool QmlConfigProxy::eventFilter(QObject* pObject, QEvent* pEvent) {
         break;
     }
     return QObject::eventFilter(pObject, pEvent);
+}
+
+bool QmlConfigProxy::isSwallowWindowOpen() const {
+    constexpr qint64 kSwallowMs = 400;
+    return m_swallowTimer.isValid() && m_swallowTimer.elapsed() < kSwallowMs;
 }
 
 // static

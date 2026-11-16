@@ -1,5 +1,6 @@
 #pragma once
 #include <QColor>
+#include <QElapsedTimer>
 #include <QObject>
 #include <QQmlEngine>
 #include <QVariantList>
@@ -93,6 +94,9 @@ class QmlConfigProxy : public QObject {
     bool m_screenAsleep = false;
     // Swallowing the rest of the touch that woke the screen
     bool m_swallowingTouch = false;
+    // ... and for a moment after it ends (synthesized mouse events)
+    QElapsedTimer m_swallowTimer;
+    bool isSwallowWindowOpen() const;
 
     static inline UserSettingsPointer s_pUserSettings = nullptr;
 
