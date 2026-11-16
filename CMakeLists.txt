@@ -1678,6 +1678,7 @@ add_library(
   src/util/tapfilter.cpp
   src/util/task.cpp
   src/util/taskmonitor.cpp
+  src/util/threadpriority.cpp
   src/util/time.cpp
   src/util/timer.cpp
   src/util/valuetransformer.cpp

@@ -91,11 +91,14 @@ AnalyzerThread::AnalyzerThread(
 
 void AnalyzerThread::doRun() {
     // Playback has priority over analysis. QThread priorities are ignored on
-    // Linux/Android, set the nice value: batch analysis (library) lowest,
-    // analysis of loaded tracks low.
-    mixxx::setCurrentThreadNice((m_modeFlags & AnalyzerModeFlags::LowPriority)
+    // Linux/Android, demote the thread explicitly (SCHED_BATCH, nice, lowest
+    // best-effort I/O): batch analysis (library) lowest, analysis of loaded
+    // tracks low. The decoder runs on this thread and inherits it.
+    mixxx::demoteCurrentThreadToBackground(
+            (m_modeFlags & AnalyzerModeFlags::LowPriority)
                     ? mixxx::kThreadNiceLowest
-                    : mixxx::kThreadNiceBackground);
+                    : mixxx::kThreadNiceBackground,
+            "AnalyzerThread");
     std::unique_ptr<AnalysisDao> pAnalysisDao;
     // The thread-local database connection  must not be closed
     // before returning from this function.

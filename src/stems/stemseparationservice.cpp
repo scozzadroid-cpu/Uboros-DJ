@@ -8,11 +8,6 @@
 #include <QDir>
 #include <chrono>
 
-#ifdef __ANDROID__
-#include <sys/resource.h>
-#include <unistd.h>
-#endif
-
 #include "control/controlobject.h"
 #include "control/controlpushbutton.h"
 #include "moc_stemseparationservice.cpp"
@@ -21,6 +16,7 @@
 #include "stems/stemcache.h"
 #include "track/track.h"
 #include "util/logger.h"
+#include "util/threadpriority.h"
 
 namespace mixxx {
 namespace stems {
@@ -346,10 +342,12 @@ std::shared_ptr<StemSeparationService::Job> StemSeparationService::pickJob(int* 
 }
 
 void StemSeparationService::workerLoop() {
-#ifdef __ANDROID__
-    // Below the audio and the GUI; the GPU has no priorities
-    setpriority(PRIO_PROCESS, static_cast<id_t>(gettid()), 10);
-#endif
+    // Below the audio and the GUI (the GPU has no priorities). Done before
+    // the network is created so that the CPU thread pool of the inference
+    // runtime inherits it. Not the lowest level: the stems of a playing deck
+    // must keep up with the play position.
+    mixxx::demoteCurrentThreadToBackground(
+            mixxx::kThreadNiceBackground, "StemSeparation");
     while (true) {
         std::shared_ptr<Job> pJob;
         int segment = -1;

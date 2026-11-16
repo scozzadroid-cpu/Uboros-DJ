@@ -27,4 +27,23 @@ inline bool setCurrentThreadNice(int nice) {
 #endif
 }
 
+// Turns the calling thread into background CPU/IO work that must never delay
+// the audio callback or the GUI render thread (Linux/Android only, no-op and
+// returns false elsewhere):
+//  - SCHED_BATCH: the thread never preempts a running thread on wakeup, so
+//    the audio and render threads are not interrupted when it becomes
+//    runnable. Unlike SCHED_IDLE it still receives a fair (nice-weighted)
+//    share of CPU when all cores are busy, so analysis and stem separation
+//    keep progressing while decks are playing.
+//  - the given nice value (CPU weight relative to normal threads).
+//  - best-effort I/O class at its lowest level (7): file reads of the audio
+//    engine (CachingReader) are served first by schedulers that honor I/O
+//    priorities, without the starvation risk of the idle I/O class.
+// Lowering the own priority needs no privilege, also for Android apps.
+// Threads created afterwards by the calling thread (e.g. decoder or
+// inference thread pools) inherit all three settings.
+// The result is logged once per process. Returns true if at least the
+// scheduling policy or the nice value could be applied.
+bool demoteCurrentThreadToBackground(int nice, const char* threadName);
+
 } // namespace mixxx
