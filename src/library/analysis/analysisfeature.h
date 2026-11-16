@@ -35,6 +35,12 @@ class AnalysisFeature : public LibraryFeature {
   signals:
     void analysisActive(bool bActive);
     void trackProgress(TrackId trackId, AnalyzerProgress progress);
+    /// Batch analysis progress: progress of the current track (0..1),
+    /// its number and the number of tracks in the batch. (0, 0, 0) when the
+    /// batch has finished or was stopped.
+    void batchProgress(AnalyzerProgress currentTrackProgress,
+            int currentTrackNumber,
+            int totalTracksCount);
 
   public slots:
     void activate() override;

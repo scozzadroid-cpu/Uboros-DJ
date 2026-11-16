@@ -232,7 +232,7 @@ void AnalysisFeature::stopAnalysis() {
 }
 
 void AnalysisFeature::onTrackAnalysisSchedulerProgress(
-        AnalyzerProgress /*currentTrackProgress*/,
+        AnalyzerProgress currentTrackProgress,
         int currentTrackNumber,
         int totalTracksCount) {
     // Ignore any delayed progress updates after the analysis
@@ -240,6 +240,7 @@ void AnalysisFeature::onTrackAnalysisSchedulerProgress(
     if (!m_pTrackAnalysisScheduler) {
         return; // inactive
     }
+    emit batchProgress(currentTrackProgress, currentTrackNumber, totalTracksCount);
     if (totalTracksCount > 0) {
         setTitleProgress(currentTrackNumber, totalTracksCount);
     } else {
@@ -261,6 +262,7 @@ void AnalysisFeature::onTrackAnalysisSchedulerFinished() {
         m_pTrackAnalysisScheduler.reset();
     }
     resetTitle();
+    emit batchProgress(0, 0, 0);
     emit analysisActive(false);
 }
 

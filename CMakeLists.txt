@@ -3882,6 +3882,7 @@ if(QML)
       src/qml/qmleffectmanifestparametersmodel.cpp
       src/qml/qmleffectslotproxy.cpp
       src/qml/qmleffectsmanagerproxy.cpp
+      src/qml/qmlanalysisproxy.cpp
       src/qml/qmllibraryproxy.cpp
       src/qml/qmllibrarysource.cpp
       src/qml/qmllibrarysourcetree.cpp

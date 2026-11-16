@@ -25,6 +25,8 @@ ApplicationWindow {
     property bool dashboardMode: false
     // The user chose the DJ view without a controller: do not switch back
     property bool dashboardDismissed: false
+    // Opened from the toolbar: stays open with a controller connected
+    property bool dashboardByUser: false
     readonly property int controllerCount: Mixxx.ControllerManager.knownDevices.length + Mixxx.ControllerManager.unknownDevices.length
 
     function enterDjView() {
@@ -38,7 +40,7 @@ ApplicationWindow {
 
     onControllerCountChanged: {
         // Controller plugged in while on the dashboard: go to the DJ view
-        if (dashboardMode && controllerCount > 0)
+        if (dashboardMode && controllerCount > 0 && !dashboardByUser)
             enterDjView();
         // Controller unplugged: back to the dashboard, unless the user
         // explicitly chose the DJ view without a controller
@@ -215,6 +217,17 @@ ApplicationWindow {
                     }
                 }
                 Skin.Button {
+                    id: showDashboardButton
+                    activeColor: Theme.white
+                    text: "Dashboard"
+                    visible: root.isAndroid
+
+                    onClicked: {
+                        root.dashboardByUser = true;
+                        root.enterDashboard();
+                    }
+                }
+                Skin.Button {
                     id: showPreferencesButton
                     activeColor: Theme.white
                     checked: settingsPopup.opened
@@ -343,10 +356,12 @@ ApplicationWindow {
         id: dashboard
 
         anchors.fill: parent
+        openedByUser: root.dashboardByUser
         visible: root.dashboardMode
 
         onContinueWithoutController: {
-            root.dashboardDismissed = true;
+            root.dashboardDismissed = root.controllerCount === 0;
+            root.dashboardByUser = false;
             root.enterDjView();
         }
         onOpenSettings: settingsPopup.open()

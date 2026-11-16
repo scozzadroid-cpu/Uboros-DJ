@@ -1760,7 +1760,8 @@ void RekordboxFeature::onTracksFound() {
     emit showTrackModel(m_pRekordboxPlaylistModel);
 
     // Pre-analyze all the tracks of this device, once per device and run
-    if (devicePlaylist != m_preanalysisPlaylist && !m_preanalysisTimer.isActive()) {
+    if (m_pConfig->getValue(mixxx::deviceanalysis::preanalysisConfigKey(), true) &&
+            devicePlaylist != m_preanalysisPlaylist && !m_preanalysisTimer.isActive()) {
         m_preanalysisPlaylist = devicePlaylist;
         m_pPreanalysisModel->setPlaylist(devicePlaylist);
         m_pPreanalysisModel->select();
@@ -1837,6 +1838,10 @@ void RekordboxFeature::onTracksChanged(const QSet<TrackId>& trackIds) {
 }
 
 void RekordboxFeature::exportNextAnalyses() {
+    if (!m_pConfig->getValue(mixxx::deviceanalysis::storeOnDeviceConfigKey(), true)) {
+        m_exportQueue.clear();
+        return;
+    }
     // Never write to the device while a deck plays from it
     if (PlayerInfo::instance().getCurrentPlayingDeck() >= 0) {
         m_exportTimer.start(5000);

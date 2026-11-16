@@ -2,6 +2,7 @@
 
 #include <QString>
 
+#include "preferences/configobject.h"
 #include "track/track_decl.h"
 
 class AnalysisDao;
@@ -25,6 +26,17 @@ class AnalysisDao;
 /// All functions must be called from the main thread (they use the main
 /// database connection through AnalysisDao).
 namespace mixxx::deviceanalysis {
+
+/// Analyze all the tracks of a USB drive in the background when it is
+/// opened (default on)
+inline ConfigKey preanalysisConfigKey() {
+    return ConfigKey(QStringLiteral("[Library]"), QStringLiteral("DevicePreanalysis"));
+}
+
+/// Store the analyses of a drive's tracks on the drive itself (default on)
+inline ConfigKey storeOnDeviceConfigKey() {
+    return ConfigKey(QStringLiteral("[Library]"), QStringLiteral("DeviceAnalysisStore"));
+}
 
 /// The root of the removable device holding the file (the directory that
 /// contains PIONEER/), or an empty string when there is none.
