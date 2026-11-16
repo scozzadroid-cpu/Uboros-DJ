@@ -243,7 +243,15 @@ Rectangle {
                         // FIXME The signature of modelIndex() has changed after Qt 6.4.2 (currently shipped on Ubuntu 24.04)
                         // See https://github.com/mixxxdj/mixxx/pull/14514#issuecomment-2770811094 for further details
                         // Since Qt 6.4.3 it is modelIndex(row, column); index(row, column) only exists there.
-                        readonly property var index: typeof treeView.index === "function" ? treeView.index(row, column) : treeView.modelIndex(column, row)
+                        // A function, not a property binding: when rows are
+                        // inserted above (a USB drive found under "Rekordbox"),
+                        // TreeView reuses the delegate at the same row number
+                        // for another item, so a binding on row/column would
+                        // not re-evaluate and kept the old item's index (a tap
+                        // on the drive activated the "Computer" row below it).
+                        function currentModelIndex() {
+                            return typeof treeView.index === "function" ? treeView.index(row, column) : treeView.modelIndex(column, row);
+                        }
 
                         implicitWidth: treeView.width
                         implicitHeight: Qt.platform.os === "android" ? (depth == 0 ? 30 : 26) : (depth == 0 ? 42 : 35)
@@ -265,6 +273,7 @@ Rectangle {
                                     // populate the children (folders are listed lazily)
                                     const wasExpanded = expanded;
                                     const viewRow = row;
+                                    const index = currentModelIndex();
                                     treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
                                     treeView.model.activate(index)
                                     if (wasExpanded) {
