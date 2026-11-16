@@ -444,6 +444,7 @@ PioneerDDJFLX4.beatFxLevelDepthRotate = function(_channel, _control, value) {
 };
 
 PioneerDDJFLX4.changeFocusedEffectBy = function(numberOfSteps) {
+    PioneerDDJFLX4.beatFxAllOff();
     let focusedEffect = engine.getValue("[EffectRack1_EffectUnit1]", "focused_effect");
 
     // Convert to zero-based index
@@ -459,14 +460,27 @@ PioneerDDJFLX4.changeFocusedEffectBy = function(numberOfSteps) {
     engine.setValue("[EffectRack1_EffectUnit1]", "focused_effect", focusedEffect);
 };
 
+// One BEAT FX at a time, like a DJM: switching on the armed effect switches
+// the others off, and choosing another effect (BEAT FX SELECT) or slot
+// (BEAT ◀▶) switches the running one off.
+PioneerDDJFLX4.beatFxAllOff = function() {
+    for (let i = 1; i <= 3; i++) {
+        engine.setValue("[EffectRack1_EffectUnit1_Effect" + i + "]", "enabled", 0);
+    }
+};
+
 PioneerDDJFLX4.beatFxSelectPressed = function(_channel, _control, value) {
     if (value === 0) { return; }
+
+    PioneerDDJFLX4.beatFxAllOff();
 
     engine.setValue(PioneerDDJFLX4.focusedFxGroup(), "next_effect", value);
 };
 
 PioneerDDJFLX4.beatFxSelectShiftPressed = function(_channel, _control, value) {
     if (value === 0) { return; }
+
+    PioneerDDJFLX4.beatFxAllOff();
 
     engine.setValue(PioneerDDJFLX4.focusedFxGroup(), "prev_effect", value);
 };
@@ -487,6 +501,9 @@ PioneerDDJFLX4.beatFxOnOffPressed = function(_channel, _control, value) {
     if (value === 0) { return; }
 
     const toggleEnabled = !engine.getValue(PioneerDDJFLX4.focusedFxGroup(), "enabled");
+    if (toggleEnabled) {
+        PioneerDDJFLX4.beatFxAllOff();
+    }
     engine.setValue(PioneerDDJFLX4.focusedFxGroup(), "enabled", toggleEnabled);
 };
 
