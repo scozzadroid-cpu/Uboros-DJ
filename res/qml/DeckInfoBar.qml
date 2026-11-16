@@ -187,19 +187,75 @@ Rectangle {
         }
     }
 
-    Skin.EmbeddedText {
+    // Track title: scrolls (marquee) when it does not fit, like a CDJ
+    Item {
         id: infoBarTitle
 
-        text: root.currentTrack ? root.currentTrack.title : ""
         anchors.top: infoBarHSeparator1.top
         anchors.left: infoBarVSeparator.left
         anchors.right: infoBarHSeparator1.left
         anchors.bottom: infoBarVSeparator.bottom
-        horizontalAlignment: Text.AlignLeft
-        font.bold: true
-        font.pixelSize: Theme.textFontPixelSize
-        elide: Text.ElideRight
-        color: Theme.white
+        clip: true
+
+        readonly property real overflow: Math.max(0, titleText.implicitWidth - width)
+
+        Skin.EmbeddedText {
+            id: titleText
+
+            text: root.currentTrack ? root.currentTrack.title : ""
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: Math.max(implicitWidth, parent.width)
+            horizontalAlignment: Text.AlignLeft
+            font.bold: true
+            font.pixelSize: Theme.textFontPixelSize
+            elide: Text.ElideNone
+            color: Theme.white
+            x: 0
+
+            onTextChanged: {
+                titleScroll.stop();
+                x = 0;
+                if (infoBarTitle.overflow > 0)
+                    titleScroll.restart();
+            }
+        }
+
+        onOverflowChanged: {
+            titleScroll.stop();
+            titleText.x = 0;
+            if (overflow > 0)
+                titleScroll.restart();
+        }
+
+        SequentialAnimation {
+            id: titleScroll
+
+            loops: Animation.Infinite
+
+            PauseAnimation {
+                duration: 2000
+            }
+            NumberAnimation {
+                target: titleText
+                property: "x"
+                from: 0
+                to: -infoBarTitle.overflow
+                // ~30 px per second, readable while mixing
+                duration: Math.max(1000, infoBarTitle.overflow * 33)
+                easing.type: Easing.Linear
+            }
+            PauseAnimation {
+                duration: 1500
+            }
+            NumberAnimation {
+                target: titleText
+                property: "x"
+                to: 0
+                duration: 400
+                easing.type: Easing.InOutQuad
+            }
+        }
     }
 
     Rectangle {
