@@ -3,6 +3,7 @@
 #include <qnamespace.h>
 
 #include <QObject>
+#include <QSet>
 #include <QQmlEngine>
 #include <QSortFilterProxyModel>
 #include <QStandardItemModel>
@@ -10,6 +11,7 @@
 
 #include "library/basetracktablemodel.h"
 #include "library/columncache.h"
+#include "mixer/playerinfo.h"
 #include "moc_qmllibrarytracklistmodel.cpp"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmllibrarytracklistcolumn.h"
@@ -29,7 +31,17 @@ const QHash<int, QByteArray> kRoleNames = {
         {QmlLibraryTrackListModel::Track, "track"},
         {QmlLibraryTrackListModel::FileURL, "file_url"},
         {QmlLibraryTrackListModel::CoverArt, "cover_art"},
+        {QmlLibraryTrackListModel::Played, "played"},
 };
+
+// Locations of the tracks played in this session (the history marks a track
+// as played when it becomes the current playing track). Shared by all lists,
+// so tracks of external sources (rekordbox devices, folders), which have no
+// "played" column, are marked too.
+QSet<QString>& playedLocations() {
+    static QSet<QString> s_locations;
+    return s_locations;
+}
 
 QColor colorFromRgbCode(double colorValue) {
     if (colorValue < 0 || colorValue > 0xFFFFFF) {
@@ -66,6 +78,26 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     }
     pTrackModel->select();
     setSourceModel(pModel);
+
+    connect(&PlayerInfo::instance(),
+            &PlayerInfo::currentPlayingTrackChanged,
+            this,
+            [this](TrackPointer pTrack) {
+                if (!pTrack) {
+                    return;
+                }
+                const QString location = pTrack->getLocation();
+                if (location.isEmpty()) {
+                    return;
+                }
+                // Every list refreshes, also when another list added it first
+                playedLocations().insert(location);
+                if (rowCount() > 0 && columnCount() > 0) {
+                    emit dataChanged(index(0, 0),
+                            index(rowCount() - 1, columnCount() - 1),
+                            {Played});
+                }
+            });
 }
 
 QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role) const {
@@ -139,6 +171,23 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
     case Delegate:
         return QVariant::fromValue(pColumn->delegate());
         break;
+    case Played: {
+        if (pTrackTableModel != nullptr) {
+            const int playedColumn = pTrackTableModel->fieldIndex(
+                    ColumnCache::COLUMN_LIBRARYTABLE_PLAYED);
+            if (playedColumn >= 0 &&
+                    QIdentityProxyModel::data(proxyIndex.siblingAtColumn(playedColumn),
+                            Qt::DisplayRole)
+                            .toBool()) {
+                return true;
+            }
+        }
+        if (playedLocations().isEmpty() || pTrackModel == nullptr) {
+            return false;
+        }
+        return playedLocations().contains(pTrackModel->getTrackLocation(
+                QIdentityProxyModel::mapToSource(proxyIndex)));
+    }
     }
     if (pColumn->columnIdx() < 0) {
         // Use proxyIndex.column()

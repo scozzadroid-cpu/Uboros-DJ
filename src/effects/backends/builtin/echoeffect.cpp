@@ -154,8 +154,19 @@ void EchoEffect::processChannel(
 
     int delay_samples = static_cast<int>(delay_seconds *
             engineParameters.channelCount() * engineParameters.sampleRate());
-    VERIFY_OR_DEBUG_ASSERT(delay_samples <= pGroupState->delay_buf.size()) {
-        delay_samples = pGroupState->delay_buf.size();
+    // Whole frames only: an odd delay puts the read position on the right
+    // sample of a frame, and reading position + 1 at the end of the ring
+    // runs past the buffer (crash in the audio thread on Android).
+    const int channelCount = static_cast<int>(engineParameters.channelCount());
+    delay_samples -= delay_samples % channelCount;
+    // A deck that slows down (brake, spinback, scratch) has a huge beat
+    // length: clamp quietly instead of asserting.
+    const int maxDelaySamples = static_cast<int>(pGroupState->delay_buf.size()) - channelCount;
+    if (delay_samples > maxDelaySamples) {
+        delay_samples = maxDelaySamples;
+    }
+    if (delay_samples < channelCount) {
+        delay_samples = channelCount;
     }
 
     int prev_read_position = pGroupState->write_position;
