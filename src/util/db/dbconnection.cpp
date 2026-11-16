@@ -1,5 +1,6 @@
 #include <QSqlDriver>
 #include <QSqlError>
+#include <QSqlQuery>
 
 #ifdef __SQLITE3__
 #include <sqlite3.h>
@@ -232,6 +233,59 @@ void sqliteLikeUtf8(sqlite3_context* context,
 
 #endif // __SQLITE3__
 
+// Android fork (from BiteDJ): put the library database in write-ahead-log
+// mode.
+//
+// In the default rollback-journal mode a writer holds an EXCLUSIVE lock while
+// it commits (and from the moment it spills its page cache), and every other
+// connection -- including the GUI thread's -- waits in SQLite's busy handler
+// until then. Background work that writes to the library while reading a USB
+// stick (RekordboxFeature::parseDeviceDB, the analyzers, the library scanner)
+// can hold that lock for seconds, so a tap that only reads (opening a
+// playlist) froze the interface for as long as the writer took. Under WAL
+// readers and the writer do not block each other; writers still exclude each
+// other.
+//
+// journal_mode=WAL is persisted in the database file, so after the first run
+// this is a no-op that just reports "wal". It needs a moment of exclusive
+// access the first time; if that fails we simply stay in the old mode and try
+// again on the next connection. In-memory databases (tests) stay in "memory"
+// mode. The DB lives in the app's private files dir on internal storage
+// (ext4/f2fs), where the -wal/-shm side files and mmap'ed shared memory work.
+//
+// synchronous is a per-connection setting, so it is set on every connection.
+// NORMAL is the recommended level for WAL: a commit can be lost on power
+// failure/kernel crash (not on an app crash), but the database cannot become
+// corrupt.
+void configureJournal(const QSqlDatabase& database) {
+    if (database.driverName() != QStringLiteral("QSQLITE")) {
+        return;
+    }
+    QSqlQuery query(database);
+    if (!query.exec(QStringLiteral("PRAGMA journal_mode=WAL"))) {
+        kLogger.warning()
+                << "Failed to enable WAL journal mode:"
+                << query.lastError();
+        return;
+    }
+    const QString journalMode =
+            query.next() ? query.value(0).toString() : QString();
+    query.finish();
+    if (journalMode.compare(QStringLiteral("wal"), Qt::CaseInsensitive) != 0) {
+        // e.g. "memory" for in-memory databases, or "delete" if the switch
+        // could not get exclusive access
+        kLogger.info() << "SQLite journal mode:" << journalMode;
+        return;
+    }
+    if (!query.exec(QStringLiteral("PRAGMA synchronous=NORMAL"))) {
+        kLogger.warning()
+                << "Failed to set synchronous=NORMAL:"
+                << query.lastError();
+    }
+    kLogger.info() << "SQLite journal mode:" << journalMode
+                   << "connection:" << database.connectionName();
+}
+
 bool initDatabase(const QSqlDatabase& database, mixxx::StringCollator* pCollator) {
     DEBUG_ASSERT(database.isOpen());
 #ifdef __SQLITE3__
@@ -305,9 +359,9 @@ bool initDatabase(const QSqlDatabase& database, mixxx::StringCollator* pCollator
                 << result;
     }
 #else
-    Q_UNUSED(database);
     Q_UNUSED(pCollator);
 #endif // __SQLITE3__
+    configureJournal(database);
     return true;
 }
 
