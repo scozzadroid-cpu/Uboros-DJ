@@ -457,6 +457,13 @@ ApplicationWindow {
         }
         onOpenSettings: settingsPopup.open()
     }
+    Skin.StemSlowBanner {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        width: Math.min(parent.width - 16, 900)
+        z: 100
+    }
     Skin.Settings {
         id: settingsPopup
         height: (root.compact || root.narrow) ? parent.height - 8 : Math.max(840, parent.height * 0.7)
