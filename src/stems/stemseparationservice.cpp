@@ -1,6 +1,9 @@
 #include "stems/stemseparationservice.h"
 
 #include <utility>
+#ifdef __linux__
+#include <pthread.h>
+#endif
 #include <QFile>
 #include <QFileInfo>
 #include <QPointer>
@@ -342,6 +345,10 @@ std::shared_ptr<StemSeparationService::Job> StemSeparationService::pickJob(int* 
 }
 
 void StemSeparationService::workerLoop() {
+#ifdef __linux__
+    // Otherwise it inherits the name of the thread that started it
+    pthread_setname_np(pthread_self(), "StemSeparation");
+#endif
     // Below the audio and the GUI (the GPU has no priorities). Done before
     // the network is created so that the CPU thread pool of the inference
     // runtime inherits it. Not the lowest level: the stems of a playing deck
