@@ -2,14 +2,16 @@ import QtQuick 2.12
 import "Theme"
 
 // Deck state indicator like the ones on the CDJ display (MASTER, SYNC,
-// KEY LOCK): always shown, dim when off and lit in its color when on, so the
-// state is readable at a glance and the layout does not move.
+// KEY LOCK): shown, lit in its color, only while on (the deck bar on a phone
+// has no room for dim indicators).
 Rectangle {
     id: root
 
     property alias text: chipText.text
     property color tint: Theme.white
     property bool active: false
+
+    visible: active
 
     implicitHeight: 15
     implicitWidth: chipText.implicitWidth + 6

@@ -142,6 +142,8 @@ ApplicationWindow {
                     activeColor: Theme.white
                     checkable: true
                     text: "4 Decks"
+                    // Two decks on the phone (FLX4): no room for four
+                    visible: !root.isAndroid
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
