@@ -131,12 +131,16 @@ QmlApplication::QmlApplication(
     // The QML skin always shows 4 decks and 8 samplers. Create them before
     // the QML is loaded: components look up their player only once, so a
     // deck created later would stay empty ("-100.00", null player errors).
+    // Controller mappings are set up later and may use more samplers: the
+    // DDJ-FLX4 one drives the LEDs of [Sampler1]-[Sampler16]. Without them a
+    // fresh install (no samplers.xml yet) shows a modal "invalid
+    // MixxxControls" warning at every start, which also takes the keyboard.
     {
         auto pPlayerManager = m_pCoreServices->getPlayerManager();
         while (PlayerManager::numDecks() < 4) {
             pPlayerManager->addDeck();
         }
-        while (PlayerManager::numSamplers() < 8) {
+        while (PlayerManager::numSamplers() < 16) {
             pPlayerManager->addSampler();
         }
     }
