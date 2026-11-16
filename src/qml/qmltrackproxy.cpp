@@ -5,6 +5,7 @@
 #include "mixer/basetrackplayer.h"
 #include "moc_qmltrackproxy.cpp"
 #include "qml/asyncimageprovider.h"
+#include "library/rekordbox/rekordboxconstants.h"
 #include "track/track.h"
 #include "util/parented_ptr.h"
 
@@ -119,7 +120,17 @@ QmlTrackProxy::QmlTrackProxy(TrackPointer track, QObject* parent)
 #endif
 }
 
+bool QmlTrackProxy::isBeatsUnsure() const {
+    if (!m_pTrack) {
+        return false;
+    }
+    const auto pBeats = m_pTrack->getBeats();
+    return pBeats &&
+            pBeats->getSubVersion() == mixxx::rekordboxconstants::unsureSubversion;
+}
+
 void QmlTrackProxy::slotBeatsChanged() {
+    emit beatsUnsureChanged();
     VERIFY_OR_DEBUG_ASSERT(m_pBeatsModel) {
         return;
     }
