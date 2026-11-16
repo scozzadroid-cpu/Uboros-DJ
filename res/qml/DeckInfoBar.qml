@@ -11,6 +11,9 @@ Rectangle {
 
     required property string group
     required property int rightColumnWidth
+    // Key / remaining time column: narrower than the BPM column (its
+    // content is short), the room goes to title and artist
+    readonly property int keyColumnWidth: Math.min(rightColumnWidth, 74)
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
     property var currentTrack: deckPlayer ? deckPlayer.currentTrack : null
     property color lineColor: Theme.deckLineColor
@@ -317,7 +320,7 @@ Rectangle {
     }
 
     // Deck state like the CDJ display, in the free space of the artist row:
-    // always shown, lit when on
+    // shown only when on (MASTER, SYNC, MT, Q), so the artist keeps the room
     Row {
         id: statusChips
 
@@ -403,7 +406,7 @@ Rectangle {
         anchors.top: infoBarHSeparator1.top
         anchors.bottom: infoBarVSeparator.top
         anchors.right: infoBarHSeparator2.left
-        width: root.rightColumnWidth
+        width: root.keyColumnWidth
 
         Rectangle {
             anchors.centerIn: parent
@@ -543,7 +546,7 @@ Rectangle {
         anchors.top: infoBarVSeparator.bottom
         anchors.bottom: infoBarHSeparator1.bottom
         anchors.right: infoBarHSeparator2.left
-        width: root.rightColumnWidth
+        width: root.keyColumnWidth
         text: {
             if (durationControl.value <= 0)
                 return "";
