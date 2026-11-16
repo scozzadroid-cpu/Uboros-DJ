@@ -9,6 +9,7 @@
 
 #include "control/controlobject.h"
 #include "sounddevicenetwork.h"
+#include "soundio/audiocallbackstats.h"
 #include "soundio/sounddevice.h"
 #include "soundio/soundmanager.h"
 #include "soundio/soundmanagerutil.h"
@@ -103,6 +104,7 @@ SoundDevicePortAudio::SoundDevicePortAudio(UserSettingsPointer config,
           m_syncBuffers(2),
           m_invalidTimeInfoCount(0),
           m_lastCallbackEntrytoDacSecs(0),
+          m_callbackGapNs(0),
           m_callbackResult(paAbort) {
     // Setting parent class members:
     m_hostAPI = Pa_GetHostApiInfo(deviceInfo->hostApi)->name;
@@ -1101,7 +1103,9 @@ int SoundDevicePortAudio::callbackProcessClkRef(
 void SoundDevicePortAudio::updateCallbackEntryToDacTime(
         SINT framesPerBuffer,
         const PaStreamCallbackTimeInfo* timeInfo) {
-    double timeSinceLastCbSecs = m_clkRefTimer.restart().toDoubleSeconds();
+    const mixxx::Duration timeSinceLastCb = m_clkRefTimer.restart();
+    m_callbackGapNs = timeSinceLastCb.toIntegerNanos();
+    double timeSinceLastCbSecs = timeSinceLastCb.toDoubleSeconds();
 
     // Plausibility check:
     // We have the DAC timing as reference with almost no jitter
@@ -1182,5 +1186,10 @@ void SoundDevicePortAudio::updateAudioLatencyUsage(
         //          << m_audioLatencyUsage->get();
     }
     // measure time in Audio callback at the very last
-    m_timeInAudioCallback += m_clkRefTimer.elapsed();
+    const mixxx::Duration timeInCallback = m_clkRefTimer.elapsed();
+    m_timeInAudioCallback += timeInCallback;
+    mixxx::AudioCallbackStats::recordCallback(timeInCallback.toIntegerNanos(),
+            m_callbackGapNs,
+            static_cast<qint64>(framesPerBuffer * 1e9 / m_sampleRate.toDouble()),
+            static_cast<qint32>(framesPerBuffer));
 }

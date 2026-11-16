@@ -87,6 +87,8 @@ SoundManager::SoundManager(UserSettingsPointer pConfig,
         m_config.loadDefaults(this, SoundManagerConfig::ALL);
     }
     checkConfig();
+    // Logs aggregated callback timing every 5 s, only when audio dropped out
+    mixxx::AudioCallbackStats::startReporting(this);
     // Don't write config to disk, yet -- it may be reset to defaults in case
     // previously configured devices were not found.
     // Write new config after MixxxMainWindow::noOutputDlg where the user has
