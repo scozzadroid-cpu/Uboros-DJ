@@ -14,6 +14,10 @@
 #include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
+#include "effects/backends/effectsbackendmanager.h"
+#include "effects/effectchain.h"
+#include "effects/effectslot.h"
+#include "effects/effectsmanager.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
@@ -143,6 +147,42 @@ QmlApplication::QmlApplication(
         while (PlayerManager::numSamplers() < 16) {
             pPlayerManager->addSampler();
         }
+    }
+
+    // A fresh install starts with empty effect units: the DDJ-FLX4 BEAT FX
+    // (unit 1) and PAD FX (unit 2 = deck 1, unit 3 = deck 2) did nothing.
+    // Fill only units that are completely empty, so a choice made by the
+    // user is kept.
+    {
+        auto pEffectsManager = m_pCoreServices->getEffectsManager();
+        const auto fillUnit = [&pEffectsManager](int unitIndex, const QStringList& effectIds) {
+            const EffectChainPointer pChain = pEffectsManager->getStandardEffectChain(unitIndex);
+            if (!pChain) {
+                return;
+            }
+            const QList<EffectSlotPointer>& effectSlots = pChain->getEffectSlots();
+            for (const EffectSlotPointer& pSlot : effectSlots) {
+                if (pSlot->isLoaded()) {
+                    return;
+                }
+            }
+            for (int i = 0; i < effectIds.size() && i < effectSlots.size(); ++i) {
+                const EffectManifestPointer pManifest =
+                        pEffectsManager->getBackendManager()->getManifestFromUniqueId(
+                                effectIds.at(i));
+                if (pManifest) {
+                    effectSlots.at(i)->loadEffectWithDefaults(pManifest);
+                }
+            }
+            qInfo() << "Effect unit" << unitIndex + 1 << "was empty, loaded" << effectIds;
+        };
+        const QString echo = QStringLiteral("org.mixxx.effects.echo");
+        const QString reverb = QStringLiteral("org.mixxx.effects.reverb");
+        const QString flanger = QStringLiteral("org.mixxx.effects.flanger");
+        const QString bitcrusher = QStringLiteral("org.mixxx.effects.bitcrusher");
+        fillUnit(0, {echo, reverb, flanger});
+        fillUnit(1, {echo, reverb, flanger, bitcrusher});
+        fillUnit(2, {echo, reverb, flanger, bitcrusher});
     }
 
     // Skin state shared by the QML toolbar and controller mappings.
