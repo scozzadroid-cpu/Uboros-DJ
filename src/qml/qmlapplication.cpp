@@ -186,6 +186,36 @@ QmlApplication::QmlApplication(
         const QString reverb = QStringLiteral("org.mixxx.effects.reverb");
         const QString flanger = QStringLiteral("org.mixxx.effects.flanger");
         const QString bitcrusher = QStringLiteral("org.mixxx.effects.bitcrusher");
+        // Flanger defaults are gentle (a sweep every 8 beats, little
+        // feedback): on a full mix it is hard to hear. Whenever an effect
+        // unit slot loads the Flanger, make it a DJ-style jet: a sweep every
+        // 4 beats, strong feedback, wide sweep (knobs: speed, width,
+        // manual, regen, mix).
+        for (int unitIndex = 0; unitIndex < 3; ++unitIndex) {
+            const EffectChainPointer pChain = pEffectsManager->getStandardEffectChain(unitIndex);
+            if (!pChain) {
+                continue;
+            }
+            for (const EffectSlotPointer& pSlot : pChain->getEffectSlots()) {
+                EffectSlot* pRawSlot = pSlot.data();
+                const auto tune = [pRawSlot]() {
+                    const EffectManifestPointer pManifest = pRawSlot->getManifest();
+                    if (!pManifest || pManifest->id() != QStringLiteral("org.mixxx.effects.flanger")) {
+                        return;
+                    }
+                    const QString& group = pRawSlot->getGroup();
+                    ControlObject::set(ConfigKey(group, QStringLiteral("parameter1")), 4.0);
+                    ControlObject::set(ConfigKey(group, QStringLiteral("parameter4")), 0.7);
+                    ControlObject* pWidth = ControlObject::getControl(
+                            ConfigKey(group, QStringLiteral("parameter2")));
+                    if (pWidth) {
+                        pWidth->setParameter(0.85);
+                    }
+                };
+                connect(pRawSlot, &EffectSlot::effectChanged, this, tune);
+                tune();
+            }
+        }
         fillUnit(0, {echo, reverb, flanger});
         fillUnit(1, {echo, reverb, flanger, bitcrusher});
         fillUnit(2, {echo, reverb, flanger, bitcrusher});

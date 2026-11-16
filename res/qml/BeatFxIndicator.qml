@@ -81,6 +81,27 @@ Rectangle {
         key: "mix"
     }
 
+    Mixxx.ControlProxy {
+        id: slot1Enabled
+
+        group: "[EffectRack1_EffectUnit1_Effect1]"
+        key: "enabled"
+    }
+
+    Mixxx.ControlProxy {
+        id: slot2Enabled
+
+        group: "[EffectRack1_EffectUnit1_Effect2]"
+        key: "enabled"
+    }
+
+    Mixxx.ControlProxy {
+        id: slot3Enabled
+
+        group: "[EffectRack1_EffectUnit1_Effect3]"
+        key: "enabled"
+    }
+
     Row {
         id: row
 
@@ -122,6 +143,15 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: enabledControl.value = root.on ? 0 : 1
+        // One BEAT FX at a time (as on the FLX4)
+        onClicked: {
+            const turnOn = !root.on;
+            if (turnOn) {
+                slot1Enabled.value = 0;
+                slot2Enabled.value = 0;
+                slot3Enabled.value = 0;
+            }
+            enabledControl.value = turnOn ? 1 : 0;
+        }
     }
 }
