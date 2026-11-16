@@ -25,6 +25,25 @@ constexpr int kFormatVersion = 1;
 constexpr int kMaxRootSearchDepth = 12;
 // FAT stores modification times with a 2 s resolution
 constexpr qint64 kMTimeToleranceSecs = 2;
+// FAT stores local time without a time zone: each kernel mount converts it
+// with its own offset (vold passes time_offset=<minutes>, a manual mount
+// none), so the same file shows times shifted by whole time zone offsets on
+// different phones or mounts (seen: 3600 s between a root mount on one phone
+// and vold on another, which discarded every sidecar). Time zone offsets are
+// multiples of 15 minutes and span at most 26 hours (UTC-12 to UTC+14).
+constexpr qint64 kTimeZoneStepSecs = 15 * 60;
+constexpr qint64 kMaxTimeZoneShiftSecs = 26 * 60 * 60;
+
+/// Same FAT modification time, as seen through mounts with different time
+/// zone offsets
+bool sameFatMTime(qint64 stored, qint64 current) {
+    const qint64 diff = qAbs(stored - current);
+    if (diff > kMaxTimeZoneShiftSecs + kMTimeToleranceSecs) {
+        return false;
+    }
+    const qint64 rest = diff % kTimeZoneStepSecs;
+    return rest <= kMTimeToleranceSecs || kTimeZoneStepSecs - rest <= kMTimeToleranceSecs;
+}
 // Sanity limit when reading a sidecar
 constexpr qint64 kMaxSidecarSize = 64 * 1024 * 1024;
 
@@ -104,7 +123,19 @@ bool matchesFile(const QJsonObject& header, const QString& relPath, const QFileI
         return false;
     }
     const qint64 mtime = header.value(QStringLiteral("mtime")).toInteger();
-    return qAbs(mtime - fileInfo.lastModified().toSecsSinceEpoch()) <= kMTimeToleranceSecs;
+    return sameFatMTime(mtime, fileInfo.lastModified().toSecsSinceEpoch());
+}
+
+/// The modification time to store for the file: the one already in its
+/// sidecar when that still describes the file, so that opening the device
+/// through a mount with another time zone offset does not rewrite every
+/// sidecar
+qint64 mtimeToStore(const QString& sidecarFile, const QString& relPath, const QFileInfo& fileInfo) {
+    Sidecar existing;
+    if (readSidecar(sidecarFile, &existing) && matchesFile(existing.header, relPath, fileInfo)) {
+        return existing.header.value(QStringLiteral("mtime")).toInteger();
+    }
+    return fileInfo.lastModified().toSecsSinceEpoch();
 }
 
 bool hasCachedWaveform(TrackId trackId, AnalysisDao& analysisDao) {
@@ -118,13 +149,14 @@ bool buildSidecar(const TrackPointer& pTrack,
         AnalysisDao& analysisDao,
         const QString& relPath,
         const QFileInfo& fileInfo,
+        const QString& sidecarFile,
         QByteArray* pOut) {
     QJsonObject header;
     header.insert(QStringLiteral("format"), kFormatVersion);
     header.insert(QStringLiteral("generator"), QStringLiteral("Mixxx"));
     header.insert(QStringLiteral("path"), relPath);
     header.insert(QStringLiteral("size"), fileInfo.size());
-    header.insert(QStringLiteral("mtime"), fileInfo.lastModified().toSecsSinceEpoch());
+    header.insert(QStringLiteral("mtime"), mtimeToStore(sidecarFile, relPath, fileInfo));
 
     bool hasData = false;
     const BeatsPointer pBeats = pTrack->getBeats();
@@ -334,11 +366,12 @@ bool needsExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
         return false;
     }
     const QString relPath = relativePath(root, location);
+    const QString path = sidecarPath(root, relPath);
     QByteArray content;
-    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), &content)) {
+    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), path, &content)) {
         return false;
     }
-    QFile existing(sidecarPath(root, relPath));
+    QFile existing(path);
     if (!existing.open(QIODevice::ReadOnly)) {
         return true;
     }
@@ -355,11 +388,11 @@ ExportResult exportAnalysis(const TrackPointer& pTrack, AnalysisDao& analysisDao
         return ExportResult::NotOnDevice;
     }
     const QString relPath = relativePath(root, location);
+    const QString path = sidecarPath(root, relPath);
     QByteArray content;
-    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), &content)) {
+    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), path, &content)) {
         return ExportResult::NothingToExport;
     }
-    const QString path = sidecarPath(root, relPath);
     {
         QFile existing(path);
         if (existing.open(QIODevice::ReadOnly) && existing.readAll() == content) {
