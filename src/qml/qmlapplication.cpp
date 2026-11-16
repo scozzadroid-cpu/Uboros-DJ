@@ -238,34 +238,23 @@ QmlApplication::QmlApplication(
                 tune();
             }
         }
-        // BEAT FX SELECT cycles through the visible effects: Bitcrusher in
-        // place of Distortion
+        // BEAT FX SELECT (and the effect menus) cycle through the visible
+        // effects: only the four that work as DJ effects on the FLX4
         {
             const VisibleEffectsListPointer pVisible = pEffectsManager->getVisibleEffectsList();
             const auto pBackends = pEffectsManager->getBackendManager();
             if (pVisible && pBackends) {
-                QList<EffectManifestPointer> list = pVisible->getList();
-                const EffectManifestPointer pBitcrusher =
-                        pBackends->getManifestFromUniqueId(bitcrusher);
-                int distortionIndex = -1;
-                for (int i = 0; i < list.size(); ++i) {
-                    if (list.at(i)->id() == QStringLiteral("org.mixxx.effects.distortion")) {
-                        distortionIndex = i;
-                        break;
+                QList<EffectManifestPointer> list;
+                for (const QString& id : {echo, reverb, flanger, bitcrusher}) {
+                    const EffectManifestPointer pManifest =
+                            pBackends->getManifestFromUniqueId(id);
+                    if (pManifest) {
+                        list.append(pManifest);
                     }
                 }
-                if (pBitcrusher && distortionIndex >= 0) {
-                    for (int i = list.size() - 1; i >= 0; --i) {
-                        if (list.at(i)->id() == bitcrusher) {
-                            list.removeAt(i);
-                            if (i < distortionIndex) {
-                                --distortionIndex;
-                            }
-                        }
-                    }
-                    list.replace(distortionIndex, pBitcrusher);
+                if (list.size() == 4 && list != pVisible->getList()) {
                     pVisible->setList(list);
-                    qInfo() << "BEAT FX: Bitcrusher in place of Distortion";
+                    qInfo() << "Visible effects: Echo, Reverb, Flanger, Bitcrusher";
                 }
             }
         }
