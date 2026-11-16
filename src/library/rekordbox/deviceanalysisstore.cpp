@@ -274,10 +274,14 @@ bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
     // (a stale copy kept grids ~22 ms early after that correction changed).
     // A grid analyzed or edited in Mixxx is kept.
     const auto pCurrentBeats = pTrack->getBeats();
+    // The same for a grid measured by AnalyzerGridAlign with an older decoder
+    // timing table (its shift is relative to that table); one measured with
+    // the current table is kept and saves the measurement.
+    const QString sidecarSubversion = beats.value(QStringLiteral("subVersion")).toString();
     const bool staleRekordboxCopy = pCurrentBeats &&
-            pCurrentBeats->getSubVersion() == mixxx::rekordboxconstants::beatsSubversion &&
-            beats.value(QStringLiteral("subVersion")).toString() ==
-                    mixxx::rekordboxconstants::beatsSubversion;
+            mixxx::rekordboxconstants::isRekordboxBeats(pCurrentBeats->getSubVersion()) &&
+            mixxx::rekordboxconstants::isRekordboxBeats(sidecarSubversion) &&
+            !mixxx::rekordboxconstants::isMeasured(sidecarSubversion);
     if (!beats.isEmpty() && !staleRekordboxCopy && !pTrack->isBpmLocked() &&
             pTrack->getSampleRate().isValid()) {
         const auto pBeats = Beats::fromByteArray(pTrack->getSampleRate(),

@@ -960,7 +960,8 @@ void setHotCue(TrackPointer track,
 
 void readAnalyze(TrackPointer track,
         mixxx::audio::SampleRate sampleRate,
-        int timingOffset,
+        double timingOffset,
+        const QString& beatsSubversion,
         bool ignoreCues,
         const QString& anlzPath) {
     if (!QFile(anlzPath).exists()) {
@@ -993,7 +994,7 @@ void readAnalyze(TrackPointer track,
             QVector<mixxx::audio::FramePos> beats;
 
             for (const auto& beat : *beatGridTag->beats()) {
-                int time = static_cast<int>(beat->time()) - timingOffset;
+                double time = static_cast<double>(beat->time()) - timingOffset;
                 // Ensure no offset times are less than 1
                 if (time < 1) {
                     time = 1;
@@ -1004,7 +1005,7 @@ void readAnalyze(TrackPointer track,
             const auto pBeats = mixxx::Beats::fromBeatPositions(
                     sampleRate,
                     beats,
-                    mixxx::rekordboxconstants::beatsSubversion);
+                    beatsSubversion);
             const bool set = track->trySetBeats(pBeats);
             qDebug() << "Rekordbox beat grid:" << beats.size() << "beats, first at"
                      << (beats.isEmpty() ? 0.0 : beats.first().value() / sampleRateKhz)
@@ -1021,7 +1022,7 @@ void readAnalyze(TrackPointer track,
                             section->body());
 
             for (const auto& cueEntry : *cuesTag->cues()) {
-                int time = static_cast<int>(cueEntry->time()) - timingOffset;
+                double time = static_cast<double>(cueEntry->time()) - timingOffset;
                 // Ensure no offset times are less than 1
                 if (time < 1) {
                     time = 1;
@@ -1040,7 +1041,7 @@ void readAnalyze(TrackPointer track,
                         memoryCuesAndLoops << memoryCue;
                     } break;
                     case rekordbox_anlz_t::CUE_ENTRY_TYPE_LOOP: {
-                        int endTime = static_cast<int>(cueEntry->loop_time()) - timingOffset;
+                        double endTime = static_cast<double>(cueEntry->loop_time()) - timingOffset;
                         // Ensure no offset times are less than 1
                         if (endTime < 1) {
                             endTime = 1;
@@ -1081,7 +1082,7 @@ void readAnalyze(TrackPointer track,
                             section->body());
 
             for (const auto& cueExtendedEntry : *cuesExtendedTag->cues()) {
-                int time = static_cast<int>(cueExtendedEntry->time()) - timingOffset;
+                double time = static_cast<double>(cueExtendedEntry->time()) - timingOffset;
                 // Ensure no offset times are less than 1
                 if (time < 1) {
                     time = 1;
@@ -1102,8 +1103,8 @@ void readAnalyze(TrackPointer track,
                         memoryCuesAndLoops << memoryCue;
                     } break;
                     case rekordbox_anlz_t::CUE_ENTRY_TYPE_LOOP: {
-                        int endTime =
-                                static_cast<int>(
+                        double endTime =
+                                static_cast<double>(
                                         cueExtendedEntry->loop_time()) -
                                 timingOffset;
                         // Ensure no offset times are less than 1
@@ -1336,22 +1337,21 @@ TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
             timingOffset = 50;
             break;
 #elif defined(__MAD__)
-        // Measured on Android (2026-11, 12 tracks of a rekordbox USB drive,
-        // cases A, B and D): the waveform of SoundSourceMp3 (MAD) lags the
-        // gapless FFmpeg decoding by 22.5 ms (+-1 ms) in every case, because
-        // it skips the info frame but not the encoder/decoder delay. Relative
-        // to gapless FFmpeg rekordbox places its grid like the FFmpeg table
-        // below (cases A-C: 0 ms, case D: 26 ms). The former MAD values
-        // (A and D: 26 ms, B and C: 0 ms) put every grid ~22 ms early and
-        // case A ~48 ms early: kicks visibly after the beat markers and
-        // beat sync off between tracks.
+        // Measured on Android (2026-11-16, 125 tracks of a rekordbox USB
+        // drive, onsets folded around every beat as in AnalyzerGridAlign;
+        // median of the ideal offset per case): A 5 ms (8 tracks), B 3 ms
+        // (109), D 29 ms (8). B and D are the upstream values + ~3 ms (likely
+        // the bias of the onset measure), upstream A (26 ms) put the kicks
+        // ~22 ms after the lines -> A 4 ms. A former -22 ms for cases A-C
+        // (based on the gapless FFmpeg timing) was wrong.
+        // AnalyzerGridAlign then measures each track and moves its grid:
+        // when changing this table, change the version in
+        // rekordboxconstants.h.
         case EXIT_CODE_CASE_A:
-        case EXIT_CODE_CASE_B:
-        case EXIT_CODE_CASE_C:
-            timingOffset = -22;
+            timingOffset = 4;
             break;
         case EXIT_CODE_CASE_D:
-            timingOffset = 26 - 22;
+            timingOffset = 26;
             break;
 #elif defined(__FFMPEG__)
         case EXIT_CODE_CASE_D:
@@ -1374,12 +1374,26 @@ TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
                     .toString();
     QString anlzPathExt = anlzPath.left(anlzPath.length() - 3) + "EXT";
 
+    // The grid measured against the audio by AnalyzerGridAlign is kept: the
+    // shift it found is in the sub-version and moves the cues too, as the
+    // rekordbox cues were placed on the rekordbox grid
+    QString beatsSubversion = mixxx::rekordboxconstants::beatsSubversion;
+    double alignmentShiftMs = 0.0;
+    if (const auto pCurrentBeats = track->getBeats()) {
+        const QString currentSubversion = pCurrentBeats->getSubVersion();
+        if (mixxx::rekordboxconstants::isMeasured(currentSubversion)) {
+            beatsSubversion = currentSubversion;
+            alignmentShiftMs = mixxx::rekordboxconstants::alignmentShiftMs(currentSubversion);
+        }
+    }
+    const double totalOffset = timingOffset - alignmentShiftMs;
+
     if (QFile(anlzPathExt).exists()) {
         // Beatgrids appear to be only correct in legacy ANLZ file
-        readAnalyze(track, sampleRate, timingOffset, true, anlzPath);
-        readAnalyze(track, sampleRate, timingOffset, false, anlzPathExt);
+        readAnalyze(track, sampleRate, totalOffset, beatsSubversion, true, anlzPath);
+        readAnalyze(track, sampleRate, totalOffset, beatsSubversion, false, anlzPathExt);
     } else {
-        readAnalyze(track, sampleRate, timingOffset, false, anlzPath);
+        readAnalyze(track, sampleRate, totalOffset, beatsSubversion, false, anlzPath);
     }
 
     // Assume that the key of the file the has been analyzed in Recordbox is correct

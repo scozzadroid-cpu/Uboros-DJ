@@ -160,7 +160,7 @@ bool AnalyzerBeats::shouldAnalyze(TrackPointer pTrack) const {
     }
 
     QString subVersion = pBeats->getSubVersion();
-    if (subVersion == mixxx::rekordboxconstants::beatsSubversion) {
+    if (mixxx::rekordboxconstants::isRekordboxBeats(subVersion)) {
         return m_bPreferencesReanalyzeImported;
     }
 
