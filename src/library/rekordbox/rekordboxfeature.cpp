@@ -1002,7 +1002,11 @@ void readAnalyze(TrackPointer track,
                     sampleRate,
                     beats,
                     mixxx::rekordboxconstants::beatsSubversion);
-            track->trySetBeats(pBeats);
+            const bool set = track->trySetBeats(pBeats);
+            qDebug() << "Rekordbox beat grid:" << beats.size() << "beats, first at"
+                     << (beats.isEmpty() ? 0.0 : beats.first().value() / sampleRateKhz)
+                     << "ms, timing offset" << timingOffset << "ms, changed:" << set
+                     << "for:" << track->getTitle();
         } break;
         case rekordbox_anlz_t::SECTION_TAGS_CUES: {
             if (ignoreCues) {
@@ -1329,9 +1333,22 @@ TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
             timingOffset = 50;
             break;
 #elif defined(__MAD__)
+        // Measured on Android (2026-11, 12 tracks of a rekordbox USB drive,
+        // cases A, B and D): the waveform of SoundSourceMp3 (MAD) lags the
+        // gapless FFmpeg decoding by 22.5 ms (+-1 ms) in every case, because
+        // it skips the info frame but not the encoder/decoder delay. Relative
+        // to gapless FFmpeg rekordbox places its grid like the FFmpeg table
+        // below (cases A-C: 0 ms, case D: 26 ms). The former MAD values
+        // (A and D: 26 ms, B and C: 0 ms) put every grid ~22 ms early and
+        // case A ~48 ms early: kicks visibly after the beat markers and
+        // beat sync off between tracks.
         case EXIT_CODE_CASE_A:
+        case EXIT_CODE_CASE_B:
+        case EXIT_CODE_CASE_C:
+            timingOffset = -22;
+            break;
         case EXIT_CODE_CASE_D:
-            timingOffset = 26;
+            timingOffset = 26 - 22;
             break;
 #elif defined(__FFMPEG__)
         case EXIT_CODE_CASE_D:
