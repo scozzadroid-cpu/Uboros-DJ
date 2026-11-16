@@ -310,6 +310,10 @@ QmlApplication::QmlApplication(
             return;
         }
         params.setField<jfloat>("preferredRefreshRate", 60.0f);
+        // Use the whole screen: also the side with the camera hole
+        // (LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS = 3, API 30); with the
+        // default mode Android kept a black band along that side
+        params.setField<jint>("layoutInDisplayCutoutMode", 3);
         window.callMethod<void>("setAttributes",
                 "(Landroid/view/WindowManager$LayoutParams;)V",
                 params.object());
@@ -319,6 +323,18 @@ QmlApplication::QmlApplication(
         // only active while this window is visible, no permission needed.
         constexpr jint kFlagKeepScreenOn = 0x00000080;
         window.callMethod<void>("addFlags", "(I)V", kFlagKeepScreenOn);
+        // Hide the status and navigation bars (the navigation bar took a
+        // band at the bottom); a swipe from the edge shows them for a
+        // moment (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE = 2)
+        window.callMethod<void>("setDecorFitsSystemWindows", "(Z)V", jboolean(false));
+        QJniObject insetsController = window.callObjectMethod(
+                "getInsetsController", "()Landroid/view/WindowInsetsController;");
+        if (insetsController.isValid()) {
+            const jint systemBars = QJniObject::callStaticMethod<jint>(
+                    "android/view/WindowInsets$Type", "systemBars", "()I");
+            insetsController.callMethod<void>("hide", "(I)V", systemBars);
+            insetsController.callMethod<void>("setSystemBarsBehavior", "(I)V", jint(2));
+        }
     });
 
     // "Do Not Disturb" while Mixxx runs ([Config],android_dnd, default on):

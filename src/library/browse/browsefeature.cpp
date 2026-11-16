@@ -181,7 +181,12 @@ BrowseFeature::~BrowseFeature() {
 }
 
 QVariant BrowseFeature::title() {
+#ifdef __ANDROID__
+    // The phone's own storage and drives (user request: "Locale")
+    return QVariant(tr("Locale"));
+#else
     return QVariant(tr("Computer"));
+#endif
 }
 
 void BrowseFeature::slotAddQuickLink() {
@@ -547,7 +552,11 @@ std::vector<std::unique_ptr<TreeItem>> BrowseFeature::getChildDirectoryItems(
 }
 
 QString BrowseFeature::getRootViewHtml() const {
+#ifdef __ANDROID__
+    const QString browseTitle = tr("Locale");
+#else
     const QString browseTitle = tr("Computer");
+#endif
     const QString browseSummary = tr(
             "\"Computer\" lets you navigate, view, and load tracks"
             " from folders on your hard disk and external devices.");
