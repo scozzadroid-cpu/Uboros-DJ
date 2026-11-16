@@ -44,7 +44,8 @@
 //        (effect unit 2 = deck 1, unit 3 = deck 2), see PioneerDDJFLX4.padFx.
 //        Pad 8 of each bank is a RELEASE FX that ends the track.
 //
-//      * SMART FADER: crossfader on/off (LED on = crossfader active). Off: decks 1
+//      * SMART FADER: crossfader on/off (LED always off: it would switch on the
+//        firmware Smart Fader, which fakes EQ LOW from the fader). Off: decks 1
 //        and 2 are not affected by the crossfader, so moving it by mistake does
 //        nothing; on: the previous crossfader assignment is restored.
 //
@@ -265,7 +266,12 @@ PioneerDDJFLX4.toggleLight = function(midiIn, active) {
 
 PioneerDDJFLX4.init = function() {
     PioneerDDJFLX4.crossfaderActive = true;
-    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, true);
+    // Never light SMART FADER: the LED message switches on the FLX4's own
+    // Smart Fader, and the firmware then sends fake EQ LOW (and filter)
+    // values that follow the channel fader: below ~63% of the fader the
+    // bass goes down to a full cut at ~33% (lower volume, VU following the
+    // fader). Off at startup in case it was left on.
+    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, false);
     engine.setValue("[EffectRack1_EffectUnit1]", "show_focus", 1);
     PioneerDDJFLX4.initPadFx();
 
@@ -1455,7 +1461,7 @@ PioneerDDJFLX4.setCrossfaderActive = function(active) {
         }
     });
     PioneerDDJFLX4.crossfaderActive = active;
-    PioneerDDJFLX4.toggleLight(PioneerDDJFLX4.lights.smartFader, active);
+    // No LED: lighting it enables the firmware Smart Fader (see init)
 };
 
 PioneerDDJFLX4.smartFaderPress = function(_channel, _control, value) {
