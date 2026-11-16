@@ -518,9 +518,15 @@ void buildPlaylistTree(
         const QString& playlistPath,
         const QString& device);
 
-QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool, TreeItem* deviceItem) {
-    QString device = deviceItem->getLabel();
-    QString devicePath = deviceItem->getData().toList()[0].toString();
+// Runs on a worker thread: it gets the label and the path by value. It used to
+// read them from the TreeItem, whose data the main thread replaces right after
+// starting this thread (activateChild): a concurrent QVariant copy and
+// destruction, which crashed with "Scudo ERROR: invalid chunk state".
+// deviceItem is only used to append the playlist children (upstream design).
+QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool,
+        TreeItem* deviceItem,
+        const QString& device,
+        const QString& devicePath) {
 
     qDebug() << "parseDeviceDB device: " << device << " devicePath: " << devicePath;
 
@@ -1625,7 +1631,11 @@ void RekordboxFeature::activateChild(const QModelIndex& index) {
         qDebug() << "Parse Rekordbox Device DB: " << playlist;
 
         // Let a worker thread do the XML parsing
-        m_tracksFuture = QtConcurrent::run(parseDeviceDB, static_cast<Library*>(parent())->dbConnectionPool(), item);
+        m_tracksFuture = QtConcurrent::run(parseDeviceDB,
+                static_cast<Library*>(parent())->dbConnectionPool(),
+                item,
+                item->getLabel(),
+                playlist);
         m_tracksFutureWatcher.setFuture(m_tracksFuture);
 
         // This device is now a playlist element, future activations should treat is
