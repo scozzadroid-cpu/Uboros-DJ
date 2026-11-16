@@ -33,8 +33,11 @@ class SoundSourceSTEM : public SoundSource {
     void close() override;
 
   private:
-    // Contains each stem source, or the main mix if opened in stereo mode
+    // Contains each stem source, or the main mix if opened in stereo mode.
+    // nullptr = silent slot (third slot of a 3-stem file)
     std::vector<std::unique_ptr<SoundSourceSingleSTEM>> m_pStereoStreams;
+    // First non-silent stream (signal info, frame range)
+    SoundSourceSingleSTEM* m_pFirstStream = nullptr;
     SampleBuffer m_buffer;
 
     mixxx::audio::ChannelCount m_requestedChannelCount;

@@ -237,6 +237,11 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
         QList<StemInfo> stemInfos;
         if (!sidecar.isEmpty()) {
             stemInfos = mixxx::StemInfoImporter::importStemInfos(sidecar);
+            if (stemInfos.size() == mixxx::kMaxSupportedStems - 1) {
+                // 3 stems (drums, bass + melody, vocals): SoundSourceSTEM plays
+                // them as 4 with a silent third slot
+                stemInfos.insert(2, StemInfo(QString(), QColor(Qt::darkGray)));
+            }
             if (stemInfos.size() != mixxx::kMaxSupportedStems) {
                 kLogger.warning() << m_group << "Ignoring stem sidecar" << sidecar
                                   << "with" << stemInfos.size() << "stems";

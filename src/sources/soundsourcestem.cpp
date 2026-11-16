@@ -347,6 +347,9 @@ SoundSource::OpenResult SoundSourceSTEM::tryOpen(
     bool foundPremixedStream = false;
     AVStream* firstStem = nullptr;
     int stemCount = 0;
+    std::vector<unsigned int> stemStreamIndices;
+    m_pStereoStreams.clear();
+    m_pFirstStream = nullptr;
     uint selectedStemMask = params.stemMask();
     VERIFY_OR_DEBUG_ASSERT(selectedStemMask <= 2 << mixxx::kMaxSupportedStems) {
         kLogger.warning().noquote()
@@ -413,19 +416,22 @@ SoundSource::OpenResult SoundSourceSTEM::tryOpen(
             }
         }
 
-        // StemIdx is equal to StreamIdx -1 (the main mix)
-        if (selectedStemMask && !(selectedStemMask & 1 << (streamIdx - 1))) {
-            continue;
-        }
-
-        m_pStereoStreams.emplace_back(std::make_unique<SoundSourceSingleSTEM>(getUrl(), streamIdx));
-        if (m_pStereoStreams.back()->open(OpenMode::Strict /*Unused*/,
-                    stemParam) != OpenResult::Succeeded) {
-            return OpenResult::Failed;
-        }
+        stemStreamIndices.push_back(streamIdx);
     }
 
-    if (stemCount != kRequiredStreamCount) {
+    // Files with 3 stems (drums, bass + melody, vocals: the stem sidecars of
+    // a USB drive) are played as 4 stems with a silent third slot, so the
+    // engine keeps its 4 x stereo layout and the 4 stem controls keep their
+    // meaning (bass + melody in slot 2, vocals in slot 4).
+    std::vector<int> slotStreams;
+    if (stemCount == kRequiredStreamCount) {
+        slotStreams.assign(stemStreamIndices.begin(), stemStreamIndices.end());
+    } else if (stemCount == kRequiredStreamCount - 1) {
+        slotStreams = {static_cast<int>(stemStreamIndices[0]),
+                static_cast<int>(stemStreamIndices[1]),
+                -1,
+                static_cast<int>(stemStreamIndices[2])};
+    } else {
         kLogger.warning().noquote()
                 << "expected to find" << kRequiredStreamCount
                 << "stem but found" << stemCount;
@@ -433,7 +439,31 @@ SoundSource::OpenResult SoundSourceSTEM::tryOpen(
         return OpenResult::Failed;
     }
 
-    VERIFY_OR_DEBUG_ASSERT(!m_pStereoStreams.empty()) {
+    for (int slot = 0; slot < kRequiredStreamCount; ++slot) {
+        if (selectedStemMask && !(selectedStemMask & 1 << slot)) {
+            continue;
+        }
+        if (slotStreams[slot] < 0) {
+            if (!selectedStemMask) {
+                // Silent slot: nullptr, read as zeros
+                m_pStereoStreams.emplace_back();
+            }
+            continue;
+        }
+        m_pStereoStreams.emplace_back(std::make_unique<SoundSourceSingleSTEM>(
+                getUrl(), static_cast<unsigned int>(slotStreams[slot])));
+        if (m_pStereoStreams.back()->open(OpenMode::Strict /*Unused*/,
+                    stemParam) != OpenResult::Succeeded) {
+            close();
+            return OpenResult::Failed;
+        }
+        if (!m_pFirstStream) {
+            m_pFirstStream = m_pStereoStreams.back().get();
+        }
+    }
+
+    // Empty also when only the silent slot of a 3-stem file is selected
+    if (!m_pFirstStream) {
         kLogger.warning().noquote()
                 << "no stem track were selected";
         close();
@@ -454,16 +484,18 @@ SoundSource::OpenResult SoundSourceSTEM::tryOpen(
                         m_pStereoStreams.size()));
     }
 
-    initSampleRateOnce(m_pStereoStreams.front()->getSignalInfo().getSampleRate());
-    initBitrateOnce(m_pStereoStreams.front()->getBitrate());
-    initFrameIndexRangeOnce(m_pStereoStreams.front()->frameIndexRange());
+    initSampleRateOnce(m_pFirstStream->getSignalInfo().getSampleRate());
+    initBitrateOnce(m_pFirstStream->getBitrate());
+    initFrameIndexRangeOnce(m_pFirstStream->frameIndexRange());
 
     return OpenResult::Succeeded;
 }
 
 void SoundSourceSTEM::close() {
     for (auto& stream : m_pStereoStreams) {
-        stream->close();
+        if (stream) {
+            stream->close();
+        }
     }
 }
 
@@ -479,7 +511,7 @@ ReadableSampleFrames SoundSourceSTEM::readSampleFramesClamped(
         return ReadableSampleFrames();
     };
 
-    SINT stemSampleLength = m_pStereoStreams.front()->getSignalInfo().frames2samples(
+    SINT stemSampleLength = m_pFirstStream->getSignalInfo().frames2samples(
             globalSampleFrames.frameLength());
 
     // The same buffer is reused between requests tp prevent reallocation, but
@@ -509,6 +541,16 @@ ReadableSampleFrames SoundSourceSTEM::readSampleFramesClamped(
     }
 
     for (std::size_t streamIdx = 0; streamIdx < stemCount; streamIdx++) {
+        if (!m_pStereoStreams[streamIdx]) {
+            // Silent slot of a 3-stem file
+            if (m_requestedChannelCount != mixxx::audio::ChannelCount::stereo()) {
+                for (SINT i = 0; i < stemSampleLength / 2; i++) {
+                    pBuffer[2 * stemCount * i + 2 * streamIdx] = 0;
+                    pBuffer[2 * stemCount * i + 2 * streamIdx + 1] = 0;
+                }
+            }
+            continue;
+        }
         WritableSampleFrames currentStemFrame = WritableSampleFrames(
                 globalSampleFrames.frameIndexRange(),
                 SampleBuffer::WritableSlice(

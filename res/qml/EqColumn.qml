@@ -33,8 +33,11 @@ Column {
 
                 Skin.StemKnob {
                     required property int index
+                    required property string label
 
                     id: stem
+                    // The silent third slot of a 3-stem file has no label
+                    visible: label !== ""
                     stemGroup: root.stemGroup(root.group, index)
                     property alias color: stem.stemColor
                 }
