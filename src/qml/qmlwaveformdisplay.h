@@ -7,8 +7,10 @@
 #include <QSGSimpleRectNode>
 #include <QTimer>
 #include <atomic>
+#include <memory>
 #include <chrono>
 
+#include "control/controlproxy.h"
 #include "qml/qmlplayerproxy.h"
 #include "qml/qmlwaveformrenderer.h"
 #include "track/track.h"
@@ -119,6 +121,11 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     int m_lastPosVSample{-1};
     double m_lastZoom{-1.0};
     QTimer m_idleTimer;
+    // Play/stop and seeks of the deck: leave the idle redraw rate at once
+    // (else the waveform stood still up to 100 ms after play and then jumped)
+    std::unique_ptr<ControlProxy> m_pPlayControl;
+    std::unique_ptr<ControlProxy> m_pPositionControl;
+    void wakeUp();
 
     std::chrono::milliseconds m_syncInterval;
     enum class DirtyFlag : int {
