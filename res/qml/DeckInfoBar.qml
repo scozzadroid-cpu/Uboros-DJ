@@ -457,8 +457,13 @@ Rectangle {
         anchors.right: root.right
         anchors.rightMargin: 5
         width: root.rightColumnWidth
-        // Current BPM (with the tempo fader applied), like on a CDJ
-        text: bpmControl.value > 0 ? bpmControl.value.toFixed(2) : "-"
+        // Current BPM like on a CDJ: the track's BPM times the tempo fader.
+        // Not the local "bpm" of the beat grid, which wanders by a few
+        // hundredths on rekordbox grids (one tempo per beat).
+        readonly property real displayBpm: fileBpmControl.value > 0
+            ? fileBpmControl.value * rateRatioControl.value
+            : bpmControl.value
+        text: displayBpm > 0 ? displayBpm.toFixed(2) : "-"
         font.bold: true
         font.pixelSize: 17
         color: Theme.white
@@ -483,7 +488,7 @@ Rectangle {
         anchors.rightMargin: 5
         // Difference from the original BPM of the track and tempo change,
         // like the CDJ display: "+2.0 (+1.6%)"
-        readonly property real bpmDelta: fileBpmControl.value > 0 ? bpmControl.value - fileBpmControl.value : 0
+        readonly property real bpmDelta: fileBpmControl.value > 0 ? fileBpmControl.value * (rateRatioControl.value - 1) : 0
         text: {
             const percent = ((ratio > 0) ? "+" : "") + ratio.toFixed(1) + "%";
             const range = " \u00b1" + Math.round(rateRangeControl.value * 100);

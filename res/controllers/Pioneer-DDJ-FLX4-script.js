@@ -1032,6 +1032,22 @@ PioneerDDJFLX4.shiftPressed = function(channel, _control, value, _status, _group
 
 
 //
+// BROWSE rotate: scrolls the track list or the sources. When the list is
+// hidden (waveform view, SHIFT + BROWSE press), the first turn shows it
+// again without moving the selection.
+//
+
+PioneerDDJFLX4.browseRotate = function(_channel, _control, value) {
+    if (engine.getValue("[Skin]", "show_library") === 0) {
+        engine.setValue("[Skin]", "show_library", 1);
+        return;
+    }
+    // Relative encoder: 1..63 = clockwise steps, 65..127 = counter-clockwise
+    const delta = value < 64 ? value : value - 128;
+    engine.setValue("[Library]", "MoveVertical", delta);
+};
+
+//
 // Tempo sliders
 //
 // The tempo option in Mixxx's deck preferences determine whether down/up
