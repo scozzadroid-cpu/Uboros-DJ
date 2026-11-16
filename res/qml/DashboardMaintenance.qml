@@ -343,6 +343,45 @@ ColumnLayout {
         subtitle: qsTr("Separating tracks into stems on the phone is in development")
         title: qsTr("Prepare stems for tracks")
     }
+    Mixxx.ControlProxy {
+        id: stemQuality
+
+        group: "[Stems]"
+        key: "quality"
+    }
+    Mixxx.ControlProxy {
+        id: stemBestWhenIdle
+
+        group: "[Stems]"
+        key: "best_when_idle"
+    }
+    Mixxx.ControlProxy {
+        id: stemSpeed
+
+        group: "[Stems]"
+        key: "speed"
+    }
+    Skin.DashboardAction {
+        readonly property var names: [qsTr("automatic"), qsTr("light"), qsTr("balanced")]
+        readonly property var descriptions: [
+            qsTr("Balanced, and the phone proposes the light quality if the stems arrive late or the audio drops out"),
+            qsTr("For less powerful phones: fast, a bit less clean"),
+            qsTr("Clean stems; needs a recent phone")]
+
+        Layout.fillWidth: true
+        subtitle: descriptions[Math.round(stemQuality.value)] + (stemSpeed.value > 0 ? qsTr(" (last separation %1× real time)").arg(stemSpeed.value.toFixed(1)) : "") + qsTr(". Tap to change")
+        title: qsTr("Stem quality while playing: %1").arg(names[Math.round(stemQuality.value)] || names[0])
+
+        onClicked: stemQuality.value = (Math.round(stemQuality.value) + 1) % 3
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        on: stemBestWhenIdle.value > 0
+        subtitle: qsTr("While no deck is playing, the stems of the loaded tracks are separated again at the best quality. It stops as soon as a deck plays")
+        title: qsTr("Best quality while not playing")
+
+        onSwitched: value => stemBestWhenIdle.value = value ? 1 : 0
+    }
     Option {
         option: "stemAutoReset"
         subtitle: qsTr("Volume and mute of each stem return to normal when a track is loaded")
