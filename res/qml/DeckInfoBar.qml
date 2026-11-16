@@ -346,6 +346,20 @@ Rectangle {
             active: keylockStateControl.value > 0
         }
 
+        Skin.StatusChip {
+            // Quantize (FLX4: SHIFT + channel CUE)
+            text: "Q"
+            tint: "#7be0a0"
+            active: quantizeControl.value > 0
+        }
+
+        Mixxx.ControlProxy {
+            id: quantizeControl
+
+            group: root.group
+            key: "quantize"
+        }
+
         Mixxx.ControlProxy {
             id: syncLeaderControl
 
