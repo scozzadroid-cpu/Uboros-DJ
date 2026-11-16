@@ -47,6 +47,10 @@ class Library: public QObject {
     Q_OBJECT
 
   public:
+    /// The batch analysis (QML maintenance dashboard)
+    AnalysisFeature* analysisFeature() const {
+        return m_pAnalysisFeature.get();
+    }
     Library(QObject* parent,
             UserSettingsPointer pConfig,
             mixxx::DbConnectionPoolPtr pDbConnectionPool,

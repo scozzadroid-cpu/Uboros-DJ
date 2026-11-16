@@ -14,6 +14,9 @@ Rectangle {
     readonly property var knownDevices: Mixxx.ControllerManager.knownDevices
     readonly property var unknownDevices: Mixxx.ControllerManager.unknownDevices
     readonly property int deviceCount: knownDevices.length + unknownDevices.length
+    // Opened from the DJ view (toolbar button): it stays open with a
+    // controller connected
+    property bool openedByUser: false
 
     signal openSettings
     signal continueWithoutController
@@ -97,7 +100,7 @@ Rectangle {
                         Layout.fillWidth: true
                         color: Theme.midGray
                         font.pixelSize: 14
-                        text: root.deviceCount > 0 ? qsTr("Switching to the DJ view…") : qsTr("Connect a DJ controller over USB (OTG adapter or a hub with power delivery). The DJ view opens automatically.")
+                        text: root.deviceCount > 0 ? (root.openedByUser ? qsTr("Ready.") : qsTr("Switching to the DJ view…")) : qsTr("Connect a DJ controller over USB (OTG adapter or a hub with power delivery). The DJ view opens automatically.")
                         wrapMode: Text.WordWrap
                     }
                     Repeater {
@@ -123,7 +126,9 @@ Rectangle {
                             color: Theme.lightGray2
                             elide: Text.ElideRight
                             font.pixelSize: 14
-                            text: "• " + modelData.name + "  " + qsTr("(no mapping)")
+                            // On Android a MIDI device has no USB product info, so a
+                            // device with a working mapping is listed here too
+                            text: "• " + modelData.name + "  " + (modelData.activeMappingName ? "(" + modelData.activeMappingName + ")" : qsTr("(no mapping)"))
                         }
                     }
                 }
@@ -157,9 +162,15 @@ Rectangle {
             Skin.DashboardAction {
                 Layout.fillWidth: true
                 subtitle: qsTr("Decks, library and on-screen mixer, in landscape")
-                title: qsTr("Open the DJ view without a controller")
+                title: root.deviceCount > 0 ? qsTr("Back to the DJ view") : qsTr("Open the DJ view without a controller")
 
                 onClicked: root.continueWithoutController()
+            }
+            Skin.DashboardMaintenance {
+                Layout.bottomMargin: 24
+                Layout.fillWidth: true
+                // Not built until the dashboard is shown
+                visible: root.visible
             }
         }
     }
