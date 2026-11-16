@@ -19,6 +19,7 @@
 #include "effects/effectchain.h"
 #include "effects/effectslot.h"
 #include "effects/effectsmanager.h"
+#include "effects/visibleeffectslist.h"
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
@@ -186,11 +187,14 @@ QmlApplication::QmlApplication(
         const QString reverb = QStringLiteral("org.mixxx.effects.reverb");
         const QString flanger = QStringLiteral("org.mixxx.effects.flanger");
         const QString bitcrusher = QStringLiteral("org.mixxx.effects.bitcrusher");
-        // Flanger defaults are gentle (a sweep every 8 beats, little
-        // feedback): on a full mix it is hard to hear. Whenever an effect
-        // unit slot loads the Flanger, make it a DJ-style jet: a sweep every
-        // 4 beats, strong feedback, wide sweep (knobs: speed, width,
-        // manual, regen, mix).
+        // Some built-in effects are too gentle for BEAT FX with their
+        // defaults: whenever a slot of effect units 1-3 loads one of them,
+        // set DJ-style values (knob parameters in manifest order).
+        //  - Flanger (speed, width, manual, regen, mix): a sweep every 4
+        //    beats, full width, feedback 0.9 (jet)
+        //  - Compressor (threshold, ratio, knee, attack, release, level; not
+        //    linked to the meta knob): pumping -35 dB 20:1, 10 ms attack to
+        //    let the kicks through, 150 ms release, soft knee, +6 dB
         for (int unitIndex = 0; unitIndex < 3; ++unitIndex) {
             const EffectChainPointer pChain = pEffectsManager->getStandardEffectChain(unitIndex);
             if (!pChain) {
@@ -200,20 +204,69 @@ QmlApplication::QmlApplication(
                 EffectSlot* pRawSlot = pSlot.data();
                 const auto tune = [pRawSlot]() {
                     const EffectManifestPointer pManifest = pRawSlot->getManifest();
-                    if (!pManifest || pManifest->id() != QStringLiteral("org.mixxx.effects.flanger")) {
+                    if (!pManifest) {
                         return;
                     }
                     const QString& group = pRawSlot->getGroup();
-                    ControlObject::set(ConfigKey(group, QStringLiteral("parameter1")), 4.0);
-                    ControlObject::set(ConfigKey(group, QStringLiteral("parameter4")), 0.7);
-                    ControlObject* pWidth = ControlObject::getControl(
-                            ConfigKey(group, QStringLiteral("parameter2")));
-                    if (pWidth) {
-                        pWidth->setParameter(0.85);
+                    const auto setValue = [&group](int knob, double value) {
+                        ControlObject::set(ConfigKey(group,
+                                                   QStringLiteral("parameter") +
+                                                           QString::number(knob)),
+                                value);
+                    };
+                    const auto setNormalized = [&group](int knob, double parameter) {
+                        ControlObject* pControl = ControlObject::getControl(ConfigKey(
+                                group, QStringLiteral("parameter") + QString::number(knob)));
+                        if (pControl) {
+                            pControl->setParameter(parameter);
+                        }
+                    };
+                    if (pManifest->id() == QStringLiteral("org.mixxx.effects.flanger")) {
+                        setValue(1, 4.0);
+                        setNormalized(2, 1.0);
+                        setValue(4, 0.9);
+                    } else if (pManifest->id() == QStringLiteral("org.mixxx.effects.compressor")) {
+                        setValue(1, -35.0);
+                        setValue(2, 20.0);
+                        setValue(3, 12.0);
+                        setValue(4, 10.0);
+                        setValue(5, 150.0);
+                        setValue(6, 6.0);
                     }
                 };
                 connect(pRawSlot, &EffectSlot::effectChanged, this, tune);
                 tune();
+            }
+        }
+        // BEAT FX SELECT cycles through the visible effects: Bitcrusher in
+        // place of Distortion
+        {
+            const VisibleEffectsListPointer pVisible = pEffectsManager->getVisibleEffectsList();
+            const auto pBackends = pEffectsManager->getBackendManager();
+            if (pVisible && pBackends) {
+                QList<EffectManifestPointer> list = pVisible->getList();
+                const EffectManifestPointer pBitcrusher =
+                        pBackends->getManifestFromUniqueId(bitcrusher);
+                int distortionIndex = -1;
+                for (int i = 0; i < list.size(); ++i) {
+                    if (list.at(i)->id() == QStringLiteral("org.mixxx.effects.distortion")) {
+                        distortionIndex = i;
+                        break;
+                    }
+                }
+                if (pBitcrusher && distortionIndex >= 0) {
+                    for (int i = list.size() - 1; i >= 0; --i) {
+                        if (list.at(i)->id() == bitcrusher) {
+                            list.removeAt(i);
+                            if (i < distortionIndex) {
+                                --distortionIndex;
+                            }
+                        }
+                    }
+                    list.replace(distortionIndex, pBitcrusher);
+                    pVisible->setList(list);
+                    qInfo() << "BEAT FX: Bitcrusher in place of Distortion";
+                }
             }
         }
         fillUnit(0, {echo, reverb, flanger});
