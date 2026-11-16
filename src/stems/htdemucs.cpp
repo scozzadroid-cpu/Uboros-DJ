@@ -238,8 +238,7 @@ void TrackSeparator::setTrack(const float* interleaved, long frames) {
         m_offsets.push_back(offset);
     }
     m_done.assign(m_offsets.size(), false);
-    m_out.assign(size_t(kStemCount) * 2 * frames, 0.0f);
-    m_weightSum.assign(frames, 0.0f);
+    m_segmentOut.assign(m_offsets.size(), std::vector<float>());
 }
 
 int TrackSeparator::segmentAt(long frame) const {
@@ -300,7 +299,7 @@ void TrackSeparator::inverse(const float* spec, float* out) const {
     }
 }
 
-bool TrackSeparator::processSegment(int segment) {
+bool TrackSeparator::processSegment(int segment, const Output& output) {
     if (segment < 0 || segment >= segmentCount() || m_done[segment]) {
         return true;
     }
@@ -329,6 +328,8 @@ bool TrackSeparator::processSegment(int segment) {
         return false;
     }
     const long trim = delta / 2; // demucs center_trim
+    std::vector<float>& segOut = m_segmentOut[segment];
+    segOut.assign(size_t(kStemCount) * 2 * length, 0.0f);
     for (int s = 0; s < kStemCount; ++s) {
         float* x = m_x.data() + long(s) * kMagSize;
         for (long i = 0; i < kMagSize; ++i) {
@@ -337,19 +338,88 @@ bool TrackSeparator::processSegment(int segment) {
         for (int c = 0; c < 2; ++c) {
             inverse(x + long(2 * c) * kBins * kSpecFrames, m_stem.data());
             const float* xt = m_xt.data() + (long(s) * 2 + c) * kSegmentFrames;
-            float* out = m_out.data() + (long(s) * 2 + c) * m_frames;
+            float* out = segOut.data() + (long(s) * 2 + c) * length;
             for (long j = 0; j < length; ++j) {
-                const float v = m_stem[trim + j] +
+                out[j] = m_stem[trim + j] +
                         static_cast<float>(xt[trim + j] * mixStd + kSlotMeanFactor[s] * mixMean);
-                out[offset + j] += m_weight[j] * v;
             }
         }
     }
-    for (long j = 0; j < length; ++j) {
-        m_weightSum[offset + j] += m_weight[j];
-    }
     m_done[segment] = true;
+
+    // Frames of this segment that are final now: split at the boundaries of
+    // the neighbours (overlap < 50%: only they can cover the same frames)
+    std::vector<long> cuts = {offset, offset + length};
+    for (int n : {segment - 1, segment + 1}) {
+        if (n >= 0 && n < segmentCount()) {
+            for (long b : {m_offsets[n], segmentEnd(n)}) {
+                if (b > offset && b < offset + length) {
+                    cuts.push_back(b);
+                }
+            }
+        }
+    }
+    std::sort(cuts.begin(), cuts.end());
+    for (size_t k = 0; k + 1 < cuts.size(); ++k) {
+        if (cuts[k] < cuts[k + 1] && isRangeFinal(cuts[k], cuts[k + 1])) {
+            emitFinal(cuts[k], cuts[k + 1], output);
+        }
+    }
+    // Free the segments whose frames are all final
+    for (int n : {segment - 1, segment, segment + 1}) {
+        if (n >= 0 && n < segmentCount() && m_done[n] &&
+                isRangeFinal(m_offsets[n], segmentEnd(n))) {
+            std::vector<float>().swap(m_segmentOut[n]);
+        }
+    }
     return true;
+}
+
+void TrackSeparator::emitFinal(long start, long end, const Output& output) {
+    // demucs: weighted average of the covering segments, then est * std + mean
+    // (once per source summed into the slot)
+    constexpr long kBlock = 16384;
+    m_emit.resize(size_t(kBlock) * 2 * kStemCount);
+    for (long blockStart = start; blockStart < end; blockStart += kBlock) {
+        const long count = std::min(kBlock, end - blockStart);
+        std::fill(m_emit.begin(), m_emit.begin() + count * 2 * kStemCount, 0.0f);
+        std::vector<float> weightSum(count, 0.0f);
+        for (int n = 0; n < segmentCount(); ++n) {
+            const long segStart = m_offsets[n];
+            const long segLength = segmentEnd(n) - segStart;
+            const long a = std::max(blockStart, segStart);
+            const long b = std::min(blockStart + count, segStart + segLength);
+            if (a >= b) {
+                continue;
+            }
+            const std::vector<float>& segOut = m_segmentOut[n];
+            for (long p = a; p < b; ++p) {
+                const long j = p - segStart;
+                const float w = m_weight[j];
+                weightSum[p - blockStart] += w;
+                float* dst = m_emit.data() + (p - blockStart) * 2 * kStemCount;
+                for (int s = 0; s < kStemCount; ++s) {
+                    for (int c = 0; c < 2; ++c) {
+                        dst[s * 2 + c] += w * segOut[(long(s) * 2 + c) * segLength + j];
+                    }
+                }
+            }
+        }
+        for (long i = 0; i < count; ++i) {
+            float* dst = m_emit.data() + i * 2 * kStemCount;
+            for (int s = 0; s < kStemCount; ++s) {
+                for (int c = 0; c < 2; ++c) {
+                    dst[s * 2 + c] = static_cast<float>(dst[s * 2 + c] / weightSum[i] * m_std +
+                            kSlotMeanFactor[s] * m_mean);
+                }
+            }
+        }
+        output(blockStart, count, m_emit.data());
+    }
+}
+
+int TrackSeparator::doneCount() const {
+    return static_cast<int>(std::count(m_done.begin(), m_done.end(), true));
 }
 
 bool TrackSeparator::isRangeFinal(long start, long end) const {
@@ -361,24 +431,6 @@ bool TrackSeparator::isRangeFinal(long start, long end) const {
         }
     }
     return true;
-}
-
-void TrackSeparator::readStems(long start, long count, float* out) const {
-    for (long i = 0; i < count; ++i) {
-        const long frame = start + i;
-        if (frame < 0 || frame >= m_frames || m_weightSum[frame] <= 0.0f) {
-            continue;
-        }
-        const float w = m_weightSum[frame];
-        for (int s = 0; s < kStemCount; ++s) {
-            for (int c = 0; c < 2; ++c) {
-                const float v = m_out[(long(s) * 2 + c) * m_frames + frame] / w;
-                // demucs: est * std + mean, once per source summed into the slot
-                out[i * 2 * kStemCount + s * 2 + c] =
-                        static_cast<float>(v * m_std + kSlotMeanFactor[s] * m_mean);
-            }
-        }
-    }
 }
 
 } // namespace stems

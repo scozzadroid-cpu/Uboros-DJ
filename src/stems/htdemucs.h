@@ -11,6 +11,8 @@
 //
 // Plain C++ (no Qt) so that it can also be built as a command line test.
 
+#include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -70,9 +72,16 @@ class HtdemucsNet {
     Backend m_backend = Backend::Cpu;
 };
 
-/// Separates a whole track, one segment at a time, in any order.
+/// Separates a whole track, one segment at a time, in any order (e.g.
+/// starting at the play position). Memory stays bounded: only the segments
+/// whose overlap with a neighbour is still open are kept, the final frames
+/// are handed to a callback as soon as every segment covering them is done.
 class TrackSeparator {
   public:
+    /// Final stems of [start, start + count): interleaved per frame,
+    /// drums L R, bass + melody L R, vocals L R (6 floats per frame)
+    using Output = std::function<void(long start, long count, const float* stems)>;
+
     /// overlap: 0.25 is the demucs default
     explicit TrackSeparator(HtdemucsNet* pNet, double overlap = 0.25);
     ~TrackSeparator();
@@ -93,21 +102,21 @@ class TrackSeparator {
     bool isSegmentDone(int segment) const {
         return m_done[segment];
     }
+    int doneCount() const;
     /// First segment covering the frame
     int segmentAt(long frame) const;
 
-    /// Separates one segment and adds it to the result
-    bool processSegment(int segment);
+    /// Separates one segment; the frames that become final go to output
+    bool processSegment(int segment, const Output& output);
 
     /// True if every segment covering [start, end) is done
     bool isRangeFinal(long start, long end) const;
 
-    /// Stems of [start, start + count), interleaved per frame:
-    /// drums L R, bass + melody L R, vocals L R (6 floats per frame).
-    /// Frames that are not final yet are left untouched.
-    void readStems(long start, long count, float* out) const;
-
   private:
+    long segmentEnd(int segment) const {
+        return std::min<long>(m_offsets[segment] + kSegmentFrames, m_frames);
+    }
+    void emitFinal(long start, long end, const Output& output);
     void spectrogram(const float* mix, float* mag) const; // mix planar [2][kSegmentFrames]
     void inverse(const float* spec, float* out) const;    // one channel [2][kBins][kSpecFrames] -> [kSegmentFrames]
 
@@ -119,15 +128,16 @@ class TrackSeparator {
     double m_std = 1;
     std::vector<long> m_offsets;
     std::vector<bool> m_done;
+    /// Output of each segment, [kStemCount][2][length], freed once all its
+    /// frames are final
+    std::vector<std::vector<float>> m_segmentOut;
     std::vector<float> m_weight;      // triangle, kSegmentFrames
-    std::vector<float> m_out;         // [kStemCount][2][frames], weighted sum
-    std::vector<float> m_weightSum;   // [frames]
     std::vector<float> m_window;      // periodic Hann, kNfft
     std::vector<float> m_envelope;    // iSTFT window envelope, per output sample of a segment
     struct Fft;
     std::unique_ptr<Fft> m_pFft;
     // Work buffers (one segment)
-    std::vector<float> m_mix, m_mag, m_x, m_xt, m_stem;
+    std::vector<float> m_mix, m_mag, m_x, m_xt, m_stem, m_emit;
 };
 
 } // namespace stems
