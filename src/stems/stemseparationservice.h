@@ -76,17 +76,38 @@ class StemSeparationService : public QObject {
         ControlObject* pProgress = nullptr;
         ControlObject* pReady = nullptr;
         ControlObject* pPlayPosition = nullptr;
+        ControlObject* pPlay = nullptr;
         bool realStems = false;
+        // Seconds the playing deck spent on audio whose stems were requested
+        // but not ready yet
+        double starvedSeconds = 0;
         std::shared_ptr<Job> pJob; // null: nothing to separate
     };
 
     void requestSeparation(Deck* pDeck);
+    /// Main thread: the separation does not keep up on this phone
+    void checkPerformance();
+    void reportSlow(const char* reason);
     void workerLoop();
     bool ensureNet();
     bool prepareJob(Job* pJob);
     std::shared_ptr<Job> pickJob(int* pSegment);
 
     UserSettingsPointer m_pConfig;
+    // [Stems],quality: 0 automatic, 1 light (weak phones), 2 balanced
+    ControlObject* m_pQuality = nullptr;
+    // [Stems],slow_detected: 1 = the GUI proposes the light quality; the GUI
+    // sets it back to 0 when the user answers
+    ControlObject* m_pSlowDetected = nullptr;
+    // [Stems],best_when_idle: separate again at the best quality while no
+    // deck plays
+    ControlObject* m_pBestWhenIdle = nullptr;
+    // [Stems],speed: separation speed as a multiple of real time (0 = unknown)
+    ControlObject* m_pSpeed = nullptr;
+    bool m_slowReported = false; // once per session
+    quint32 m_overBudgetMark = 0;
+    int m_overBudgetTicks = 0;
+    double m_busySeconds = 0;
     std::vector<std::unique_ptr<Deck>> m_decks;
     QTimer m_timer;
 
@@ -98,6 +119,12 @@ class StemSeparationService : public QObject {
     bool m_quit = false;
     bool m_preloadNet = false; // a deck loaded a track that can be separated
     std::thread m_thread;
+
+    // Worker thread: speed of the last segments (multiple of real time),
+    // published for checkPerformance()
+    std::atomic<double> m_speed{0};
+    std::atomic<int> m_slowSegments{0}; // consecutive, while the deck plays
+    std::atomic<bool> m_busy{false};
 
     // Worker thread only
     std::unique_ptr<HtdemucsNet> m_pNet;
