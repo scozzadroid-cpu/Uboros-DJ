@@ -201,6 +201,9 @@ void TrackAnalysisScheduler::onWorkerThreadProgress(
         DEBUG_ASSERT(!trackId.isValid());
         DEBUG_ASSERT(analyzerProgress == kAnalyzerProgressUnknown);
         worker.onAnalyzerProgress(analyzerProgress);
+        // Idle means the thread holds no track; a track submitted below is
+        // recorded anew.
+        worker.forgetSubmittedTrack();
         submitNextTrack(&worker);
         break;
     case AnalyzerThreadState::Busy:
@@ -215,6 +218,8 @@ void TrackAnalysisScheduler::onWorkerThreadProgress(
         break;
     case AnalyzerThreadState::Done:
         DEBUG_ASSERT(trackId.isValid());
+        // Finished or cancelled, the thread no longer holds this track
+        worker.forgetSubmittedTrack();
         // Ignore delayed signals for tracks that are no longer pending
         if (m_pendingTrackIds.find(trackId) != m_pendingTrackIds.end()) {
             DEBUG_ASSERT((analyzerProgress == kAnalyzerProgressDone) // success
@@ -287,7 +292,7 @@ bool TrackAnalysisScheduler::submitNextTrack(Worker* worker) {
             if (nextTrackPtr) {
                 AnalyzerTrack nextTrack(nextTrackPtr, nextScheduledTrack.getOptions());
                 if (m_pendingTrackIds.insert(nextTrackId).second) {
-                    if (worker->submitNextTrack(std::move(nextTrack))) {
+                    if (worker->submitNextTrack(nextTrack, nextTrackId)) {
                         m_queuedTracks.pop_front();
                         ++m_dequeuedTracksCount;
                         return true;
@@ -323,6 +328,37 @@ bool TrackAnalysisScheduler::submitNextTrack(Worker* worker) {
         ++m_dequeuedTracksCount;
     }
     return false;
+}
+
+bool TrackAnalysisScheduler::cancelTrack(TrackId trackId) {
+    if (!trackId.isValid()) {
+        return false;
+    }
+    bool dequeued = false;
+    for (auto it = m_queuedTracks.begin(); it != m_queuedTracks.end();) {
+        if (it->getTrackId() == trackId) {
+            it = m_queuedTracks.erase(it);
+            dequeued = true;
+        } else {
+            ++it;
+        }
+    }
+    bool aborted = false;
+    for (auto& worker : m_workers) {
+        if (worker && worker.cancelSubmittedTrack(trackId)) {
+            aborted = true;
+        }
+    }
+    if (!dequeued && !aborted) {
+        return false;
+    }
+    kLogger.info() << "Cancelling analysis of track" << trackId
+                   << (aborted ? "(running)" : "(queued)");
+    // An aborted track stays pending until its worker reports Done, which
+    // then emits finished() if it was the last one. A track only dropped
+    // from the queue may have been the last one right now.
+    emitProgressOrFinished();
+    return true;
 }
 
 void TrackAnalysisScheduler::stop() {

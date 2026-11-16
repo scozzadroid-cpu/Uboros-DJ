@@ -206,12 +206,20 @@ void PlayerManager::bindToLibrary(Library* pLibrary) {
     // analyzed.
     foreach(Deck* pDeck, m_decks) {
         connect(pDeck, &BaseTrackPlayer::newTrackLoaded, this, &PlayerManager::slotAnalyzeTrack);
+        connect(pDeck,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
 
     // Connect the player to the analyzer queue so that loaded tracks are
     // analyzed.
     foreach(Sampler* pSampler, m_samplers) {
         connect(pSampler, &BaseTrackPlayer::newTrackLoaded, this, &PlayerManager::slotAnalyzeTrack);
+        connect(pSampler,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
 
     // Connect the player to the analyzer queue so that loaded tracks are
@@ -221,6 +229,10 @@ void PlayerManager::bindToLibrary(Library* pLibrary) {
                 &BaseTrackPlayer::newTrackLoaded,
                 this,
                 &PlayerManager::slotAnalyzeTrack);
+        connect(pPreviewDeck,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
 }
 
@@ -460,6 +472,10 @@ void PlayerManager::addDeckInner() {
                 &BaseTrackPlayer::newTrackLoaded,
                 this,
                 &PlayerManager::slotAnalyzeTrack);
+        connect(pDeck,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
 
     m_players[handleGroup.handle()] = pDeck;
@@ -530,6 +546,10 @@ void PlayerManager::addSamplerInner() {
                 &BaseTrackPlayer::newTrackLoaded,
                 this,
                 &PlayerManager::slotAnalyzeTrack);
+        connect(pSampler,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
     connect(pSampler,
             &BaseTrackPlayer::trackUnloaded,
@@ -567,6 +587,10 @@ void PlayerManager::addPreviewDeckInner() {
                 &BaseTrackPlayer::newTrackLoaded,
                 this,
                 &PlayerManager::slotAnalyzeTrack);
+        connect(pPreviewDeck,
+                &BaseTrackPlayer::loadingTrack,
+                this,
+                &PlayerManager::slotCancelReplacedTrackAnalysis);
     }
 
     m_players[handleGroup.handle()] = pPreviewDeck;
@@ -902,6 +926,32 @@ void PlayerManager::slotAnalyzeTrack(TrackPointer track) {
         // before any signals from the analyzer queue arrive.
         emit trackAnalyzerProgress(track->getId(), kAnalyzerProgressUnknown);
     }
+}
+
+void PlayerManager::slotCancelReplacedTrackAnalysis(
+        TrackPointer pNewTrack, TrackPointer pOldTrack) {
+    // Only the scheduler of loaded tracks: a batch analysis (library,
+    // pre-analysis of a USB drive, analysis dashboard) runs in the
+    // AnalysisFeature's own scheduler and is not touched.
+    if (!m_pTrackAnalysisScheduler || !pOldTrack || pOldTrack == pNewTrack) {
+        return;
+    }
+    const TrackId oldTrackId = pOldTrack->getId();
+    if (!oldTrackId.isValid()) {
+        return;
+    }
+    // Still needed if another player (deck, sampler, preview deck) holds it.
+    // The emitting player has already let go of it.
+    {
+        const auto locker = lockMutex(&m_mutex);
+        for (BaseTrackPlayer* pPlayer : std::as_const(m_players)) {
+            const TrackPointer pTrack = pPlayer->getLoadedTrack();
+            if (pTrack && pTrack->getId() == oldTrackId) {
+                return;
+            }
+        }
+    }
+    m_pTrackAnalysisScheduler->cancelTrack(oldTrackId);
 }
 
 void PlayerManager::slotSaveEjectedTrack(TrackPointer track) {

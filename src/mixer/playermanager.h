@@ -239,6 +239,9 @@ class PlayerManager : public QObject, public PlayerManagerInterface {
 
   private slots:
     void slotAnalyzeTrack(TrackPointer track);
+    // A player has replaced or ejected pOldTrack: cancel its analysis by the
+    // loaded-tracks scheduler unless another player still holds it.
+    void slotCancelReplacedTrackAnalysis(TrackPointer pNewTrack, TrackPointer pOldTrack);
 
     void onTrackAnalysisProgress(TrackId trackId, AnalyzerProgress analyzerProgress);
     void onTrackAnalysisFinished();

@@ -135,6 +135,14 @@ void AnalyzerThread::doRun() {
 
     while (awaitWorkItemsFetched()) {
         DEBUG_ASSERT(m_currentTrack.has_value());
+        if (m_currentTrack->isCancelRequested()) {
+            // Cancelled while it was waiting to be picked up: don't even
+            // open the file.
+            kLogger.info() << "Analysis cancelled before start:"
+                           << m_currentTrack->getTrack()->getLocation();
+            emitDoneProgress(kAnalyzerProgressUnknown);
+            continue;
+        }
         kLogger.debug() << "Analyzing" << m_currentTrack->getTrack()->getLocation();
 
         // Get the audio
@@ -154,6 +162,16 @@ void AnalyzerThread::doRun() {
                     audioSource,
                     mixxx::kAnalysisFramesPerChunk);
         }
+
+        // AnalyzerWaveform::initialize() attaches a new, still empty waveform
+        // to the track so that it is drawn while it is being computed. If the
+        // analysis is cancelled, that half waveform must not stay on the track:
+        // AnalyzerWaveform::shouldAnalyze() would take it for a finished one
+        // the next time the track is loaded and never compute it again.
+        const ConstWaveformPointer pPrevWaveform =
+                m_currentTrack->getTrack()->getWaveform();
+        const ConstWaveformPointer pPrevWaveformSummary =
+                m_currentTrack->getTrack()->getWaveformSummary();
 
         bool processTrack = false;
         for (auto&& analyzer : m_analyzers) {
@@ -184,8 +202,23 @@ void AnalyzerThread::doRun() {
                 }
                 emitDoneProgress(kAnalyzerProgressDone);
             } else {
+                // Cancelled: cleanup() without storeResults(), so nothing
+                // of the partial analysis reaches the track or the database.
                 for (auto&& analyzer : m_analyzers) {
                     analyzer.cancel();
+                }
+                // Only for an explicit cancelTrack() (the track is in no
+                // player any more), not for stop(): a batch analysis stopped
+                // by the user may concern a track that is still on a deck.
+                if (m_currentTrack->isCancelRequested()) {
+                    const TrackPointer& pTrack = m_currentTrack->getTrack();
+                    if (pTrack->getWaveform() != pPrevWaveform) {
+                        pTrack->setWaveform(pPrevWaveform);
+                    }
+                    if (pTrack->getWaveformSummary() != pPrevWaveformSummary) {
+                        pTrack->setWaveformSummary(pPrevWaveformSummary);
+                    }
+                    kLogger.info() << "Analysis cancelled:" << pTrack->getLocation();
                 }
                 emitDoneProgress(kAnalyzerProgressUnknown);
             }
@@ -247,7 +280,7 @@ AnalyzerThread::AnalysisResult AnalyzerThread::analyzeAudioSource(
     mixxx::IndexRange remainingFrameRange = audioSource->frameIndexRange();
     while (!remainingFrameRange.empty()) {
         sleepWhileSuspended();
-        if (isStopping()) {
+        if (isStopping() || m_currentTrack->isCancelRequested()) {
             return AnalysisResult::Cancelled;
         }
 
@@ -303,7 +336,7 @@ AnalyzerThread::AnalysisResult AnalyzerThread::analyzeAudioSource(
         }
 
         sleepWhileSuspended();
-        if (isStopping()) {
+        if (isStopping() || m_currentTrack->isCancelRequested()) {
             return AnalysisResult::Cancelled;
         }
 
