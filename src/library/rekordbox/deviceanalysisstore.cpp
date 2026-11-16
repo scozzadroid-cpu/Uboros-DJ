@@ -12,6 +12,7 @@
 #include <QtDebug>
 
 #include "library/dao/analysisdao.h"
+#include "library/rekordbox/rekordboxconstants.h"
 #include "track/beats.h"
 #include "track/keyfactory.h"
 #include "track/track.h"
@@ -267,12 +268,25 @@ bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
     }
 
     const QJsonObject beats = sidecar.header.value(QStringLiteral("beats")).toObject();
-    if (!beats.isEmpty() && !pTrack->isBpmLocked() && pTrack->getSampleRate().isValid()) {
+    // A sidecar grid that is only a copy of the rekordbox grid must not
+    // replace the one just read from the drive's rekordbox data: that one is
+    // the source and is placed with the current decoder timing correction
+    // (a stale copy kept grids ~22 ms early after that correction changed).
+    // A grid analyzed or edited in Mixxx is kept.
+    const auto pCurrentBeats = pTrack->getBeats();
+    const bool staleRekordboxCopy = pCurrentBeats &&
+            pCurrentBeats->getSubVersion() == mixxx::rekordboxconstants::beatsSubversion &&
+            beats.value(QStringLiteral("subVersion")).toString() ==
+                    mixxx::rekordboxconstants::beatsSubversion;
+    if (!beats.isEmpty() && !staleRekordboxCopy && !pTrack->isBpmLocked() &&
+            pTrack->getSampleRate().isValid()) {
         const auto pBeats = Beats::fromByteArray(pTrack->getSampleRate(),
                 beats.value(QStringLiteral("version")).toString(),
                 beats.value(QStringLiteral("subVersion")).toString(),
                 QByteArray::fromBase64(beats.value(QStringLiteral("data")).toString().toLatin1()));
         if (pBeats) {
+            qDebug() << "Device analysis: grid from the sidecar" << pBeats->getSubVersion()
+                     << "for" << relPath;
             pTrack->trySetBeats(pBeats);
             if (sidecar.header.value(QStringLiteral("bpmLocked")).toBool()) {
                 pTrack->setBpmLocked(true);
