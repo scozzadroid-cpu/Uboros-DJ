@@ -29,6 +29,8 @@ class AnalyzerBeats : public Analyzer {
 
   private:
     bool shouldAnalyze(TrackPointer pTrack) const;
+    mixxx::BeatsPointer reconciledWithMetadataBpm(
+            mixxx::BeatsPointer pBeats, const TrackPointer& pTrack) const;
     static QHash<QString, QString> getExtraVersionInfo(
             const QString& pluginId, bool bPreferencesFastAnalysis);
 
@@ -45,4 +47,6 @@ class AnalyzerBeats : public Analyzer {
     mixxx::audio::ChannelCount m_channelCount;
     SINT m_maxFramesToProcess;
     SINT m_currentFrame;
+    // BPM from the file tag, read before the analysis replaces the grid
+    mixxx::Bpm m_metadataBpm;
 };
