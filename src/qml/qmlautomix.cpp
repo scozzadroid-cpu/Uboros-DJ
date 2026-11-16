@@ -28,6 +28,9 @@ const Logger kLogger("AutoMix");
 
 constexpr int kTickMs = 25;
 constexpr double kMixBeats = 32;
+// Echo out of the outgoing track at the end of the mix, then its tail
+constexpr double kEchoOutBeat = 30;
+constexpr double kEchoTailBeats = 4;
 constexpr int kPhraseBeats = 16;
 constexpr double kMaxTempoDifference = 0.08; // 8%
 constexpr int kMaxKeyShift = 2;              // semitones
@@ -86,6 +89,14 @@ struct QmlAutoMix::Deck {
               introStart(g, QStringLiteral("intro_start_position")),
               outroStart(g, QStringLiteral("outro_start_position")),
               cuePoint(g, QStringLiteral("cue_point")),
+              filter(QStringLiteral("[QuickEffectRack1_") + g + QStringLiteral("]"),
+                      QStringLiteral("super1")),
+              // PAD FX unit of the deck (unit 2 = deck 1, unit 3 = deck 2),
+              // slot 1 = Echo: free for Auto Mix, BEAT FX stays the DJ's
+              echo(g == QStringLiteral("[Channel1]")
+                              ? QStringLiteral("[EffectRack1_EffectUnit2_Effect1]")
+                              : QStringLiteral("[EffectRack1_EffectUnit3_Effect1]"),
+                      QStringLiteral("enabled")),
               eqLow(QStringLiteral("[EqualizerRack1_") + g + QStringLiteral("_Effect1]"),
                       QStringLiteral("parameter1")),
               eqMid(QStringLiteral("[EqualizerRack1_") + g + QStringLiteral("_Effect1]"),
@@ -148,6 +159,8 @@ struct QmlAutoMix::Deck {
     PollingControlProxy introStart;
     PollingControlProxy outroStart;
     PollingControlProxy cuePoint;
+    PollingControlProxy filter;
+    PollingControlProxy echo;
     PollingControlProxy eqLow;
     PollingControlProxy eqMid;
     PollingControlProxy eqHigh;
@@ -243,6 +256,8 @@ void QmlAutoMix::setActive(bool active) {
 
 void QmlAutoMix::resetDeckMix(Deck* pDeck) {
     pDeck->volume.set(1.0);
+    pDeck->filter.set(0.5);
+    pDeck->echo.set(0);
     pDeck->eqLow.set(pDeck->eqLow.getDefault());
     pDeck->eqMid.set(pDeck->eqMid.getDefault());
     pDeck->eqHigh.set(pDeck->eqHigh.getDefault());
@@ -517,7 +532,9 @@ void QmlAutoMix::tick() {
         const double beatFrames = 60.0 / m_pTo->fileBpm.get() * sampleRate.value();
         const double beats = (m_pTo->frame() - m_transitionStartFrame) / beatFrames;
         applyTransition(beats);
-        if (beats >= m_transitionBeats || !m_pFrom->play.toBool()) {
+        if (beats >= m_transitionBeats ||
+                (!m_pFrom->play.toBool() && beats < kEchoOutBeat)) {
+            // Done, or the DJ stopped the outgoing track early
             finishTransition();
         }
         return;
@@ -530,8 +547,28 @@ void QmlAutoMix::startTransition(Deck* pPlaying, Deck* pNext) {
     m_pTo = pNext;
     m_stemsFrom = pPlaying->hasStems();
     m_stemsTo = pNext->hasStems();
-    m_transitionBeats = kMixBeats;
+    m_transitionBeats = kEchoOutBeat + kEchoTailBeats;
     m_transitionStartFrame = pNext->startFrame;
+    // The echo out uses the PAD FX unit of the outgoing deck: make sure it is
+    // on and routed to that deck (the FLX4 mapping does it, the GUI alone not)
+    {
+        const QString unit = pPlaying->group == QStringLiteral("[Channel1]")
+                ? QStringLiteral("[EffectRack1_EffectUnit2]")
+                : QStringLiteral("[EffectRack1_EffectUnit3]");
+        PollingControlProxy(unit, QStringLiteral("enabled")).set(1);
+        PollingControlProxy(unit, QStringLiteral("group_") + pPlaying->group +
+                        QStringLiteral("_enable"))
+                .set(1);
+        PollingControlProxy mix(unit, QStringLiteral("mix"));
+        if (mix.get() < 0.3) {
+            mix.set(0.8);
+        }
+        PollingControlProxy meta(unit.chopped(1) + QStringLiteral("_Effect1]"),
+                QStringLiteral("meta"));
+        if (meta.getParameter() < 0.3) {
+            meta.setParameter(0.6);
+        }
+    }
     // Start muted (stems/EQ), then the fader; sync + quantize align the beat
     applyTransition(0);
     pNext->play.set(1);
@@ -547,7 +584,9 @@ void QmlAutoMix::applyTransition(double t) {
     const double eqUnityB = b->eqLow.getDefault();
     const double bassSwap = ramp(t, 16, 17);
 
-    // Incoming
+    // Incoming: high-pass opening over the first 8 beats (filter super1
+    // 0.5 = off, > 0.5 = high-pass)
+    b->filter.set(0.5 + 0.22 * (1 - ramp(t, 0, 8)));
     if (m_stemsTo) {
         b->volume.set(1);
         b->stems[kDrums].set(ramp(t, 0, 8));
@@ -559,16 +598,26 @@ void QmlAutoMix::applyTransition(double t) {
         b->volume.set(ramp(t, 0, 8));
         b->eqLow.set(eqUnityB * bassSwap);
     }
-    // Outgoing
+
+    // Outgoing: high-pass rising from beat 16, then echo out: Echo on at
+    // beat kEchoOutBeat, the deck stops a beat later and the echo rings on
+    // (the channel's effects are post-fader, so the fader stays up)
+    a->filter.set(0.5 + 0.18 * ramp(t, 16, 28));
     if (m_stemsFrom) {
         a->stems[kBass].set(1 - bassSwap);
         a->stems[kDrums].set(1 - ramp(t, 16, 20));
         a->stems[kVocals].set(1 - ramp(t, 20, 24)); // out before the new vocals
         a->stems[kMelody].set(1 - ramp(t, 24, 30));
-        a->volume.set(1 - ramp(t, 30, 32));
+        a->volume.set(1);
     } else {
         a->eqLow.set(eqUnityA * (1 - bassSwap));
-        a->volume.set(1 - ramp(t, 24, 32));
+        a->volume.set(1 - 0.5 * ramp(t, 24, kEchoOutBeat));
+    }
+    if (t >= kEchoOutBeat && t < kEchoOutBeat + kEchoTailBeats) {
+        a->echo.set(1);
+    }
+    if (t >= kEchoOutBeat + 1 && a->play.toBool()) {
+        a->play.set(0);
     }
 }
 
