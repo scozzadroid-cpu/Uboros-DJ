@@ -229,9 +229,28 @@ SoundSource::OpenResult SoundSourceMp3::tryOpen(
         return OpenResult::Failed;
     }
 
-    // Get a pointer to the file using memory mapped IO
     m_fileSize = m_file.size();
+#ifdef __ANDROID__
+    // Tracks are often on a USB drive: unplugged or failing while mapped,
+    // it kills the app with SIGBUS (see below). Read the file once instead
+    // (a few MB); a read error then just ends the track early.
+    m_fileBuffer = m_file.readAll();
+    if (static_cast<quint64>(m_fileBuffer.size()) != m_fileSize) {
+        kLogger.warning() << "Failed to read file:" << m_file.fileName();
+        m_fileBuffer.clear();
+        m_file.close();
+        return OpenResult::Failed;
+    }
+    m_pFileData = reinterpret_cast<unsigned char*>(m_fileBuffer.data());
+#else
+    // Get a pointer to the file using memory mapped IO
     m_pFileData = m_file.map(0, m_fileSize);
+#endif
+    if (!m_pFileData) {
+        kLogger.warning() << "Failed to map file:" << m_file.fileName();
+        m_file.close();
+        return OpenResult::Failed;
+    }
     // NOTE(uklotzde): If the file disappears unexpectedly while mapped
     // a SIGBUS error might occur that is not handled and will terminate
     // Mixxx immediately. This behavior is documented in the manpage of
@@ -491,7 +510,11 @@ void SoundSourceMp3::close() {
     finishDecoding();
 
     if (m_pFileData) {
+#ifdef __ANDROID__
+        m_fileBuffer = QByteArray();
+#else
         m_file.unmap(m_pFileData);
+#endif
         m_pFileData = nullptr;
     }
 

@@ -35,6 +35,9 @@ class SoundSourceMp3 final : public SoundSource {
     QFile m_file;
     quint64 m_fileSize;
     unsigned char* m_pFileData;
+#ifdef __ANDROID__
+    QByteArray m_fileBuffer; // the whole file, instead of a mapping
+#endif
 
     /** Struct used to store mad frames for seeking */
     struct SeekFrameType {
