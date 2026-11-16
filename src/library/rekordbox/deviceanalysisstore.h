@@ -63,4 +63,18 @@ enum class ExportResult {
 /// Writes (atomically) the analysis of the track to its device.
 ExportResult exportAnalysis(const TrackPointer& pTrack, AnalysisDao& analysisDao);
 
+/// The two halves of exportAnalysis(), so that the slow part (comparing with
+/// the file on the drive and writing it) can run outside the GUI thread.
+struct ExportJob {
+    ExportResult result = ExportResult::NothingToExport; // final unless content is set
+    QString root;
+    QString relPath;
+    QString path;
+    QByteArray content;
+};
+/// GUI thread (library database): builds the sidecar content
+ExportJob prepareExport(const TrackPointer& pTrack, AnalysisDao& analysisDao);
+/// Any thread: compares with the file on the drive and writes it
+ExportResult writeExport(const ExportJob& job);
+
 } // namespace mixxx::deviceanalysis

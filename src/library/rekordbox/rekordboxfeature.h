@@ -38,6 +38,7 @@
 #include "library/baseexternallibraryfeature.h"
 #include "library/baseexternalplaylistmodel.h"
 #include "library/baseexternaltrackmodel.h"
+#include "library/rekordbox/deviceanalysisstore.h"
 #include "library/treeitemmodel.h"
 #include "util/parented_ptr.h"
 
@@ -106,6 +107,8 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QTimer m_exportTimer;
     QList<TrackId> m_exportQueue;
     bool m_exportReadOnlyLogged = false;
+    // Comparing with the drive and writing run in a worker thread, one at a time
+    QFuture<mixxx::deviceanalysis::ExportResult> m_exportWrite;
 
     QFutureWatcher<QList<TreeItem*>> m_devicesFutureWatcher;
     QFuture<QList<TreeItem*>> m_devicesFuture;

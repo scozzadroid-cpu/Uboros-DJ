@@ -392,42 +392,56 @@ bool needsExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
     return existing.readAll() != content;
 }
 
-ExportResult exportAnalysis(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
+ExportJob prepareExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
+    ExportJob job;
     if (!pTrack || !pTrack->getId().isValid()) {
-        return ExportResult::NothingToExport;
+        return job;
     }
     const QString location = pTrack->getLocation();
-    const QString root = deviceRootForFile(location);
-    if (root.isEmpty()) {
-        return ExportResult::NotOnDevice;
+    job.root = deviceRootForFile(location);
+    if (job.root.isEmpty()) {
+        job.result = ExportResult::NotOnDevice;
+        return job;
     }
-    const QString relPath = relativePath(root, location);
-    const QString path = sidecarPath(root, relPath);
-    QByteArray content;
-    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), path, &content)) {
-        return ExportResult::NothingToExport;
+    job.relPath = relativePath(job.root, location);
+    job.path = sidecarPath(job.root, job.relPath);
+    if (!buildSidecar(pTrack, analysisDao, job.relPath, QFileInfo(location), job.path, &job.content)) {
+        job.content.clear();
+        job.result = ExportResult::NothingToExport;
+    }
+    return job;
+}
+
+ExportResult writeExport(const ExportJob& job) {
+    if (job.content.isEmpty()) {
+        return job.result;
     }
     {
-        QFile existing(path);
-        if (existing.open(QIODevice::ReadOnly) && existing.readAll() == content) {
+        QFile existing(job.path);
+        if (existing.open(QIODevice::ReadOnly) && existing.size() == job.content.size() &&
+                existing.readAll() == job.content) {
             return ExportResult::Unchanged;
         }
     }
-    QDir rootDir(root);
+    QDir rootDir(job.root);
     if (!QFileInfo(rootDir.filePath(kStoreDir)).isDir() && !rootDir.mkpath(kStoreDir)) {
         // Mounted read-only (or no permission): not an error
         return ExportResult::ReadOnly;
     }
-    QSaveFile file(path);
+    QSaveFile file(job.path);
     if (!file.open(QIODevice::WriteOnly)) {
         return ExportResult::ReadOnly;
     }
-    if (file.write(content) != content.size() || !file.commit()) {
-        qWarning() << "Device analysis: writing failed for" << relPath << file.errorString();
+    if (file.write(job.content) != job.content.size() || !file.commit()) {
+        qWarning() << "Device analysis: writing failed for" << job.relPath << file.errorString();
         return ExportResult::Failed;
     }
-    qInfo() << "Device analysis: stored" << relPath << content.size() << "bytes";
+    qInfo() << "Device analysis: stored" << job.relPath << job.content.size() << "bytes";
     return ExportResult::Written;
+}
+
+ExportResult exportAnalysis(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
+    return writeExport(prepareExport(pTrack, analysisDao));
 }
 
 } // namespace mixxx::deviceanalysis
