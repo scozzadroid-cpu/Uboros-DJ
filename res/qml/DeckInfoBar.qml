@@ -146,15 +146,45 @@ Rectangle {
 
     // Empty deck, or track being opened: playback of the other deck goes on
     Text {
+        id: emptyDeckText
+
+        property string failure: ""
+
         visible: trackLoadedControl.value == 0
         anchors.left: coverArt.right
         anchors.leftMargin: 12
+        anchors.right: parent.right
+        anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
-        text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : qsTr("Load a track")
+        text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : (failure !== "" ? qsTr("Couldn't load track: %1").arg(failure) : qsTr("Load a track"))
         font.family: Theme.fontFamily
         font.pixelSize: Theme.textFontPixelSize
-        font.italic: true
-        color: Theme.textMutedColor
+        font.italic: failure === ""
+        color: failure !== "" ? Theme.red : Theme.textMutedColor
+        elide: Text.ElideRight
+        maximumLineCount: 2
+        wrapMode: Text.Wrap
+
+        Timer {
+            id: failureTimer
+
+            interval: 8000
+            onTriggered: emptyDeckText.failure = ""
+        }
+
+        Connections {
+            target: root.deckPlayer
+            ignoreUnknownSignals: true
+
+            function onLoadFailed(reason) {
+                emptyDeckText.failure = reason;
+                failureTimer.restart();
+            }
+
+            function onTrackLoading() {
+                emptyDeckText.failure = "";
+            }
+        }
     }
 
     Skin.EmbeddedText {

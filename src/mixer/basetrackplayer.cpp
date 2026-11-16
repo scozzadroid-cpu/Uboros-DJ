@@ -16,6 +16,7 @@
 #include "mixer/playermanager.h"
 #include "moc_basetrackplayer.cpp"
 #include "track/track.h"
+#include "util/cmdlineargs.h"
 #include "util/sandbox.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
@@ -617,6 +618,15 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
         qDebug() << "Failed to load track (NULL track object)" << reason;
     }
     m_pChannelToCloneFrom = nullptr;
+
+    if (pTrack == m_pLoadedTrack || !pTrack) {
+        emit loadFailed(reason);
+    }
+    // The QML interface shows the reason on the deck (loadFailed). A widget
+    // message box there has no parent window: on Android it freezes the GUI.
+    if (CmdlineArgs::Instance().isQml()) {
+        return;
+    }
 
     // Alert user.
     // The QMessageBox blocks the event loop (and the GUI since it's modal dialog),
