@@ -31,7 +31,10 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "mixer/playerinfo.h"
+#include "mixer/deck.h"
 #include "mixer/playermanager.h"
+#include "mixer/previewdeck.h"
+#include "mixer/sampler.h"
 #include "moc_coreservices.cpp"
 #include "preferences/dialog/dlgpreferences.h"
 #include "preferences/settingsmanager.h"
@@ -630,6 +633,23 @@ void CoreServices::initialize(QApplication* pApp) {
     // the uninitialized singleton instance!
     m_pPlayerManager->bindToLibrary(m_pLibrary.get());
 
+#ifdef __ANDROID__
+    // Android kills apps in the background instead of shutting them down.
+    // The tracks loaded in the players are only written to the database when
+    // they are evicted from the track cache (eject or exit), so edited cues,
+    // beatgrids and keys would be lost. Save them whenever the app leaves the
+    // foreground; the database change also queues the export of the analysis
+    // to the USB drive (RekordboxFeature::onTracksChanged).
+    connect(qApp,
+            &QGuiApplication::applicationStateChanged,
+            this,
+            [this](Qt::ApplicationState state) {
+                if (state != Qt::ApplicationActive) {
+                    saveLoadedTracks();
+                }
+            });
+#endif
+
     bool musicDirAdded = false;
 
     if (m_pTrackCollectionManager->internalCollection()->loadRootDirs().isEmpty()) {
@@ -909,6 +929,40 @@ std::shared_ptr<QDialog> CoreServices::makeDlgPreferences() const {
             getSettingsManager(),
             getLibrary());
     return pDlgPreferences;
+}
+
+void CoreServices::saveLoadedTracks() {
+    if (!m_pPlayerManager || !m_pTrackCollectionManager) {
+        return;
+    }
+    QList<TrackPointer> tracks;
+    const auto addTrack = [&tracks](BaseTrackPlayer* pPlayer) {
+        if (!pPlayer) {
+            return;
+        }
+        TrackPointer pTrack = pPlayer->getLoadedTrack();
+        if (pTrack && !tracks.contains(pTrack)) {
+            tracks.append(std::move(pTrack));
+        }
+    };
+    for (unsigned int i = 1; i <= m_pPlayerManager->numberOfDecks(); ++i) {
+        addTrack(m_pPlayerManager->getDeck(i));
+    }
+    for (unsigned int i = 1; i <= m_pPlayerManager->numberOfSamplers(); ++i) {
+        addTrack(m_pPlayerManager->getSampler(i));
+    }
+    for (unsigned int i = 1; i <= m_pPlayerManager->numberOfPreviewDecks(); ++i) {
+        addTrack(m_pPlayerManager->getPreviewDeck(i));
+    }
+    int saved = 0;
+    for (const TrackPointer& pTrack : std::as_const(tracks)) {
+        if (m_pTrackCollectionManager->saveTrack(pTrack) ==
+                TrackCollectionManager::SaveTrackResult::Saved) {
+            ++saved;
+        }
+    }
+    qInfo() << "Saved" << saved << "of" << tracks.size()
+            << "loaded tracks before leaving the foreground";
 }
 
 void CoreServices::finalize() {
