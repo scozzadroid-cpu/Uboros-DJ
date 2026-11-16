@@ -12,6 +12,7 @@
 #include "library/basetracktablemodel.h"
 #include "library/columncache.h"
 #include "mixer/playerinfo.h"
+#include "sources/stemsidecar.h"
 #include "moc_qmllibrarytracklistmodel.cpp"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmllibrarytracklistcolumn.h"
@@ -32,6 +33,7 @@ const QHash<int, QByteArray> kRoleNames = {
         {QmlLibraryTrackListModel::FileURL, "file_url"},
         {QmlLibraryTrackListModel::CoverArt, "cover_art"},
         {QmlLibraryTrackListModel::Played, "played"},
+        {QmlLibraryTrackListModel::HasStems, "has_stems"},
 };
 
 // Locations of the tracks played in this session (the history marks a track
@@ -171,6 +173,13 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
     case Delegate:
         return QVariant::fromValue(pColumn->delegate());
         break;
+    case HasStems: {
+        if (pTrackModel == nullptr) {
+            return false;
+        }
+        return mixxx::trackHasStems(pTrackModel->getTrackLocation(
+                QIdentityProxyModel::mapToSource(proxyIndex)));
+    }
     case Played: {
         if (pTrackTableModel != nullptr) {
             const int playedColumn = pTrackTableModel->fieldIndex(

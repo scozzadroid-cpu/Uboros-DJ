@@ -21,7 +21,8 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
         FileURL,
         CoverArt,
         Delegate,
-        Played
+        Played,
+        HasStems
     };
     Q_ENUM(Roles);
 

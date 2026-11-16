@@ -119,6 +119,46 @@ Mixxx.LibrarySourceTree {
         textBold: distance <= 6
     }
 
+    // Stems playable for the track (stem file or MIXXX/STEMS on the drive)
+    component StemsDelegate: LibraryComponent.Cell {
+        id: stemsCell
+        readonly property var caps: capabilities
+
+        LibraryComponent.Track {
+            anchors.fill: parent
+            capabilities: stemsCell.caps
+            onPressed: {
+                if (pressedButtons == Qt.LeftButton)
+                    tableView.selectionModel.selectRow(row);
+            }
+            onDoubleClicked: {
+                tableView.selectionModel.selectRow(row);
+                tableView.loadSelectedTrackIntoNextAvailableDeck(false);
+            }
+        }
+        Rectangle {
+            visible: has_stems
+            anchors.centerIn: parent
+            width: stemsLabel.implicitWidth + 10
+            height: stemsLabel.implicitHeight + 2
+            radius: 3
+            color: "#1f4a2a"
+            border.width: 1
+            border.color: "#4ee04e"
+
+            Text {
+                id: stemsLabel
+
+                anchors.centerIn: parent
+                text: "STEMS"
+                color: "#9dff9d"
+                font.family: Theme.fontFamily
+                font.pixelSize: Qt.platform.os === "android" ? 9 : 11
+                font.bold: true
+            }
+        }
+    }
+
     defaultColumns: [
         Mixxx.TrackListColumn {
             // Smaller cover column on phones, the table needs the room
@@ -248,6 +288,13 @@ Mixxx.LibrarySourceTree {
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Key
             delegate: KeyDelegate { }
+        },
+        Mixxx.TrackListColumn {
+            label: qsTr("Stems")
+            preferredWidth: 64
+
+            columnIdx: Mixxx.TrackListColumn.SQLColumns.FileType
+            delegate: StemsDelegate { }
         },
         Mixxx.TrackListColumn {
             label: qsTr("File Type")
