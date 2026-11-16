@@ -246,7 +246,23 @@ void QmlWaveformDisplay::setGroup(const QString& group) {
     }
 
     WaveformWidgetRenderer::setGroup(group);
+    m_pPlayControl = std::make_unique<ControlProxy>(group, QStringLiteral("play"));
+    m_pPlayControl->connectValueChanged(this, [this](double) { wakeUp(); });
+    m_pPositionControl = std::make_unique<ControlProxy>(
+            group, QStringLiteral("playposition"));
+    m_pPositionControl->connectValueChanged(this, [this](double) {
+        // Only matters for a deck at the idle rate (seek while paused)
+        if (m_stillFrames.load(std::memory_order_relaxed) >= kStillFramesBeforeIdle) {
+            wakeUp();
+        }
+    });
     emit groupChanged(group);
+}
+
+void QmlWaveformDisplay::wakeUp() {
+    m_stillFrames.store(0, std::memory_order_relaxed);
+    m_idleTimer.stop();
+    update();
 }
 
 void QmlWaveformDisplay::slotTrackLoaded(TrackPointer pTrack) {
