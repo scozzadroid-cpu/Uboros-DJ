@@ -2839,10 +2839,20 @@ if(STEM)
     endif()
     find_library(FFTW3F_LIBRARY NAMES fftw3f REQUIRED)
     find_path(FFTW3F_INCLUDE_DIR NAMES fftw3.h REQUIRED)
-    target_sources(mixxx-lib PRIVATE src/stems/htdemucs.cpp)
+    target_sources(
+      mixxx-lib
+      PRIVATE
+        src/stems/htdemucs.cpp
+        src/stems/stemcache.cpp
+        src/stems/stemseparationservice.cpp
+        src/sources/audiosourceprogressivestemproxy.cpp
+    )
     target_include_directories(mixxx-lib SYSTEM PRIVATE "${MIXXX_MNN_DIR}/include" "${FFTW3F_INCLUDE_DIR}")
     target_link_libraries(mixxx-lib PRIVATE "${MNN_ANDROID_LIB}" "${FFTW3F_LIBRARY}")
     target_compile_definitions(mixxx-lib PUBLIC __STEM_SEPARATION__)
+    # Also for the QML library (built from the same headers: class layouts,
+    # e.g. CachingReader, must be the same in both)
+    set(MIXXX_STEM_SEPARATION ON)
     set_property(TARGET mixxx APPEND PROPERTY QT_ANDROID_EXTRA_LIBS "${MNN_ANDROID_LIB}")
     if(MIXXX_STEM_MODEL)
       add_custom_command(
@@ -3956,6 +3966,9 @@ if(QML)
 
   if(STEM)
     target_compile_definitions(mixxx-qml-lib PUBLIC __STEM__)
+    if(MIXXX_STEM_SEPARATION)
+      target_compile_definitions(mixxx-qml-lib PUBLIC __STEM_SEPARATION__)
+    endif()
     target_sources(
       mixxx-qml-lib
       PRIVATE

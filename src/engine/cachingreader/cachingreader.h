@@ -198,4 +198,12 @@ class CachingReader : public QObject {
     mixxx::IndexRange m_readableFrameIndexRange;
 
     CachingReaderWorker m_worker;
+
+#ifdef __STEM_SEPARATION__
+    void refreshStemChunks();
+    SINT m_lastPlayFrame = -1;
+    const mixxx::stems::StemCache* m_pLastStemCache = nullptr;
+    uint32_t m_stemGeneration = 0;
+    bool m_stemRefreshPending = false;
+#endif
 };

@@ -70,6 +70,18 @@ struct HtdemucsNet::Impl {
 HtdemucsNet::HtdemucsNet() = default;
 HtdemucsNet::~HtdemucsNet() = default;
 
+std::string HtdemucsNet::cacheFile(const Config& config) {
+    std::string tuning;
+    if (config.backend == Backend::OpenCl) {
+        tuning = config.tuning == Config::Tuning::Wide
+                ? "_wide"
+                : (config.tuning == Config::Tuning::Fast ? "_fast" : "_none");
+    }
+    return config.cacheDir + "/htdemucs3_" +
+            (config.backend == Backend::OpenCl ? "opencl" : "cpu") +
+            (config.lowPrecision ? "_fp16" : "_fp32") + tuning + ".cache";
+}
+
 bool HtdemucsNet::init(const Config& config) {
     using namespace MNN;
     using namespace MNN::Express;
@@ -85,7 +97,13 @@ bool HtdemucsNet::init(const Config& config) {
     if (config.backend == Backend::OpenCl) {
         sc.type = MNN_FORWARD_OPENCL;
         // For OpenCL numThread carries the GPU mode (buffer memory, kernel tuning)
-        sc.numThread = MNN_GPU_MEMORY_BUFFER | MNN_GPU_TUNING_WIDE;
+        int tuning = MNN_GPU_TUNING_NONE;
+        if (config.tuning == Config::Tuning::Fast) {
+            tuning = MNN_GPU_TUNING_FAST;
+        } else if (config.tuning == Config::Tuning::Wide) {
+            tuning = MNN_GPU_TUNING_WIDE;
+        }
+        sc.numThread = MNN_GPU_MEMORY_BUFFER | tuning;
     } else {
         sc.type = MNN_FORWARD_CPU;
         sc.numThread = config.threads;
@@ -96,9 +114,7 @@ bool HtdemucsNet::init(const Config& config) {
         return false;
     }
     if (!config.cacheDir.empty()) {
-        m_pImpl->pRuntime->setCache(config.cacheDir + "/htdemucs3_" +
-                (config.backend == Backend::OpenCl ? "opencl" : "cpu") +
-                (config.lowPrecision ? "_fp16" : "_fp32") + ".cache");
+        m_pImpl->pRuntime->setCache(cacheFile(config));
     }
     Module::Config mc;
     mc.shapeMutable = false;

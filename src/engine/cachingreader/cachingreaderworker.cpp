@@ -10,6 +10,12 @@
 #ifdef __STEM__
 #include "sources/soundsourcestem.h"
 #include "sources/stemsidecar.h"
+#ifdef __STEM_SEPARATION__
+#include "sources/audiosourceprogressivestemproxy.h"
+#include "stems/htdemucs.h"
+#include "stems/stemcache.h"
+#include "stems/stemseparationservice.h"
+#endif
 #include "engine/engine.h"
 #include "track/steminfoimporter.h"
 #endif
@@ -58,6 +64,11 @@ ReaderStatusUpdate CachingReaderWorker::processReadRequest(
         return result;
     }
 
+#ifdef __STEM_SEPARATION__
+    // Before reading: if the stems become ready meanwhile, the chunk is
+    // simply read once more
+    pChunk->setStemsReady(m_pStemCache && m_pStemCache->isChunkReady(pChunk->getIndex()));
+#endif
     // Try to read the data required for the chunk from the audio source
     const mixxx::IndexRange bufferedFrameIndexRange = pChunk->bufferSampleFrames(
             m_pAudioSource,
@@ -263,6 +274,45 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
             }
         }
     }
+#ifdef __STEM_SEPARATION__
+    // Instant stems: a track without stems in a main deck is played as a stem
+    // track whose stems are computed on the device on request (SMART CFX):
+    // until then slot 2 carries the whole mix and the deck sounds as usual
+    std::shared_ptr<mixxx::stems::StemCache> pStemCache;
+    const bool realStems = m_pAudioSource != nullptr ||
+            mixxx::StemInfoImporter::maybeStemFile(pTrack->getLocation());
+    if (!m_pAudioSource && !realStems &&
+            m_maxSupportedChannel == mixxx::audio::ChannelCount::stem() &&
+            !stemMask && mixxx::stems::instantStemsEnabled()) {
+        mixxx::AudioSource::OpenParams stereoConfig;
+        stereoConfig.setChannelCount(mixxx::audio::ChannelCount::stereo());
+        auto pStereoSource = SoundSourceProxy(pTrack).openAudioSource(stereoConfig);
+        if (pStereoSource &&
+                pStereoSource->getSignalInfo().getChannelCount() ==
+                        mixxx::audio::ChannelCount::stereo() &&
+                pStereoSource->getSignalInfo().getSampleRate().value() ==
+                        mixxx::stems::kSampleRate &&
+                pStereoSource->frameIndexRange().start() == 0) {
+            pStemCache = mixxx::stems::StemCache::open(pTrack->getLocation(),
+                    pStereoSource->frameLength(),
+                    mixxx::stems::kSampleRate);
+        }
+        if (pStemCache) {
+            m_pAudioSource = std::make_shared<mixxx::AudioSourceProgressiveStemProxy>(
+                    pStereoSource, pStemCache);
+            pTrack->setStemInfos(mixxx::stems::instantStemInfos());
+            kLogger.info() << m_group << "Instant stems for" << pTrack->getLocation()
+                           << pStemCache->readyChunkCount() << "/"
+                           << pStemCache->chunkCount() << "chunks ready";
+        } else {
+            m_pAudioSource = pStereoSource;
+        }
+    }
+    m_pPreviousStemCache = m_pStemCache;
+    m_pStemCache = pStemCache;
+    m_pStemCacheForEngine.store(pStemCache.get(), std::memory_order_release);
+    mixxx::stems::StemSeparationService::deckLoaded(m_group, pTrack, pStemCache, realStems);
+#endif
     if (!m_pAudioSource) {
         m_pAudioSource = SoundSourceProxy(pTrack).openAudioSource(config);
     }

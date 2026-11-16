@@ -25,6 +25,7 @@ CachingReaderChunk::CachingReaderChunk(
 void CachingReaderChunk::init(SINT index) {
     DEBUG_ASSERT(m_index == kInvalidChunkIndex || index == kInvalidChunkIndex);
     m_index = index;
+    m_stemsReady = false;
     m_bufferedSampleFrames.frameIndexRange() = mixxx::IndexRange();
 }
 

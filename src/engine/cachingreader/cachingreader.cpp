@@ -1,4 +1,7 @@
 #include "engine/cachingreader/cachingreader.h"
+#ifdef __STEM_SEPARATION__
+#include "stems/stemcache.h"
+#endif
 
 #include <QtDebug>
 
@@ -298,7 +301,58 @@ void CachingReader::process() {
             }
         }
     }
+#ifdef __STEM_SEPARATION__
+    if (atomicLoadRelaxed(m_state) == STATE_TRACK_LOADED) {
+        refreshStemChunks();
+    }
+#endif
 }
+
+#ifdef __STEM_SEPARATION__
+void CachingReader::refreshStemChunks() {
+    mixxx::stems::StemCache* pCache = m_worker.stemCache();
+    if (!pCache) {
+        m_pLastStemCache = nullptr;
+        return;
+    }
+    const uint32_t generation = pCache->generation();
+    if (pCache == m_pLastStemCache && generation == m_stemGeneration && !m_stemRefreshPending) {
+        return;
+    }
+    m_pLastStemCache = pCache;
+    m_stemGeneration = generation;
+    m_stemRefreshPending = false;
+    // Chunks read with the mix whose stems are ready now are dropped, so the
+    // worker reads them again (with the stems). Not around the play position:
+    // a chunk missing there would be a gap in the audio; those are retried
+    // once the play position has moved on.
+    const SINT playChunk = m_lastPlayFrame >= 0
+            ? CachingReaderChunk::indexForFrame(m_lastPlayFrame)
+            : -100;
+    QVarLengthArray<CachingReaderChunkForOwner*, 256> stale;
+    for (auto it = m_allocatedCachingReaderChunks.constBegin();
+            it != m_allocatedCachingReaderChunks.constEnd();
+            ++it) {
+        CachingReaderChunkForOwner* pChunk = it.value();
+        if (pChunk->getState() != CachingReaderChunkForOwner::READY ||
+                pChunk->stemsReady() || !pCache->isChunkReady(pChunk->getIndex())) {
+            continue;
+        }
+        if (pChunk->getIndex() >= playChunk - 1 && pChunk->getIndex() <= playChunk + 2) {
+            m_stemRefreshPending = true;
+            continue;
+        }
+        if (stale.size() < stale.capacity()) {
+            stale.append(pChunk);
+        } else {
+            m_stemRefreshPending = true;
+        }
+    }
+    for (CachingReaderChunkForOwner* pChunk : stale) {
+        freeChunk(pChunk);
+    }
+}
+#endif
 
 CachingReader::ReadResult CachingReader::read(SINT startSample,
         SINT numSamples,
@@ -547,6 +601,11 @@ void CachingReader::hintAndMaybeWake(const HintVector& hintList) {
     bool shouldWake = false;
 
     for (const auto& hint: hintList) {
+#ifdef __STEM_SEPARATION__
+        if (hint.type == Hint::Type::CurrentPosition) {
+            m_lastPlayFrame = hint.frame;
+        }
+#endif
         SINT hintFrame = hint.frame;
         SINT hintFrameCount = hint.frameCount;
 
