@@ -1,5 +1,7 @@
 #include "library/rekordbox/rekordboxfeature.h"
 
+#include <QtConcurrentRun>
+
 #include "library/library.h"
 #include "mixer/playerinfo.h"
 
@@ -1847,18 +1849,14 @@ void RekordboxFeature::exportNextAnalyses() {
         m_exportTimer.start(5000);
         return;
     }
-    AnalysisDao& analysisDao =
-            m_pLibrary->trackCollectionManager()->internalCollection()->getAnalysisDAO();
-    constexpr int kBatchSize = 4;
-    for (int i = 0; i < kBatchSize && !m_exportQueue.isEmpty(); ++i) {
-        const TrackId trackId = m_exportQueue.takeFirst();
-        const TrackPointer pTrack =
-                m_pLibrary->trackCollectionManager()->getTrackById(trackId);
-        if (!pTrack ||
-                mixxx::deviceanalysis::deviceRootForFile(pTrack->getLocation()).isEmpty()) {
-            continue;
-        }
-        const auto result = mixxx::deviceanalysis::exportAnalysis(pTrack, analysisDao);
+    // The previous file is still being written (drive I/O off the GUI thread)
+    if (m_exportWrite.isRunning()) {
+        m_exportTimer.start(100);
+        return;
+    }
+    if (m_exportWrite.isValid() && m_exportWrite.isFinished()) {
+        const auto result = m_exportWrite.result();
+        m_exportWrite = {};
         if (result == mixxx::deviceanalysis::ExportResult::ReadOnly) {
             if (!m_exportReadOnlyLogged) {
                 qInfo() << "Device analysis: the device is read-only, analyses"
@@ -1869,7 +1867,28 @@ void RekordboxFeature::exportNextAnalyses() {
             return;
         }
     }
-    if (!m_exportQueue.isEmpty()) {
+    AnalysisDao& analysisDao =
+            m_pLibrary->trackCollectionManager()->internalCollection()->getAnalysisDAO();
+    // One track per tick: reading the analyses from the database (waveforms)
+    // stays on the GUI thread, a batch of tracks blocked it for seconds (ANR)
+    while (!m_exportQueue.isEmpty()) {
+        const TrackId trackId = m_exportQueue.takeFirst();
+        const TrackPointer pTrack =
+                m_pLibrary->trackCollectionManager()->getTrackById(trackId);
+        if (!pTrack ||
+                mixxx::deviceanalysis::deviceRootForFile(pTrack->getLocation()).isEmpty()) {
+            continue;
+        }
+        mixxx::deviceanalysis::ExportJob job =
+                mixxx::deviceanalysis::prepareExport(pTrack, analysisDao);
+        if (job.content.isEmpty()) {
+            continue;
+        }
+        m_exportWrite = QtConcurrent::run(
+                [job = std::move(job)]() { return mixxx::deviceanalysis::writeExport(job); });
+        break;
+    }
+    if (!m_exportQueue.isEmpty() || m_exportWrite.isValid()) {
         m_exportTimer.start(200);
     }
 }
