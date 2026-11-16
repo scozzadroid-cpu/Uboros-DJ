@@ -10,6 +10,7 @@
 #include "library/dao/analysisdao.h"
 #include "library/library.h"
 #include "library/rekordbox/deviceanalysisstore.h"
+#include "library/rekordbox/rekordboxfeature.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "mixer/playerinfo.h"
@@ -172,6 +173,16 @@ QmlAnalysisProxy::QmlAnalysisProxy(QObject* parent)
             &AnalysisFeature::batchProgress,
             this,
             &QmlAnalysisProxy::onBatchProgress);
+    if (RekordboxFeature* pRekordbox = RekordboxFeature::instance()) {
+        m_deviceBusy = pRekordbox->busyText();
+        connect(pRekordbox,
+                &RekordboxFeature::busyTextChanged,
+                this,
+                [this](const QString& text) {
+                    m_deviceBusy = text;
+                    emit deviceBusyChanged();
+                });
+    }
 }
 
 void QmlAnalysisProxy::onBatchProgress(

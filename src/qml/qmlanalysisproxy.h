@@ -18,6 +18,8 @@ class QmlAnalysisProxy : public QObject {
     Q_PROPERTY(double trackProgress READ trackProgress NOTIFY progressChanged)
     /// name -> bool, see setOption()
     Q_PROPERTY(QVariantMap options READ options NOTIFY optionsChanged)
+    /// "Loading USB drive…" / "Preparing USB drive… N/M", "" when idle
+    Q_PROPERTY(QString deviceBusy READ deviceBusy NOTIFY deviceBusyChanged)
     QML_NAMED_ELEMENT(Analysis)
     QML_SINGLETON
 
@@ -45,6 +47,9 @@ class QmlAnalysisProxy : public QObject {
     /// drives / SD cards), "all". Returns the number of queued tracks.
     Q_INVOKABLE int analyze(const QString& scope);
     Q_INVOKABLE void stop();
+    QString deviceBusy() const {
+        return m_deviceBusy;
+    }
 
     /// Options: bpmDetection, bpmFixedTempo, bpmFast, bpmReanalyzeOnChange,
     /// bpmReanalyzeImported, bpmFromDrums, keyDetection, keyFast,
@@ -65,11 +70,13 @@ class QmlAnalysisProxy : public QObject {
     Q_INVOKABLE int deleteDriveAnalyses(const QString& drivePath);
 
   signals:
+    void deviceBusyChanged();
     void progressChanged();
     void optionsChanged();
     void cacheChanged();
 
   private:
+    QString m_deviceBusy;
     void onBatchProgress(double currentTrackProgress, int currentTrackNumber, int totalTracksCount);
 
     bool m_active{false};

@@ -1,5 +1,6 @@
 #include "library/rekordbox/rekordboxfeature.h"
 
+#include <QElapsedTimer>
 #include <QtConcurrentRun>
 
 #include "library/library.h"
@@ -1417,6 +1418,7 @@ RekordboxFeature::RekordboxFeature(
         UserSettingsPointer pConfig)
         : BaseExternalLibraryFeature(pLibrary, pConfig, QStringLiteral("rekordbox")),
           m_pSidebarModel(make_parented<TreeItemModel>(this)) {
+    s_pInstance = this;
     QString tableName = kRekordboxLibraryTable;
     QString idColumn = LIBRARYTABLE_ID;
     QStringList columns = {
@@ -1504,6 +1506,9 @@ RekordboxFeature::RekordboxFeature(
 }
 
 RekordboxFeature::~RekordboxFeature() {
+    if (s_pInstance == this) {
+        s_pInstance = nullptr;
+    }
     m_devicesFuture.waitForFinished();
     m_tracksFuture.waitForFinished();
 
@@ -1656,6 +1661,7 @@ void RekordboxFeature::activateChild(const QModelIndex& index) {
                 item->getLabel(),
                 playlist);
         m_tracksFutureWatcher.setFuture(m_tracksFuture);
+        setBusyText(tr("Loading USB drive…"));
 
         // This device is now a playlist element, future activations should treat is
         // as such
@@ -1744,6 +1750,14 @@ void RekordboxFeature::onRekordboxDevicesFound() {
     emit featureLoadingFinished(this);
 }
 
+void RekordboxFeature::setBusyText(const QString& text) {
+    if (text == m_busyText) {
+        return;
+    }
+    m_busyText = text;
+    emit busyTextChanged(text);
+}
+
 void RekordboxFeature::onTracksFound() {
     qDebug() << "onTracksFound";
     m_pSidebarModel->triggerRepaint();
@@ -1753,8 +1767,10 @@ void RekordboxFeature::onTracksFound() {
         devicePlaylist = m_tracksFuture.result();
     } catch (const std::exception& e) {
         qWarning() << "Failed to load Rekordbox database:" << e.what();
+        setBusyText(QString());
         return;
     }
+    setBusyText(QString());
 
     qDebug() << "Show Rekordbox Device Playlist: " << devicePlaylist;
 
@@ -1772,20 +1788,27 @@ void RekordboxFeature::onTracksFound() {
         qInfo() << "Rekordbox pre-analysis:" << m_pPreanalysisModel->rowCount()
                 << "track(s) on" << devicePlaylist;
         // Let the UI settle first
-        m_preanalysisTimer.start(3000);
+        m_preanalysisTimer.start(1500);
+        setBusyText(tr("Preparing USB drive…"));
     }
 }
 
 void RekordboxFeature::preanalyzeNextBatch() {
     // Reading the files competes with the decks for the storage: wait
     if (PlayerInfo::instance().getCurrentPlayingDeck() >= 0) {
+        setBusyText(QString());
         m_preanalysisTimer.start(5000);
         return;
     }
-    // A few tracks per event loop turn: importing reads each file's tags
-    constexpr int kBatchSize = 4;
+    // Importing reads each file's tags and analysis sidecar from the drive on
+    // the GUI thread: work for a few milliseconds at a time, then let the
+    // interface draw (4 tracks per turn made it stutter for a minute)
+    QElapsedTimer budget;
+    budget.start();
+    constexpr qint64 kBudgetMs = 12;
     const int rowCount = m_pPreanalysisModel->rowCount();
-    for (int i = 0; i < kBatchSize && m_preanalysisRow < rowCount; ++i, ++m_preanalysisRow) {
+    for (int i = 0; m_preanalysisRow < rowCount && (i == 0 || budget.elapsed() < kBudgetMs);
+            ++i, ++m_preanalysisRow) {
         const QModelIndex index = m_pPreanalysisModel->index(m_preanalysisRow, 0);
         TrackPointer pTrack = m_pPreanalysisModel->getTrack(index);
         if (pTrack && pTrack->getId().isValid()) {
@@ -1803,9 +1826,11 @@ void RekordboxFeature::preanalyzeNextBatch() {
         }
     }
     if (m_preanalysisRow < rowCount) {
-        m_preanalysisTimer.start(50);
+        setBusyText(tr("Preparing USB drive… %1/%2").arg(m_preanalysisRow).arg(rowCount));
+        m_preanalysisTimer.start(30);
         return;
     }
+    setBusyText(QString());
     // Tracks already analyzed (waveform present) are skipped by the analyzer
     qInfo() << "Rekordbox pre-analysis: queuing" << m_preanalysisTracks.size()
             << "track(s)";
