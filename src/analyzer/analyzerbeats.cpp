@@ -1,6 +1,8 @@
 #include "analyzer/analyzerbeats.h"
 
 #include <QHash>
+#include <array>
+#include <cmath>
 #include <QString>
 #include <QVector>
 #include <QtDebug>
@@ -97,6 +99,17 @@ bool AnalyzerBeats::initialize(const AnalyzerTrack& track,
         m_maxFramesToProcess = frameLength;
     }
     m_currentFrame = 0;
+
+    // A grid without sub-version starting at 0 was made from the BPM tag of
+    // the file. Keep that BPM: the analysis replaces the grid
+    m_metadataBpm = mixxx::Bpm();
+    if (const auto pBeats = track.getTrack()->getBeats();
+            pBeats && pBeats->getSubVersion().isEmpty() &&
+            pBeats->firstBeat() <= mixxx::audio::kStartFramePos) {
+        m_metadataBpm = pBeats->getBpmInRange(mixxx::audio::kStartFramePos,
+                mixxx::audio::FramePos{
+                        track.getTrack()->getDuration() * pBeats->getSampleRate()});
+    }
 
     // if we can load a stored track don't reanalyze it
     bool bShouldAnalyze = shouldAnalyze(track.getTrack());
@@ -281,7 +294,41 @@ void AnalyzerBeats::storeResults(TrackPointer pTrack) {
         pBeats = mixxx::Beats::fromConstTempo(m_sampleRate, mixxx::audio::kStartFramePos, bpm);
     }
 
-    pTrack->trySetBeats(pBeats);
+    pTrack->trySetBeats(reconciledWithMetadataBpm(pBeats, pTrack));
+}
+
+mixxx::BeatsPointer AnalyzerBeats::reconciledWithMetadataBpm(
+        mixxx::BeatsPointer pBeats, const TrackPointer& pTrack) const {
+    // Beat trackers often lock onto half or double the real tempo, or onto
+    // the 3:2 triplet feel. When the file carries a BPM tag and the detected
+    // tempo is one of those multiples of it, use the multiple closest to the
+    // tag. Anything else keeps the detected tempo: tags can be wrong too.
+    // Only constant grids: a beat map keeps the detected beat positions.
+    // Doubling keeps every detected beat; the other factors move the beats
+    // in between, starting from the first detected one.
+    if (!pBeats || !pBeats->hasConstantTempo() || !m_metadataBpm.isValid()) {
+        return pBeats;
+    }
+    constexpr double kTolerance = 0.04;
+    constexpr std::array<double, 4> kFactors = {2.0, 0.5, 1.5, 2.0 / 3.0};
+    const double tag = m_metadataBpm.value();
+    const mixxx::Bpm detected = pBeats->getBpmInRange(mixxx::audio::kStartFramePos,
+            mixxx::audio::FramePos{pTrack->getDuration() * pBeats->getSampleRate()});
+    if (!detected.isValid() || std::fabs(detected.value() - tag) <= tag * kTolerance) {
+        return pBeats;
+    }
+    for (const double factor : kFactors) {
+        const double candidate = detected.value() * factor;
+        if (std::fabs(candidate - tag) <= tag * kTolerance) {
+            qInfo() << "AnalyzerBeats: detected" << detected << "BPM, the tag says"
+                    << m_metadataBpm << "-> using" << candidate;
+            return mixxx::Beats::fromConstTempo(pBeats->getSampleRate(),
+                    pBeats->firstBeat(),
+                    mixxx::Bpm(candidate),
+                    pBeats->getSubVersion());
+        }
+    }
+    return pBeats;
 }
 
 // static
