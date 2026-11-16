@@ -71,6 +71,8 @@ class BaseTrackPlayer : public BasePlayer {
     void selectedStems(mixxx::StemChannelSelection stemMask);
 #endif
     void playerEmpty();
+    /// The track could not be opened; reason is user-visible text
+    void loadFailed(const QString& reason);
     void noVinylControlInputConfigured();
     void trackRatingChanged(int rating);
     void trackMenuChangeRequest(bool show);

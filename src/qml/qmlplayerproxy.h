@@ -57,6 +57,7 @@ class QmlPlayerProxy : public QObject {
     void trackLoaded();
     void trackUnloaded();
     void trackChanged();
+    void loadFailed(const QString& reason);
     void isLoadingChanged();
     void analysisProgressChanged();
     void cloneFromGroup(const QString& group);

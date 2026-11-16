@@ -31,6 +31,13 @@ QmlPlayerProxy::QmlPlayerProxy(BaseTrackPlayer* pTrackPlayer, QObject* parent)
             &BaseTrackPlayer::playerEmpty,
             this,
             [this]() { setLoading(false); });
+    connect(m_pTrackPlayer,
+            &BaseTrackPlayer::loadFailed,
+            this,
+            [this](const QString& reason) {
+                setLoading(false);
+                emit loadFailed(reason);
+            });
     if (m_pTrackPlayer && m_pTrackPlayer->getLoadedTrack()) {
         slotTrackLoaded(pTrackPlayer->getLoadedTrack());
     }
