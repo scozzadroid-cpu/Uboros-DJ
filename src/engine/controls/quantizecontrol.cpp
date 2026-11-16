@@ -10,7 +10,8 @@
 QuantizeControl::QuantizeControl(const QString& group,
         UserSettingsPointer pConfig)
         : EngineControl(group, pConfig) {
-    m_pCOQuantizeEnabled = new ControlPushButton(ConfigKey(group, "quantize"), true, 1.0);
+    // Off by default (CDJ-like); the DJ switches it on (DDJ-FLX4: SHIFT + CUE)
+    m_pCOQuantizeEnabled = new ControlPushButton(ConfigKey(group, "quantize"), true, 0.0);
     m_pCOQuantizeEnabled->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pCONextBeat = new ControlObject(ConfigKey(group, "beat_next"));
     m_pCONextBeat->setKbdRepeatable(true);
