@@ -28,6 +28,9 @@
         android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:fullBackupOnly="false">
+        <!-- Stem separation on the GPU (MNN OpenCL): the vendor OpenCL library
+             is only visible to apps that declare it (targetSdk >= 31) -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <activity
             android:name="org.qtproject.qt.android.bindings.QtActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"

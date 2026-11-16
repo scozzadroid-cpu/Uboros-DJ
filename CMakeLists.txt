@@ -2826,6 +2826,36 @@ if(STEM)
   if(NOT FFMPEG)
     message(FATAL_ERROR "STEM requires that also FFMPEG is enabled")
   endif()
+  # Stem separation on the device (htdemucs with MNN, see src/stems/htdemucs.h).
+  # MNN is built outside this tree (MIXXX_MNN_DIR: sources with include/ and the
+  # Android build in build-android/OFF/arm64-v8a); the model (MIXXX_STEM_MODEL,
+  # ~105 MB, fp16 weights) is packaged as an asset, not kept in git.
+  set(MIXXX_MNN_DIR "" CACHE PATH "MNN source dir with an Android build (stem separation)")
+  set(MIXXX_STEM_MODEL "" CACHE FILEPATH "htdemucs 3-stem MNN model")
+  if(ANDROID AND MIXXX_MNN_DIR)
+    set(MNN_ANDROID_LIB "${MIXXX_MNN_DIR}/build-android/OFF/arm64-v8a/libMNN.so")
+    if(NOT EXISTS "${MNN_ANDROID_LIB}")
+      message(FATAL_ERROR "MNN not built: ${MNN_ANDROID_LIB}")
+    endif()
+    find_library(FFTW3F_LIBRARY NAMES fftw3f REQUIRED)
+    find_path(FFTW3F_INCLUDE_DIR NAMES fftw3.h REQUIRED)
+    target_sources(mixxx-lib PRIVATE src/stems/htdemucs.cpp)
+    target_include_directories(mixxx-lib SYSTEM PRIVATE "${MIXXX_MNN_DIR}/include" "${FFTW3F_INCLUDE_DIR}")
+    target_link_libraries(mixxx-lib PRIVATE "${MNN_ANDROID_LIB}" "${FFTW3F_LIBRARY}")
+    target_compile_definitions(mixxx-lib PUBLIC __STEM_SEPARATION__)
+    set_property(TARGET mixxx APPEND PROPERTY QT_ANDROID_EXTRA_LIBS "${MNN_ANDROID_LIB}")
+    if(MIXXX_STEM_MODEL)
+      add_custom_command(
+        TARGET copy-resource-android
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets/stems
+        COMMAND
+          ${CMAKE_COMMAND} -E copy_if_different "${MIXXX_STEM_MODEL}"
+          ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets/stems/htdemucs3.mnn
+      )
+    endif()
+    message(STATUS "Stem separation: MNN ${MNN_ANDROID_LIB}, model '${MIXXX_STEM_MODEL}'")
+  endif()
   target_compile_definitions(mixxx-lib PUBLIC __STEM__)
   list(APPEND MIXXX_LIB_PRECOMPILED_HEADER src/track/steminfo.h)
   target_sources(
