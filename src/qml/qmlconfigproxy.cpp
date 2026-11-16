@@ -9,6 +9,9 @@
 #include <QOpenGLFunctions>
 
 #include "util/logger.h"
+#include "util/useractivity.h"
+#include <QEvent>
+#include <algorithm>
 
 #ifdef __ANDROID__
 #include <QCoreApplication>
@@ -34,6 +37,9 @@ const QString kWaveformDefaultZoomKey = QStringLiteral("DefaultZoom");
 const bool kWaveformZoomSynchronizationDefault = true;
 const double kWaveformDefaultZoomDefault = 3.0;
 const QString kWaveformGpuKey = QStringLiteral("GpuRendering");
+const QString kScreenGroup = QStringLiteral("[Screen]");
+const QString kBurnInProtectionKey = QStringLiteral("BurnInProtection");
+const QString kScreenOffMinutesKey = QStringLiteral("ScreenOffMinutes");
 
 const mixxx::Logger kLogger("QmlConfigProxy");
 
@@ -79,6 +85,15 @@ namespace qml {
 QmlConfigProxy::QmlConfigProxy(
         UserSettingsPointer pConfig, QObject* parent)
         : QObject(parent), m_pConfig(pConfig) {
+    // DJ controller input (any thread, queued here) and touches wake the
+    // screen; the filter sees every input event of the windows: a type
+    // check each, no cost worth measuring
+    connect(UserActivity::instance(),
+            &UserActivity::activity,
+            this,
+            &QmlConfigProxy::userActivity,
+            Qt::QueuedConnection);
+    QCoreApplication::instance()->installEventFilter(this);
 }
 
 QVariantList QmlConfigProxy::getHotcueColorPalette() {
@@ -153,6 +168,78 @@ void QmlConfigProxy::setWaveformGpu(bool enabled) {
     m_pConfig->setValue(ConfigKey(kWaveformGroup, kWaveformGpuKey), enabled);
     m_pConfig->save();
     emit waveformGpuChanged(enabled);
+}
+
+bool QmlConfigProxy::burnInProtection() const {
+    return m_pConfig->getValue(ConfigKey(kScreenGroup, kBurnInProtectionKey), false);
+}
+
+void QmlConfigProxy::setBurnInProtection(bool enabled) {
+    if (enabled == burnInProtection()) {
+        return;
+    }
+    m_pConfig->setValue(ConfigKey(kScreenGroup, kBurnInProtectionKey), enabled);
+    m_pConfig->save();
+    emit burnInProtectionChanged(enabled);
+}
+
+int QmlConfigProxy::screenOffMinutes() const {
+    return std::max(0, m_pConfig->getValue(ConfigKey(kScreenGroup, kScreenOffMinutesKey), 0));
+}
+
+void QmlConfigProxy::setScreenOffMinutes(int minutes) {
+    minutes = std::max(0, minutes);
+    if (minutes == screenOffMinutes()) {
+        return;
+    }
+    m_pConfig->setValue(ConfigKey(kScreenGroup, kScreenOffMinutesKey), minutes);
+    m_pConfig->save();
+    emit screenOffMinutesChanged(minutes);
+}
+
+void QmlConfigProxy::setScreenAsleep(bool asleep) {
+    if (asleep == m_screenAsleep) {
+        return;
+    }
+    m_screenAsleep = asleep;
+    emit screenAsleepChanged(asleep);
+}
+
+bool QmlConfigProxy::eventFilter(QObject* pObject, QEvent* pEvent) {
+    switch (pEvent->type()) {
+    case QEvent::TouchBegin:
+    case QEvent::MouseButtonPress:
+        // Only the events for the window itself, not the copies Qt Quick
+        // hands on to the items
+        if (!pObject->isWindowType()) {
+            break;
+        }
+        emit userActivity();
+        if (m_screenAsleep) {
+            // This touch only wakes the screen
+            m_swallowingTouch = true;
+            setScreenAsleep(false);
+            return true;
+        }
+        break;
+    case QEvent::TouchUpdate:
+    case QEvent::MouseMove:
+        if (m_swallowingTouch && pObject->isWindowType()) {
+            return true;
+        }
+        break;
+    case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
+    case QEvent::MouseButtonRelease:
+        if (m_swallowingTouch && pObject->isWindowType()) {
+            m_swallowingTouch = false;
+            return true;
+        }
+        break;
+    default:
+        break;
+    }
+    return QObject::eventFilter(pObject, pEvent);
 }
 
 // static

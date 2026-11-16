@@ -102,7 +102,8 @@ ApplicationWindow {
         return Math.max(32, Math.min(120, Math.floor(height * 0.26 / waveformCount)));
     }
 
-    color: Theme.backgroundColor
+    // Black while the screen is off: OLED pixels really off
+    color: screenAsleep ? "black" : Theme.backgroundColor
     height: 1080
 
     Mixxx.ControlProxy {
@@ -122,9 +123,59 @@ ApplicationWindow {
     visible: true
     width: 1920
 
+    // ------------------------------------------------------------- OLED care
+    // Burn-in protection: dimmer whites (Theme) and the whole view moved by
+    // up to 2 px every 3 minutes, around a small square. A transform changed
+    // once every few minutes costs one scene graph update, nothing per frame.
+    readonly property bool burnInProtection: Mixxx.Config.burnInProtection
+    readonly property var orbitSteps: [[0, 0], [2, 0], [2, 2], [0, 2], [-2, 2], [-2, 0], [-2, -2], [0, -2], [2, -2]]
+    property int orbitIndex: 0
+    readonly property int orbitX: burnInProtection ? orbitSteps[orbitIndex][0] : 0
+    readonly property int orbitY: burnInProtection ? orbitSteps[orbitIndex][1] : 0
+    // Screen off when idle: black and nothing drawn (audio goes on); the
+    // DJ controller or a touch wakes it (that touch presses nothing)
+    readonly property bool screenAsleep: Mixxx.Config.screenAsleep
+
+    Binding {
+        target: Theme
+        property: "dimWhites"
+        value: root.burnInProtection
+    }
+    Timer {
+        interval: 3 * 60 * 1000
+        repeat: true
+        running: root.burnInProtection
+
+        onTriggered: root.orbitIndex = (root.orbitIndex + 1) % root.orbitSteps.length
+    }
+    Timer {
+        id: screenOffTimer
+
+        interval: Math.max(1, Mixxx.Config.screenOffMinutes) * 60 * 1000
+        repeat: false
+        running: Mixxx.Config.screenOffMinutes > 0 && !root.screenAsleep
+
+        onTriggered: Mixxx.Config.screenAsleep = true
+    }
+    Connections {
+        target: Mixxx.Config
+
+        function onUserActivity() {
+            Mixxx.Config.screenAsleep = false;
+            screenOffTimer.restart();
+        }
+        function onScreenOffMinutesChanged() {
+            screenOffTimer.restart();
+        }
+    }
+
     Column {
         id: content
-        visible: !root.dashboardMode
+        visible: !root.dashboardMode && !root.screenAsleep
+        transform: Translate {
+            x: root.orbitX
+            y: root.orbitY
+        }
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -386,14 +437,18 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.top: content.bottom
         compact: root.compact
-        visible: !root.dashboardMode && !(root.compact && (root.showMixer || root.waveformView))
+        visible: !root.dashboardMode && !root.screenAsleep && !(root.compact && (root.showMixer || root.waveformView))
+        transform: Translate {
+            x: root.orbitX
+            y: root.orbitY
+        }
     }
     Skin.PortraitDashboard {
         id: dashboard
 
         anchors.fill: parent
         openedByUser: root.dashboardByUser
-        visible: root.dashboardMode
+        visible: root.dashboardMode && !root.screenAsleep
 
         onContinueWithoutController: {
             root.dashboardDismissed = root.controllerCount === 0;

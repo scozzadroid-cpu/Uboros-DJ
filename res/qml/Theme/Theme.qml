@@ -2,6 +2,10 @@ import QtQuick 2.12
 pragma Singleton
 
 QtObject {
+    // OLED burn-in protection (Mixxx.Config.burnInProtection, set by main.qml):
+    // the whites that stay on the screen for hours are a bit dimmer
+    property bool dimWhites: false
+    property color playMarkerColor: dimWhites ? "#8c8c8c" : "#D9D9D9"
     property color accent: "#24499f"
     property color accentColor: "#2f6fe0"
     property color backgroundColor: "#16181c"
@@ -51,7 +55,7 @@ QtObject {
     property color waveformMarkerLoopColorDisabled: '#FFFFFF'
     property color waveformPostrollColor: midGray
     property color waveformPrerollColor: midGray
-    property color white: "#e4e7eb"
+    property color white: dimWhites ? "#c4c7cb" : "#e4e7eb"
     property color yellow: "#fca001"
     // Deck colors, like the Pioneer decks: 1 blue, 2 orange, 3 green, 4 magenta
     readonly property var deckColors: ["#2fa8ff", "#ff8a2a", "#3ddc84", "#e05cff"]

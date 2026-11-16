@@ -114,8 +114,8 @@ Item {
                 }
 
                 Mixxx.WaveformRendererMark {
-                    playMarkerColor: '#D9D9D9'
-                    playMarkerBackground: '#D9D9D9'
+                    playMarkerColor: Theme.playMarkerColor
+                    playMarkerBackground: Theme.playMarkerColor
                     defaultMark: Mixxx.WaveformMark {
                         align: "bottom|right"
                         color: "#00d9ff"
