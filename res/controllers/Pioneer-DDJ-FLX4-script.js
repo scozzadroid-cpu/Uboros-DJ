@@ -48,7 +48,8 @@
 //        and 2 are not affected by the crossfader, so moving it by mistake does
 //        nothing; on: the previous crossfader assignment is restored.
 //
-//      * SMART CFX held + EQ HIGH/MID/LOW = stem volumes (vocals / melody / drums)
+//      * SMART CFX held + EQ HIGH/MID/LOW = stem volumes (vocals / melody / drums);
+//        double press of SMART CFX = all stems back to full volume
 //
 //  Not implemented yet (but might be in the future):
 
@@ -519,22 +520,35 @@ PioneerDDJFLX4.beatFxChannel2 = PioneerDDJFLX4.beatFxChannelSelect;
 //
 // FILTER (CFX knob)
 //
-// The Quick Effect filter sweeps 22 kHz -> 13 Hz (LPF) and 13 Hz -> 22 kHz
-// (HPF) on each half of the knob, so a few degrees around the centre already
-// cut a lot and the ends are useless. Here the knob gets a small dead zone in
-// the middle, a gentler curve and a range like a DJM (LPF down to ~100 Hz,
-// HPF up to ~7 kHz), and the filter a resonant Q.
+// The knob is turned into a cutoff frequency that moves in octaves (like a
+// DJM): LPF 20 kHz -> 30 Hz on the left half, HPF 25 Hz -> 9 kHz on the right
+// half, with a small dead zone in the middle and a curve that is finer near
+// the centre. The Filter's LPF/HPF parameters use Mixxx's "logarithmic"
+// scaler, which is a 40 dB taper over the LINEAR range 13..22050 Hz (half the
+// knob is already ~2 kHz), so the frequency is converted with the inverse of
+// that taper (ControlLogPotmeterBehavior). The Q is raised for a resonant
+// sweep.
 //
 
 PioneerDDJFLX4.filter = {
-    deadZone: 0.04,          // fraction of the knob around the centre with no filter
-    curve: 1.4,              // > 1 = finer control near the centre
-    lpfMaxFraction: 0.72,    // 22050 Hz * (13/22050)^0.72 = ~105 Hz
-    hpfMinFraction: 0.12,    // ~30 Hz, below that a high-pass is inaudible
-    hpfMaxFraction: 0.845,   // ~7 kHz
-    q: 0.72,                 // normalized Q: 0.4 * 10^0.72 = ~2.1 (Butterworth = 0.707 -> 0.25)
+    deadZone: 0.03,     // fraction of the knob around the centre with no filter
+    curve: 1.3,         // > 1 = finer control near the centre
+    lpfStartHz: 20000,
+    lpfEndHz: 30,       // fully left: only the sub rumble is left
+    hpfStartHz: 25,
+    hpfEndHz: 9000,     // fully right: only the hi-hats are left
+    minHz: 13,          // range of the Filter parameters
+    maxHz: 22050,
+    q: 0.72,            // normalized Q: 0.4 * 10^0.72 = ~2.1 (Butterworth 0.707)
     msb: {},
     lsb: {},
+};
+
+// Frequency -> normalized LPF/HPF parameter (inverse of the 40 dB taper)
+PioneerDDJFLX4.filterParameterForHz = function(hz) {
+    const f = PioneerDDJFLX4.filter;
+    const lin = Math.min(Math.max((hz - f.minHz) / (f.maxHz - f.minHz), 0), 1);
+    return 1 + Math.log10(0.01 + 0.99 * lin) / 2;
 };
 
 PioneerDDJFLX4.applyFilterResonance = function(group) {
@@ -543,6 +557,25 @@ PioneerDDJFLX4.applyFilterResonance = function(group) {
     if (engine.getValue(effectGroup, "num_parameters") === 3) {
         engine.setParameter(effectGroup, "parameter2", PioneerDDJFLX4.filter.q);
     }
+};
+
+// Knob position 0..1 -> super1 of the Quick Effect (0.5 = no filter)
+PioneerDDJFLX4.filterSuperForKnob = function(knob) {
+    const f = PioneerDDJFLX4.filter;
+    const offset = knob - 0.5;
+    const distance = Math.max(0, Math.abs(offset) - f.deadZone) / (0.5 - f.deadZone);
+    if (distance <= 0) {
+        return 0.5;
+    }
+    const shaped = Math.pow(Math.min(distance, 1), f.curve);
+    if (offset < 0) {
+        // LinkedLeft: LPF parameter = 2 * super1
+        const hz = f.lpfStartHz * Math.pow(f.lpfEndHz / f.lpfStartHz, shaped);
+        return Math.min(0.5, PioneerDDJFLX4.filterParameterForHz(hz) / 2);
+    }
+    // LinkedRight: HPF parameter = 2 * (super1 - 0.5)
+    const hz = f.hpfStartHz * Math.pow(f.hpfEndHz / f.hpfStartHz, shaped);
+    return Math.max(0.5, 0.5 + PioneerDDJFLX4.filterParameterForHz(hz) / 2);
 };
 
 PioneerDDJFLX4.filterKnob = function(_channel, control, value, _status, group) {
@@ -554,18 +587,9 @@ PioneerDDJFLX4.filterKnob = function(_channel, control, value, _status, group) {
         f.msb[base] = value;
         f.lsb[base] = 0;
     }
-    const raw = ((f.msb[base] || 0) * 128 + (f.lsb[base] || 0)) / 16383;
-    const offset = raw - 0.5;
-    const distance = Math.max(0, Math.abs(offset) - f.deadZone) / (0.5 - f.deadZone);
-    const shaped = Math.pow(Math.min(distance, 1), f.curve);
-    let super1 = 0.5;
-    if (distance > 0 && offset < 0) {
-        super1 = 0.5 - 0.5 * shaped * f.lpfMaxFraction;
-    } else if (distance > 0) {
-        super1 = 0.5 + 0.5 * (f.hpfMinFraction + shaped * (f.hpfMaxFraction - f.hpfMinFraction));
-    }
+    const knob = ((f.msb[base] || 0) * 128 + (f.lsb[base] || 0)) / 16383;
     PioneerDDJFLX4.applyFilterResonance(group);
-    engine.setParameter(group, "super1", super1);
+    engine.setParameter(group, "super1", PioneerDDJFLX4.filterSuperForKnob(knob));
 };
 
 //
@@ -626,9 +650,34 @@ PioneerDDJFLX4.eqKnob = function(_channel, control, value, status, group) {
     engine.setParameter(group, knob.parameter, v);
 };
 
+// Double press of SMART CFX (within this time) = all stems of both decks
+// back to full volume and unmuted
+PioneerDDJFLX4.smartCfxDoublePressMs = 400;
+PioneerDDJFLX4.smartCfxLastPress = 0;
+
+PioneerDDJFLX4.resetStems = function() {
+    for (let deck = 1; deck <= 2; deck++) {
+        for (let stem = 1; stem <= 4; stem++) {
+            const stemGroup = "[Channel" + deck + "_Stem" + stem + "]";
+            engine.setValue(stemGroup, "volume", 1);
+            engine.setValue(stemGroup, "mute", 0);
+        }
+    }
+    console.warn("SMART CFX double press: stems reset to full volume");
+};
+
 PioneerDDJFLX4.smartCfxPressed = function(_channel, _control, value) {
     PioneerDDJFLX4.smartCfxHeld = value > 0;
     midi.sendShortMsg(0x96, 0x00, value > 0 ? 0x7F : 0x00);
+    if (value > 0) {
+        const now = Date.now();
+        if (now - PioneerDDJFLX4.smartCfxLastPress <= PioneerDDJFLX4.smartCfxDoublePressMs) {
+            PioneerDDJFLX4.resetStems();
+            PioneerDDJFLX4.smartCfxLastPress = 0;
+        } else {
+            PioneerDDJFLX4.smartCfxLastPress = now;
+        }
+    }
 };
 
 //
