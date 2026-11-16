@@ -96,6 +96,7 @@ class StemSeparationService : public QObject {
     std::vector<std::shared_ptr<Job>> m_jobs; // requested, not finished
     size_t m_nextJob = 0;
     bool m_quit = false;
+    bool m_preloadNet = false; // a deck loaded a track that can be separated
     std::thread m_thread;
 
     // Worker thread only

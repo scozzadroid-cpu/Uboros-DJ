@@ -1,5 +1,6 @@
 #include "stems/stemseparationservice.h"
 
+#include <utility>
 #include <QFile>
 #include <QFileInfo>
 #include <QPointer>
@@ -161,6 +162,11 @@ void StemSeparationService::slotDeckLoaded(const QString& group,
             pJob->pCache = pCache;
             pJob->pPlayPosition = pDeck->pPlayPosition;
             pDeck->pJob = pJob;
+            // Load the network now, while the track is being looked at, so
+            // the first SMART CFX does not wait for it (~4.5 s)
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_preloadNet = true;
+            m_wake.notify_all();
         }
         slotUpdateControls();
         return;
@@ -349,12 +355,17 @@ void StemSeparationService::workerLoop() {
         int segment = -1;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_wake.wait(lock, [this] { return m_quit || !m_jobs.empty(); });
+            m_wake.wait(lock, [this] { return m_quit || m_preloadNet || !m_jobs.empty(); });
             if (m_quit) {
                 return;
             }
+            const bool preload = std::exchange(m_preloadNet, false);
             pJob = pickJob(&segment);
             if (!pJob) {
+                if (preload) {
+                    lock.unlock();
+                    ensureNet();
+                }
                 continue;
             }
         }
