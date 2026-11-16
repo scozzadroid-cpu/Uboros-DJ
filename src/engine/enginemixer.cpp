@@ -238,6 +238,7 @@ void EngineMixer::processChannels(std::size_t bufferSize) {
     m_activeBusChannels[EngineChannel::CENTER].clear();
     m_activeBusChannels[EngineChannel::RIGHT].clear();
     m_activeHeadphoneChannels.clear();
+    m_anyPfl = false;
     m_activeTalkoverChannels.clear();
     m_activeChannels.clear();
 
@@ -308,6 +309,7 @@ void EngineMixer::processChannels(std::size_t bufferSize) {
         // over to the headphone buffer
         if (pChannel->isPflEnabled()) {
             m_activeHeadphoneChannels.append(pChannelInfo);
+            m_anyPfl = true;
         } else {
             // Check if we need to fade out the channel
             GainCache& gainCache = m_channelHeadphoneGainCache[i];
@@ -397,7 +399,13 @@ void EngineMixer::process(const std::size_t bufferSize) {
     // Head phone left/right mix
     CSAMPLE pflMixGainInHeadphones = 1;
     CSAMPLE mainMixGainInHeadphones = 0;
-    if (mainEnabled) {
+    if (mainEnabled && !m_anyPfl) {
+        // No channel CUE on: the headphones get the main mix whatever the
+        // CUE/MASTER knob says, like a Pioneer mixer (else, with the knob
+        // towards CUE, the headphones went silent)
+        pflMixGainInHeadphones = 0;
+        mainMixGainInHeadphones = 1;
+    } else if (mainEnabled) {
         const auto cf_val = static_cast<CSAMPLE_GAIN>(m_pHeadMix->get());
         pflMixGainInHeadphones = 0.5f * (-cf_val + 1.0f);
         mainMixGainInHeadphones = 0.5f * (cf_val + 1.0f);

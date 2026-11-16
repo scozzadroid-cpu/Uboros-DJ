@@ -811,7 +811,10 @@ void EngineBuffer::slotControlPlayRequest(double v) {
     bool verifiedPlay = updateIndicatorsAndModifyPlay(v > 0.0, oldPlay);
 
     if (!oldPlay && verifiedPlay) {
-        if (m_quantize.toBool()
+        // Phase-align on play only for a synced deck: a deck without SYNC
+        // starts exactly where it is, like a CDJ (quantize still snaps cues,
+        // hot cues and loops)
+        if (m_quantize.toBool() && m_pSyncControl && m_pSyncControl->isSynchronized()
 #ifdef __VINYLCONTROL__
                 && m_pVinylControlControl && !m_pVinylControlControl->isEnabled()
 #endif
