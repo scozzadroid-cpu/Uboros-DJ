@@ -4,6 +4,12 @@
 #include "preferences/colorpalettesettings.h"
 #include "preferences/constants.h"
 
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+
+#include "util/logger.h"
+
 #ifdef __ANDROID__
 #include <QCoreApplication>
 #include <QJniObject>
@@ -27,6 +33,43 @@ const QString kWaveformZoomSynchronizationKey = QStringLiteral("ZoomSynchronizat
 const QString kWaveformDefaultZoomKey = QStringLiteral("DefaultZoom");
 const bool kWaveformZoomSynchronizationDefault = true;
 const double kWaveformDefaultZoomDefault = 3.0;
+const QString kWaveformGpuKey = QStringLiteral("GpuRendering");
+
+const mixxx::Logger kLogger("QmlConfigProxy");
+
+#ifndef GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS
+#define GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS 0x8B4C
+#endif
+
+/// Whether the GPU can draw the waveforms (waveformfiltered.vert): OpenGL
+/// (ES) 3 or newer, texture reads in the vertex shader, and a hardware
+/// renderer (with a software one the CPU renderer is cheaper).
+bool detectWaveformGpuSupport() {
+    QOffscreenSurface surface;
+    surface.create();
+    QOpenGLContext context;
+    if (!context.create() || !context.makeCurrent(&surface)) {
+        kLogger.warning() << "GPU waveform: no OpenGL context, using the CPU";
+        return false;
+    }
+    QOpenGLFunctions* pFunctions = context.functions();
+    GLint vertexTextureUnits = 0;
+    pFunctions->glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &vertexTextureUnits);
+    const auto renderer = QByteArray(reinterpret_cast<const char*>(
+                                             pFunctions->glGetString(GL_RENDERER)))
+                                  .toLower();
+    const QSurfaceFormat format = context.format();
+    context.doneCurrent();
+    const bool software = renderer.contains("llvmpipe") ||
+            renderer.contains("softpipe") || renderer.contains("swiftshader") ||
+            renderer.contains("software");
+    const bool supported = format.majorVersion() >= 3 && vertexTextureUnits > 0 && !software;
+    kLogger.info() << "GPU waveform:" << (supported ? "supported" : "not supported")
+                   << "-" << renderer << "OpenGL" << format.majorVersion()
+                   << format.minorVersion() << (context.isOpenGLES() ? "ES" : "")
+                   << "vertex texture units" << vertexTextureUnits;
+    return supported;
+}
 
 } // namespace
 
@@ -76,6 +119,43 @@ double QmlConfigProxy::waveformDefaultZoom() {
 }
 
 // static
+bool QmlConfigProxy::waveformGpuSupported() {
+    // Once per run, on the first call (GUI thread)
+    static const bool supported = detectWaveformGpuSupport();
+    return supported;
+}
+
+// static
+bool QmlConfigProxy::useWaveformGpu() {
+    if (!s_pUserSettings) {
+        return false;
+    }
+    const ConfigKey key(kWaveformGroup, kWaveformGpuKey);
+    if (!s_pUserSettings->exists(key)) {
+        // First start: decide from what the GPU can do; the user can
+        // change it in the dashboard
+        s_pUserSettings->setValue(key, waveformGpuSupported());
+    }
+    return s_pUserSettings->getValue<bool>(key) && waveformGpuSupported();
+}
+
+bool QmlConfigProxy::waveformGpu() const {
+    return useWaveformGpu();
+}
+
+void QmlConfigProxy::setWaveformGpu(bool enabled) {
+    if (enabled && !waveformGpuSupported()) {
+        return;
+    }
+    if (enabled == waveformGpu()) {
+        return;
+    }
+    m_pConfig->setValue(ConfigKey(kWaveformGroup, kWaveformGpuKey), enabled);
+    m_pConfig->save();
+    emit waveformGpuChanged(enabled);
+}
+
+// static
 QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine) {
     // The implementation of this method is mostly taken from the code example
     // that shows the replacement for `qmlRegisterSingletonInstance()` when
@@ -87,6 +167,10 @@ QmlConfigProxy* QmlConfigProxy::create(QQmlEngine* pQmlEngine, QJSEngine* pJsEng
         qWarning() << "UserSettings hasn't been registered yet";
         return nullptr;
     }
+    // On the GUI thread, before any waveform display: the renderers are
+    // made on the render thread, which must not create OpenGL contexts or
+    // write the settings
+    useWaveformGpu();
     return new QmlConfigProxy(s_pUserSettings, pQmlEngine);
 }
 

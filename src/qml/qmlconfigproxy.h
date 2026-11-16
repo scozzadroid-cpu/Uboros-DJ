@@ -13,6 +13,12 @@ class QmlConfigProxy : public QObject {
     Q_OBJECT
     QML_NAMED_ELEMENT(Config)
     QML_SINGLETON
+    // Waveforms drawn by the GPU (WaveformRendererFilteredGpu) instead of
+    // the CPU. Decided on the first start from what the GPU can do, then
+    // chosen by the user in the dashboard.
+    Q_PROPERTY(bool waveformGpu READ waveformGpu WRITE setWaveformGpu NOTIFY waveformGpuChanged)
+    // Whether this GPU can draw them (OpenGL ES 3 with vertex texture fetch)
+    Q_PROPERTY(bool waveformGpuSupported READ waveformGpuSupported CONSTANT)
   public:
     explicit QmlConfigProxy(
             UserSettingsPointer pConfig,
@@ -28,6 +34,12 @@ class QmlConfigProxy : public QObject {
     // Waveform settings
     Q_INVOKABLE bool waveformZoomSynchronization();
     Q_INVOKABLE double waveformDefaultZoom();
+
+    bool waveformGpu() const;
+    void setWaveformGpu(bool enabled);
+    static bool waveformGpuSupported();
+    /// For the renderer factories (no QML engine needed)
+    static bool useWaveformGpu();
 
     // Screen orientation requested to the OS (Android only, no-op elsewhere).
     // Values of ScreenOrientation.
@@ -47,6 +59,9 @@ class QmlConfigProxy : public QObject {
     static UserSettingsPointer get() {
         return s_pUserSettings;
     }
+
+  signals:
+    void waveformGpuChanged(bool enabled);
 
   private:
     static inline UserSettingsPointer s_pUserSettings = nullptr;

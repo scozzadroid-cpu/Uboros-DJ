@@ -238,6 +238,20 @@ ColumnLayout {
         title: qsTr("Store analyses on the USB drive")
     }
 
+    // --------------------------------------------------------------- Waveforms
+    SectionTitle {
+        text: qsTr("Waveforms")
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        enabled: Mixxx.Config.waveformGpuSupported
+        on: Mixxx.Config.waveformGpu
+        subtitle: Mixxx.Config.waveformGpuSupported ? qsTr("The graphics chip draws the scrolling waveforms: smoother and lighter on the processor. Turn off if they look wrong") : qsTr("Not available: this phone's graphics chip can't draw them (OpenGL ES 3 needed)")
+        title: qsTr("Waveforms drawn by the GPU")
+
+        onSwitched: value => Mixxx.Config.waveformGpu = value
+    }
+
     // ------------------------------------------------------------------- Cache
     SectionTitle {
         text: qsTr("Cache")

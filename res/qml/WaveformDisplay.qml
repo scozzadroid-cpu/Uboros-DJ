@@ -18,147 +18,166 @@ Item {
         Scratching
     }
 
-    MixxxControls.WaveformDisplay {
+    // The renderers are made when the display is created: it is created again
+    // when the GPU waveform is switched on or off in the dashboard
+    Loader {
+        id: displayLoader
+
         anchors.fill: parent
-        group: root.group
-        zoom: zoomControl.value
-        backgroundColor: "#5e000000"
 
-        Behavior on zoom {
-            SmoothedAnimation {
-                duration: 500
-                velocity: -1
+        Connections {
+            function onWaveformGpuChanged() {
+                displayLoader.active = false;
+                displayLoader.active = true;
             }
+
+            target: Mixxx.Config
         }
 
-        Mixxx.WaveformRendererEndOfTrack {
-            color: '#ff8872'
-            endOfTrackWarningTime: 30
-        }
+        sourceComponent: Component {
+            MixxxControls.WaveformDisplay {
+                anchors.fill: parent
+                group: root.group
+                zoom: zoomControl.value
+                backgroundColor: "#5e000000"
 
-        // Before the start / after the end of the track: discreet, the
-        // salmon color is kept for the end of track warning only
-        Mixxx.WaveformRendererPreroll {
-            color: '#3a3f47'
-        }
+                Behavior on zoom {
+                    SmoothedAnimation {
+                        duration: 500
+                        velocity: -1
+                    }
+                }
 
-        Mixxx.WaveformRendererMarkRange {
-            // Loop
-            Mixxx.WaveformMarkRange {
-                startControl: "loop_start_position"
-                endControl: "loop_end_position"
-                enabledControl: "loop_enabled"
-                color: '#00b400'
-                opacity: 0.7
-                disabledColor: '#FFFFFF'
-                disabledOpacity: 0.6
-            }
-            // Intro
-            Mixxx.WaveformMarkRange {
-                startControl: "intro_start_position"
-                endControl: "intro_end_position"
-                color: '#2c5c9a'
-                opacity: 0.6
-                durationTextColor: '#ffffff'
-                durationTextLocation: 'after'
-            }
-            // Outro
-            Mixxx.WaveformMarkRange {
-                startControl: "outro_start_position"
-                endControl: "outro_end_position"
-                color: '#2c5c9a'
-                opacity: 0.6
-                durationTextColor: '#ffffff'
-                durationTextLocation: 'before'
-            }
-        }
+                Mixxx.WaveformRendererEndOfTrack {
+                    color: '#ff8872'
+                    endOfTrackWarningTime: 30
+                }
 
-        Mixxx.WaveformRendererFiltered {
-            axesColor: '#a1a1a1a1'
-            // Three bands like the Pioneer decks: blue lows, amber mids,
-            // near-white highs
-            lowColor: '#1f5fff'
-            midColor: '#c9852f'
-            highColor: '#f1e7d6'
+                // Before the start / after the end of the track: discreet, the
+                // salmon color is kept for the end of track warning only
+                Mixxx.WaveformRendererPreroll {
+                    color: '#3a3f47'
+                }
 
-            gainAll: 1.0
-            gainLow: 1.0
-            gainMid: 1.0
-            gainHigh: 1.0
-        }
+                Mixxx.WaveformRendererMarkRange {
+                    // Loop
+                    Mixxx.WaveformMarkRange {
+                        startControl: "loop_start_position"
+                        endControl: "loop_end_position"
+                        enabledControl: "loop_enabled"
+                        color: '#00b400'
+                        opacity: 0.7
+                        disabledColor: '#FFFFFF'
+                        disabledOpacity: 0.6
+                    }
+                    // Intro
+                    Mixxx.WaveformMarkRange {
+                        startControl: "intro_start_position"
+                        endControl: "intro_end_position"
+                        color: '#2c5c9a'
+                        opacity: 0.6
+                        durationTextColor: '#ffffff'
+                        durationTextLocation: 'after'
+                    }
+                    // Outro
+                    Mixxx.WaveformMarkRange {
+                        startControl: "outro_start_position"
+                        endControl: "outro_end_position"
+                        color: '#2c5c9a'
+                        opacity: 0.6
+                        durationTextColor: '#ffffff'
+                        durationTextLocation: 'before'
+                    }
+                }
 
-        Mixxx.WaveformRendererStem {
-            gainAll: root.splitStemTracks ? 2.0 : 1.0
-            splitStemTracks: root.splitStemTracks
-        }
+                Mixxx.WaveformRendererFiltered {
+                    axesColor: '#a1a1a1a1'
+                    // Three bands like the Pioneer decks: blue lows, amber mids,
+                    // near-white highs
+                    lowColor: '#1f5fff'
+                    midColor: '#c9852f'
+                    highColor: '#f1e7d6'
 
-        Mixxx.WaveformRendererBeat {
-            color: '#60ffffff'
-        }
+                    gainAll: 1.0
+                    gainLow: 1.0
+                    gainMid: 1.0
+                    gainHigh: 1.0
+                }
 
-        Mixxx.WaveformRendererMark {
-            playMarkerColor: '#D9D9D9'
-            playMarkerBackground: '#D9D9D9'
-            defaultMark: Mixxx.WaveformMark {
-                align: "bottom|right"
-                color: "#00d9ff"
-                textColor: "#1a1a1a"
-                text: " %1 "
-                endIcon: Qt.resolvedUrl("images/jump_%1.svg")
-            }
+                Mixxx.WaveformRendererStem {
+                    gainAll: root.splitStemTracks ? 2.0 : 1.0
+                    splitStemTracks: root.splitStemTracks
+                }
 
-            untilMark.showTime: true
-            untilMark.showBeats: true
-            untilMark.align: Qt.AlignBottom
-            untilMark.textSize: 11
+                Mixxx.WaveformRendererBeat {
+                    color: '#60ffffff'
+                }
 
-            Mixxx.WaveformMark {
-                control: "cue_point"
-                text: 'CUE'
-                align: 'top|right'
-                color: 'red'
-                textColor: '#1a1a1a'
-            }
-            Mixxx.WaveformMark {
-                control: "loop_start_position"
-                text: '↻'
-                align: 'top|left'
-                color: 'green'
-                textColor: '#FFFFFF'
-            }
-            Mixxx.WaveformMark {
-                control: "loop_end_position"
-                align: 'bottom|right'
-                color: 'green'
-                textColor: '#FFFFFF'
-            }
-            Mixxx.WaveformMark {
-                control: "intro_start_position"
-                text: '◢'
-                align: 'top|right'
-                color: 'blue'
-                textColor: '#FFFFFF'
-            }
-            Mixxx.WaveformMark {
-                control: "intro_end_position"
-                text: '◢'
-                align: 'top|left'
-                color: 'blue'
-                textColor: '#FFFFFF'
-            }
-            Mixxx.WaveformMark {
-                control: "outro_start_position"
-                text: '◣'
-                align: 'top|right'
-                color: 'blue'
-                textColor: '#FFFFFF'
-            }
-            Mixxx.WaveformMark {
-                control: "outro_end_position"
-                text: '◣'
-                align: 'top|left'
-                color: 'blue'
-                textColor: '#FFFFFF'
+                Mixxx.WaveformRendererMark {
+                    playMarkerColor: '#D9D9D9'
+                    playMarkerBackground: '#D9D9D9'
+                    defaultMark: Mixxx.WaveformMark {
+                        align: "bottom|right"
+                        color: "#00d9ff"
+                        textColor: "#1a1a1a"
+                        text: " %1 "
+                        endIcon: Qt.resolvedUrl("images/jump_%1.svg")
+                    }
+
+                    untilMark.showTime: true
+                    untilMark.showBeats: true
+                    untilMark.align: Qt.AlignBottom
+                    untilMark.textSize: 11
+
+                    Mixxx.WaveformMark {
+                        control: "cue_point"
+                        text: 'CUE'
+                        align: 'top|right'
+                        color: 'red'
+                        textColor: '#1a1a1a'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "loop_start_position"
+                        text: '↻'
+                        align: 'top|left'
+                        color: 'green'
+                        textColor: '#FFFFFF'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "loop_end_position"
+                        align: 'bottom|right'
+                        color: 'green'
+                        textColor: '#FFFFFF'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "intro_start_position"
+                        text: '◢'
+                        align: 'top|right'
+                        color: 'blue'
+                        textColor: '#FFFFFF'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "intro_end_position"
+                        text: '◢'
+                        align: 'top|left'
+                        color: 'blue'
+                        textColor: '#FFFFFF'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "outro_start_position"
+                        text: '◣'
+                        align: 'top|right'
+                        color: 'blue'
+                        textColor: '#FFFFFF'
+                    }
+                    Mixxx.WaveformMark {
+                        control: "outro_end_position"
+                        text: '◣'
+                        align: 'top|left'
+                        color: 'blue'
+                        textColor: '#FFFFFF'
+                    }
+                }
             }
         }
     }
