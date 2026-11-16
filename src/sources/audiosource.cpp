@@ -1,5 +1,7 @@
 #include "sources/audiosource.h"
 
+#include <algorithm>
+
 #include "util/logger.h"
 
 namespace mixxx {
@@ -294,49 +296,73 @@ ReadableSampleFrames AudioSource::readSampleFrames(
         DEBUG_ASSERT(readable.frameIndexRange().empty() ||
                 readable.frameIndexRange().isSubrangeOf(writable.frameIndexRange()));
         if (readable.frameIndexRange() != writable.frameIndexRange()) {
+            // Android fork (from BiteDJ): do NOT conclude that the audio data
+            // ends here, neither for a short read nor for an empty one.
+            //
+            // Upstream shrank m_frameIndexRange back to this position. The
+            // narrowed range is propagated to every proxy through
+            // adjustFrameIndexRange() and CachingReader only ever intersects
+            // its readable range with the one reported by each read, so it
+            // can never grow again for the lifetime of the track load. A
+            // single transient error (e.g. a USB stick behind the OTG port
+            // that drops out for a moment) made the deck play silence until
+            // the end of the track, with no way back short of reloading it.
+            //
+            // A failed read is no evidence about the file's content, so decide
+            // nothing here: report the shortfall and hand back what was read.
+            // CachingReaderWorker returns CHUNK_READ_INVALID for an empty read
+            // (the chunk is freed and requested again later) and keeps a
+            // partial chunk. Callers that have actually confirmed that the
+            // content ends early can use shrinkReadableFrameIndexRange().
             kLogger.warning()
-                    << "Failed to read sample frames:"
+                    << "Failed to read sample frames (readable range kept):"
                     << "expected =" << writable.frameIndexRange()
-                    << ", actual =" << readable.frameIndexRange();
-            auto shrinkedFrameIndexRange = m_frameIndexRange;
-            if (readable.frameIndexRange().empty()) {
-                // Adjust upper bound: Consider all audio data following
-                // the read position until the end as unreadable
-                shrinkedFrameIndexRange.shrinkBack(
-                        shrinkedFrameIndexRange.end() -
-                        writable.frameIndexRange().start());
-            } else {
-                // Adjust lower bound of readable audio data
-                if (writable.frameIndexRange().start() <
-                        readable.frameIndexRange().start()) {
-                    shrinkedFrameIndexRange.shrinkFront(
-                            readable.frameIndexRange().start() -
-                            shrinkedFrameIndexRange.start());
-                }
-                // Adjust upper bound of readable audio data
-                if (writable.frameIndexRange().end() >
-                        readable.frameIndexRange().end()) {
-                    shrinkedFrameIndexRange.shrinkBack(
-                            shrinkedFrameIndexRange.end() -
-                            readable.frameIndexRange().end());
-                }
-            }
-            DEBUG_ASSERT(shrinkedFrameIndexRange.isSubrangeOf(m_frameIndexRange) &&
-                    shrinkedFrameIndexRange.length() < m_frameIndexRange.length());
-            kLogger.info()
-                    << "Shrinking readable frame index range:"
-                    << "before =" << m_frameIndexRange
-                    << ", after =" << shrinkedFrameIndexRange;
-            // Propagate the adjustments to all participants in the
-            // inheritance hierarchy.
-            // NOTE(2019-08-31, uklotzde): This is an ugly hack to overcome
-            // the previous assumption that the frame index range is immutable
-            // for the whole lifetime of an AudioSource. As we know now it is
-            // not and for a future re-design we need to account for this fact!!
-            adjustFrameIndexRange(shrinkedFrameIndexRange);
+                    << ", actual =" << readable.frameIndexRange()
+                    << ", readable =" << m_frameIndexRange;
         }
         return readable;
     }
+}
+
+bool AudioSource::shrinkReadableFrameIndexRange(
+        IndexRange readableFrameIndexRange) {
+    VERIFY_OR_DEBUG_ASSERT(!readableFrameIndexRange.empty()) {
+        // An empty range would write off the whole track. Refuse it: an
+        // empty read is never evidence about content.
+        return false;
+    }
+    auto shrinkedFrameIndexRange = m_frameIndexRange;
+    // Adjust lower bound of readable audio data
+    if (readableFrameIndexRange.start() > shrinkedFrameIndexRange.start()) {
+        shrinkedFrameIndexRange.shrinkFront(
+                std::min(readableFrameIndexRange.start(),
+                        shrinkedFrameIndexRange.end()) -
+                shrinkedFrameIndexRange.start());
+    }
+    // Adjust upper bound of readable audio data
+    if (readableFrameIndexRange.end() < shrinkedFrameIndexRange.end()) {
+        shrinkedFrameIndexRange.shrinkBack(
+                shrinkedFrameIndexRange.end() -
+                std::max(readableFrameIndexRange.end(),
+                        shrinkedFrameIndexRange.start()));
+    }
+    if (shrinkedFrameIndexRange == m_frameIndexRange) {
+        return false;
+    }
+    DEBUG_ASSERT(shrinkedFrameIndexRange.isSubrangeOf(m_frameIndexRange) &&
+            shrinkedFrameIndexRange.length() < m_frameIndexRange.length());
+    kLogger.info()
+            << "Shrinking readable frame index range:"
+            << "before =" << m_frameIndexRange
+            << ", after =" << shrinkedFrameIndexRange;
+    // Propagate the adjustments to all participants in the
+    // inheritance hierarchy.
+    // NOTE(2019-08-31, uklotzde): This is an ugly hack to overcome
+    // the previous assumption that the frame index range is immutable
+    // for the whole lifetime of an AudioSource. As we know now it is
+    // not and for a future re-design we need to account for this fact!!
+    adjustFrameIndexRange(shrinkedFrameIndexRange);
+    return true;
 }
 
 void AudioSource::adjustFrameIndexRange(
