@@ -466,10 +466,13 @@ Rectangle {
         readonly property real displayBpm: fileBpmControl.value > 0
             ? fileBpmControl.value * rateRatioControl.value
             : bpmControl.value
-        text: displayBpm > 0 ? displayBpm.toFixed(2) : "-"
+        // A rekordbox grid that could not be checked against the audio (its
+        // two halves disagree, usually a wrong BPM): show it, like a warning
+        readonly property bool unsure: root.currentTrack ? root.currentTrack.beatsUnsure : false
+        text: displayBpm > 0 ? displayBpm.toFixed(2) + (unsure ? "?" : "") : "-"
         font.bold: true
         font.pixelSize: 17
-        color: Theme.white
+        color: unsure ? Theme.yellow : Theme.white
 
         Mixxx.ControlProxy {
             id: bpmControl

@@ -43,6 +43,9 @@ class QmlTrackProxy : public QObject {
 
     Q_PROPERTY(mixxx::qml::QmlBeatsModel* beatsModel READ getBeatsModel CONSTANT);
     Q_PROPERTY(mixxx::qml::QmlCuesModel* hotcuesModel READ getCuesModel CONSTANT);
+    // The grid from a rekordbox drive could not be checked against the audio:
+    // its two halves disagree, which usually means a wrong BPM
+    Q_PROPERTY(bool beatsUnsure READ isBeatsUnsure NOTIFY beatsUnsureChanged)
 #ifdef __STEM__
     Q_PROPERTY(mixxx::qml::QmlStemsModel* stemsModel READ getStemsModel CONSTANT);
 #endif
@@ -71,6 +74,7 @@ class QmlTrackProxy : public QObject {
     int getSampleRate() const;
     QUrl getCoverArtUrl() const;
     QUrl getTrackLocationUrl() const;
+    bool isBeatsUnsure() const;
 
     QmlBeatsModel* getBeatsModel() const {
         return m_pBeatsModel.get();
@@ -131,6 +135,7 @@ class QmlTrackProxy : public QObject {
     void coverArtUrlChanged();
     void trackLocationUrlChanged();
     void cuesChanged();
+    void beatsUnsureChanged();
 #ifdef __STEM__
     void stemsChanged();
 #endif
