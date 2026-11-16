@@ -657,10 +657,11 @@ Rectangle {
         z: 10
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 3
-        width: instantStemText.implicitWidth + 12
-        height: instantStemText.implicitHeight + 4
+        anchors.margins: 4
+        width: instantStemText.implicitWidth + 8
+        height: instantStemText.implicitHeight + 2
         radius: 3
+        opacity: 0.9
         color: progress >= 1 ? "#1f4a2a" : (progress > 0 ? "#102a3a" : "#2a2a2a")
         border.width: 1
         border.color: progress >= 1 ? "#40ff60" : "#33c8ff"
@@ -675,7 +676,7 @@ Rectangle {
                     ? qsTr("STEMS %1%").arg(Math.floor(instantStemBadge.progress * 100))
                     : qsTr("STEMS ▶"))
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.textFontPixelSize - 2
+            font.pixelSize: Theme.textFontPixelSize - 5
             font.bold: true
             color: instantStemBadge.progress >= 1 ? "#9fffb0" : "#9fe6ff"
         }
