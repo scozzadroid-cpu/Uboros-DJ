@@ -530,4 +530,45 @@ Rectangle {
             color: Theme.deckBackgroundColor
         }
     }
+
+    // DDJ-FLX4 SMART CFX held: the EQ knobs drive the stems. A deck whose
+    // track has no stems keeps its EQ, and says so.
+    Mixxx.ControlProxy {
+        id: stemModeControl
+
+        group: "[Skin]"
+        key: "stem_mode"
+    }
+
+    Mixxx.ControlProxy {
+        id: stemCountControl
+
+        group: root.group
+        key: "stem_count"
+    }
+
+    Rectangle {
+        id: stemModeOverlay
+
+        readonly property bool hasStems: stemCountControl.value > 0
+
+        visible: stemModeControl.value > 0 && trackLoadedControl.value != 0
+        z: 20
+        anchors.fill: parent
+        radius: root.radius
+        color: hasStems ? "#e6102a3a" : "#e63a2a08"
+        border.width: 2
+        border.color: hasStems ? "#33c8ff" : "#ffb000"
+
+        Text {
+            anchors.centerIn: parent
+            text: stemModeOverlay.hasStems
+                ? qsTr("STEMS   HIGH vocals · MID melody · LOW drums")
+                : qsTr("No stems on this track: knobs = EQ")
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textFontPixelSize + 1
+            font.bold: true
+            color: stemModeOverlay.hasStems ? "#9fe6ff" : "#ffd27a"
+        }
+    }
 }

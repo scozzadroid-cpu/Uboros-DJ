@@ -6,6 +6,7 @@
 #include "coreservices.h"
 #include "qmlautoreload.h"
 
+class ControlObject;
 class ControlPushButton;
 class GuiTick;
 class VisualsManager;
@@ -38,6 +39,8 @@ class QmlApplication : public QObject {
     // [Skin],show_library: 0 hides the library in compact mode so the
     // waveforms get the whole height (toggled by the FLX4 BROWSE press).
     std::unique_ptr<ControlPushButton> m_pShowLibrary;
+    // 1 while the DDJ-FLX4 SMART CFX is held (EQ knobs = stems), for the deck overlay
+    std::unique_ptr<ControlObject> m_pStemMode;
 
     std::unique_ptr<QQmlApplicationEngine> m_pAppEngine;
     QmlAutoReload m_autoReload;

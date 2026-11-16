@@ -7,6 +7,12 @@
 #include "analyzer/analyzersilence.h"
 #include "moc_cachingreaderworker.cpp"
 #include "sources/soundsourceproxy.h"
+#ifdef __STEM__
+#include "sources/soundsourcestem.h"
+#include "sources/stemsidecar.h"
+#include "engine/engine.h"
+#include "track/steminfoimporter.h"
+#endif
 #include "track/track.h"
 #include "util/compatibility/qmutex.h"
 #include "util/event.h"
@@ -222,7 +228,42 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
 #ifdef __STEM__
     config.setStemMask(stemMask);
 #endif
+#ifdef __STEM__
+    // A track of a USB drive may have its stems prepared on the drive
+    // (MIXXX/STEMS/<hash>.mxstem): play them instead of the file. Stem files
+    // themselves import their stems from their own manifest.
+    if (!mixxx::StemInfoImporter::maybeStemFile(pTrack->getLocation())) {
+        const QString sidecar = mixxx::stemSidecarForTrack(pTrack->getLocation());
+        QList<StemInfo> stemInfos;
+        if (!sidecar.isEmpty()) {
+            stemInfos = mixxx::StemInfoImporter::importStemInfos(sidecar);
+            if (stemInfos.size() != mixxx::kMaxSupportedStems) {
+                kLogger.warning() << m_group << "Ignoring stem sidecar" << sidecar
+                                  << "with" << stemInfos.size() << "stems";
+                stemInfos.clear();
+            }
+        }
+        // Also clears stems left from a sidecar that is gone
+        pTrack->setStemInfos(stemInfos);
+        if (!stemInfos.isEmpty()) {
+            m_pAudioSource = SoundSourceProxy(pTrack,
+                    QUrl::fromLocalFile(sidecar),
+                    std::make_shared<mixxx::SoundSourceProviderSTEM>())
+                                     .openAudioSource(config);
+            if (m_pAudioSource) {
+                kLogger.info() << m_group << "Playing the stems of" << sidecar;
+            } else {
+                kLogger.warning() << m_group << "Failed to open stem sidecar" << sidecar;
+                pTrack->setStemInfos({});
+            }
+        }
+    }
+    if (!m_pAudioSource) {
+        m_pAudioSource = SoundSourceProxy(pTrack).openAudioSource(config);
+    }
+#else
     m_pAudioSource = SoundSourceProxy(pTrack).openAudioSource(config);
+#endif
     if (!m_pAudioSource) {
         kLogger.warning()
                 << m_group

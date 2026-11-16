@@ -11,6 +11,7 @@
 #include <QJniObject>
 #endif
 
+#include "control/controlobject.h"
 #include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
@@ -191,6 +192,8 @@ QmlApplication::QmlApplication(
             false,
             1.0);
     m_pShowLibrary->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pStemMode = std::make_unique<ControlObject>(
+            ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("stem_mode")));
 
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();
@@ -308,6 +311,7 @@ QmlApplication::~QmlApplication() {
     QmlDlgPreferencesProxy::s_pInstance.reset();
     m_visualsManager.reset();
     m_pAppEngine.reset();
+    m_pStemMode.reset();
     m_pShowLibrary.reset();
     m_pCoreServices.reset();
 }

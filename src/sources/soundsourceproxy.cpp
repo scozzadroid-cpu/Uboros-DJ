@@ -436,6 +436,16 @@ SoundSourceProxy::SoundSourceProxy(
     initSoundSourceWithProvider(std::move(pProvider));
 }
 
+SoundSourceProxy::SoundSourceProxy(
+        TrackPointer pTrack,
+        const QUrl& audioUrl,
+        mixxx::SoundSourceProviderPointer pProvider)
+        : m_pTrack(std::move(pTrack)),
+          m_url(audioUrl),
+          m_providerRegistrationIndex(-1) {
+    initSoundSourceWithProvider(std::move(pProvider));
+}
+
 SoundSourceProxy::SoundSourceProxy(TrackPointer pTrack)
         : m_pTrack(std::move(pTrack)),
           m_url(m_pTrack ? m_pTrack->getFileInfo().toQUrl() : QUrl()),
