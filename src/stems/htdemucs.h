@@ -44,7 +44,18 @@ class HtdemucsNet {
         Backend backend = Backend::OpenCl;
         bool lowPrecision = true; // fp16
         int threads = 4;          // CPU backend
+        /// OpenCL kernel tuning, done once and kept in cacheDir. POCO F4 GT,
+        /// first start / s per segment: None 2.6 s / 3.3, Fast 24 s / 2.2,
+        /// Wide ~570 s / 1.94
+        enum class Tuning {
+            None,
+            Fast,
+            Wide,
+        };
+        Tuning tuning = Tuning::None;
     };
+    /// Cache file of the tuned kernels for a configuration
+    static std::string cacheFile(const Config& config);
 
     HtdemucsNet();
     ~HtdemucsNet();

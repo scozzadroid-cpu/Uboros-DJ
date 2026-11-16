@@ -685,7 +685,10 @@ PioneerDDJFLX4.eqKnob = function(_channel, control, value, status, group) {
 
     // SMART CFX held: stems, but a deck without stems keeps its EQ (the deck
     // shows "No stems - EQ")
-    if (PioneerDDJFLX4.smartCfxHeld && engine.getValue("[Channel" + deck + "]", "stem_count") > 0) {
+    // Instant stems: only where they are already computed at the play
+    // position (stems_ready; always 1 for real stem files and sidecars)
+    if (PioneerDDJFLX4.smartCfxHeld && engine.getValue("[Channel" + deck + "]", "stem_count") > 0 &&
+            engine.getValue("[Channel" + deck + "]", "stems_ready") > 0) {
         const volume = PioneerDDJFLX4.stemVolumeFromKnob(v);
         for (const stem of knob.stems) {
             engine.setValue("[Channel" + deck + "_Stem" + stem + "]", "volume", volume);
@@ -717,6 +720,11 @@ PioneerDDJFLX4.smartCfxPressed = function(_channel, _control, value) {
     engine.setValue("[Skin]", "stem_mode", value > 0 ? 1 : 0);
     midi.sendShortMsg(0x96, 0x00, value > 0 ? 0x7F : 0x00);
     if (value > 0) {
+        // Instant stems: pressing SMART CFX starts separating the tracks of
+        // both decks that have no stems yet (from their play position)
+        for (let deck = 1; deck <= 2; deck++) {
+            engine.setValue("[Channel" + deck + "]", "stem_separate", 1);
+        }
         const now = Date.now();
         if (now - PioneerDDJFLX4.smartCfxLastPress <= PioneerDDJFLX4.smartCfxDoublePressMs) {
             PioneerDDJFLX4.resetStems();

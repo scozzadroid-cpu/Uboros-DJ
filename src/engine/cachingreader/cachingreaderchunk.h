@@ -53,6 +53,16 @@ public:
         return m_index;
     }
 
+    // Instant stems: whether the stems of this chunk were already computed
+    // when it was read (otherwise it holds the mix and is read again once
+    // they are, see CachingReader::refreshStemChunks())
+    bool stemsReady() const noexcept {
+        return m_stemsReady;
+    }
+    void setStemsReady(bool ready) noexcept {
+        m_stemsReady = ready;
+    }
+
     // Frame index range of this chunk for the given audio source.
     mixxx::IndexRange frameIndexRange(
             const mixxx::AudioSourcePointer& pAudioSource) const;
@@ -84,6 +94,7 @@ public:
     }
 
     SINT m_index;
+    bool m_stemsReady = false;
 
     // The worker thread will fill the sample buffer and
     // set the corresponding frame index range.

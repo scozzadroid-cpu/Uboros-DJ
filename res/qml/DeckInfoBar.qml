@@ -625,10 +625,73 @@ Rectangle {
         key: "stem_count"
     }
 
+    // Instant stems (StemSeparationService): -1 none, 0..1 separated share
+    Mixxx.ControlProxy {
+        id: stemProgressControl
+
+        group: root.group
+        key: "stem_progress"
+    }
+
+    Mixxx.ControlProxy {
+        id: stemsReadyControl
+
+        group: root.group
+        key: "stems_ready"
+    }
+
+    Mixxx.ControlProxy {
+        id: stemSeparateControl
+
+        group: root.group
+        key: "stem_separate"
+    }
+
+    // Tap: separate the stems of this track now (as SMART CFX)
+    Rectangle {
+        id: instantStemBadge
+
+        readonly property real progress: stemProgressControl.value
+
+        visible: progress >= 0 && trackLoadedControl.value != 0
+        z: 10
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 3
+        width: instantStemText.implicitWidth + 12
+        height: instantStemText.implicitHeight + 4
+        radius: 3
+        color: progress >= 1 ? "#1f4a2a" : (progress > 0 ? "#102a3a" : "#2a2a2a")
+        border.width: 1
+        border.color: progress >= 1 ? "#40ff60" : "#33c8ff"
+
+        Text {
+            id: instantStemText
+
+            anchors.centerIn: parent
+            text: instantStemBadge.progress >= 1
+                ? qsTr("STEMS")
+                : (instantStemBadge.progress > 0
+                    ? qsTr("STEMS %1%").arg(Math.floor(instantStemBadge.progress * 100))
+                    : qsTr("STEMS ▶"))
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textFontPixelSize - 2
+            font.bold: true
+            color: instantStemBadge.progress >= 1 ? "#9fffb0" : "#9fe6ff"
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: stemSeparateControl.value = 1
+        }
+    }
+
     Rectangle {
         id: stemModeOverlay
 
-        readonly property bool hasStems: stemCountControl.value > 0
+        // Real stems, or instant stems already computed at the play position
+        readonly property bool hasStems: stemCountControl.value > 0 && stemsReadyControl.value > 0
+        readonly property bool separating: stemProgressControl.value >= 0 && stemProgressControl.value < 1
 
         visible: stemModeControl.value > 0 && trackLoadedControl.value != 0
         z: 20
@@ -642,7 +705,9 @@ Rectangle {
             anchors.centerIn: parent
             text: stemModeOverlay.hasStems
                 ? qsTr("STEMS   HIGH vocals · MID melody · LOW drums")
-                : qsTr("No stems on this track: knobs = EQ")
+                : (stemModeOverlay.separating
+                    ? qsTr("Separating stems %1%: knobs = EQ until ready").arg(Math.floor(Math.max(0, stemProgressControl.value) * 100))
+                    : qsTr("No stems on this track: knobs = EQ"))
             font.family: Theme.fontFamily
             font.pixelSize: Theme.textFontPixelSize + 1
             font.bold: true

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <atomic>
+#include <memory>
+
 #include <QMutex>
 #include <QString>
 
@@ -92,6 +95,12 @@ typedef struct ReaderStatusUpdate {
     }
 } ReaderStatusUpdate;
 
+#ifdef __STEM_SEPARATION__
+namespace mixxx::stems {
+class StemCache;
+}
+#endif
+
 class CachingReaderWorker : public EngineWorker {
     Q_OBJECT
 
@@ -115,6 +124,15 @@ class CachingReaderWorker : public EngineWorker {
     void run() override;
 
     void quitWait();
+
+#ifdef __STEM_SEPARATION__
+    /// Engine thread: the stem cache of the loaded track if it is played as
+    /// instant stems (nullptr otherwise). The object stays alive until two
+    /// tracks later, so a pointer read just before a load is still valid.
+    mixxx::stems::StemCache* stemCache() const {
+        return m_pStemCacheForEngine.load(std::memory_order_acquire);
+    }
+#endif
 
   signals:
     // Emitted once a new track is loaded and ready to be read from.
@@ -184,6 +202,12 @@ class CachingReaderWorker : public EngineWorker {
 
     // The maximum number of channel that this reader can support
     mixxx::audio::ChannelCount m_maxSupportedChannel;
+
+#ifdef __STEM_SEPARATION__
+    std::shared_ptr<mixxx::stems::StemCache> m_pStemCache;
+    std::shared_ptr<mixxx::stems::StemCache> m_pPreviousStemCache;
+    std::atomic<mixxx::stems::StemCache*> m_pStemCacheForEngine{nullptr};
+#endif
 
     QAtomicInt m_stop;
 };

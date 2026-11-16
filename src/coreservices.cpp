@@ -32,6 +32,9 @@
 #include "library/trackcollectionmanager.h"
 #include "mixer/playerinfo.h"
 #include "mixer/deck.h"
+#ifdef __STEM_SEPARATION__
+#include "stems/stemseparationservice.h"
+#endif
 #include "mixer/playermanager.h"
 #include "mixer/previewdeck.h"
 #include "mixer/sampler.h"
@@ -577,6 +580,11 @@ void CoreServices::initialize(QApplication* pApp) {
     }
 
     m_pPlayerManager->addConfiguredDecks();
+#ifdef __STEM_SEPARATION__
+    // Instant stems (controls [ChannelN],stem_separate etc.): needs the decks
+    m_pStemSeparationService = std::make_unique<mixxx::stems::StemSeparationService>(
+            pConfig, static_cast<int>(m_pPlayerManager->numberOfDecks()));
+#endif
 
     for (int i = 0; i < kSamplerCount; ++i) {
         m_pPlayerManager->addSampler();
@@ -986,6 +994,11 @@ void CoreServices::finalize() {
     ControllerScriptEngineBase::registerTrackCollectionManager(nullptr);
 #endif
     ControllerScriptEngineBase::registerPlayerManager(nullptr);
+
+#ifdef __STEM_SEPARATION__
+    // Stops the separation thread; uses the controls of the decks
+    m_pStemSeparationService.reset();
+#endif
 
     // Stop all pending library operations
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "stopping pending Library tasks";
