@@ -331,6 +331,8 @@ class EngineMixer : public QObject, public AudioSource {
     CSAMPLE_GAIN m_mainGainOld;
     CSAMPLE_GAIN m_boothGainOld;
     CSAMPLE_GAIN m_headphoneMainGainOld;
+    // A channel has its headphone CUE on (else the headphones get the main mix)
+    bool m_anyPfl = false;
     CSAMPLE_GAIN m_headphoneGainOld;
     CSAMPLE_GAIN m_duckingGainOld;
     CSAMPLE_GAIN m_balleftOld;
