@@ -1,7 +1,9 @@
 #include "engine/cachingreader/cachingreaderworker.h"
 
 #include <QAtomicInt>
+#include <QFileInfo>
 #include <QtDebug>
+#include <algorithm>
 
 #include "util/threadpriority.h"
 #include "analyzer/analyzersilence.h"
@@ -33,6 +35,29 @@ mixxx::Logger kLogger("CachingReaderWorker");
 // we need the last silence frame and the first sound frame
 constexpr SINT kNumSoundFrameToVerify = 2;
 
+// Re-opening after a failed read (see reopenAudioSource()). The waits
+// between tries double from kReopenBackoffMinMillis up to
+// kReopenBackoffMaxMillis: 8 real attempts cover ~30 s, enough for a USB
+// stick to re-enumerate and for vold to mount it again.
+constexpr int kMaxReopenAttempts = 8;
+constexpr int kReopenBackoffMinMillis = 250;
+constexpr int kReopenBackoffMaxMillis = 8000;
+
+// The re-open functions only keep a weak reference: the worker must not
+// extend the lifetime of a track beyond its deck.
+std::function<mixxx::AudioSourcePointer()> openAudioSourceOfTrack(
+        const TrackPointer& pTrack,
+        const mixxx::AudioSource::OpenParams& config) {
+    return [pWeakTrack = TrackWeakPointer(pTrack),
+                   config]() -> mixxx::AudioSourcePointer {
+        const TrackPointer pTrack = pWeakTrack.lock();
+        if (!pTrack) {
+            return nullptr;
+        }
+        return SoundSourceProxy(pTrack).openAudioSource(config);
+    };
+}
+
 } // anonymous namespace
 
 CachingReaderWorker::CachingReaderWorker(
@@ -44,6 +69,8 @@ CachingReaderWorker::CachingReaderWorker(
           m_tag(QString("CachingReaderWorker %1").arg(m_group)),
           m_pChunkReadRequestFIFO(pChunkReadRequestFIFO),
           m_pReaderStatusFIFO(pReaderStatusFIFO),
+          m_reopenAttempts(0),
+          m_reopenBackoffMillis(0),
           m_maxSupportedChannel(maxSupportedChannel) {
 }
 
@@ -70,9 +97,38 @@ ReaderStatusUpdate CachingReaderWorker::processReadRequest(
     pChunk->setStemsReady(m_pStemCache && m_pStemCache->isChunkReady(pChunk->getIndex()));
 #endif
     // Try to read the data required for the chunk from the audio source
-    const mixxx::IndexRange bufferedFrameIndexRange = pChunk->bufferSampleFrames(
+    mixxx::IndexRange bufferedFrameIndexRange = pChunk->bufferSampleFrames(
             m_pAudioSource,
             mixxx::SampleBuffer::WritableSlice(m_tempReadBuffer));
+    if (bufferedFrameIndexRange != chunkFrameIndexRange) {
+        // Less than the source claims to hold. Assume a broken file handle
+        // (I/O error on the USB stick), not the end of the audio: open the
+        // file again and repeat the read.
+        const mixxx::IndexRange firstAttemptFrameIndexRange = bufferedFrameIndexRange;
+        if (reopenAudioSource()) {
+            chunkFrameIndexRange = pChunk->frameIndexRange(m_pAudioSource);
+            bufferedFrameIndexRange = chunkFrameIndexRange.empty()
+                    ? mixxx::IndexRange()
+                    : pChunk->bufferSampleFrames(m_pAudioSource,
+                              mixxx::SampleBuffer::WritableSlice(m_tempReadBuffer));
+            if (!bufferedFrameIndexRange.empty() &&
+                    bufferedFrameIndexRange != chunkFrameIndexRange &&
+                    bufferedFrameIndexRange == firstAttemptFrameIndexRange) {
+                // A fresh decoder on a fresh file handle stopped at exactly
+                // the same frame: this is about the content, not the
+                // storage. Accept that the decodable audio ends here, so the
+                // tail is not re-opened again and again (from BiteDJ).
+                if (m_pAudioSource->shrinkReadableFrameIndexRange(
+                            bufferedFrameIndexRange)) {
+                    chunkFrameIndexRange = intersect(
+                            chunkFrameIndexRange, m_pAudioSource->frameIndexRange());
+                }
+            }
+        }
+    }
+    if (bufferedFrameIndexRange == chunkFrameIndexRange) {
+        resetReopenState();
+    }
     DEBUG_ASSERT(!m_pAudioSource ||
             bufferedFrameIndexRange.isSubrangeOf(m_pAudioSource->frameIndexRange()));
     // The readable frame range might have changed
@@ -196,6 +252,10 @@ void CachingReaderWorker::closeAudioSource() {
         m_pAudioSource->close();
         m_pAudioSource.reset();
     }
+    m_openAudioSource = nullptr;
+    m_openedSignalInfo = mixxx::audio::SignalInfo();
+    m_openedFrameIndexRange = mixxx::IndexRange();
+    resetReopenState();
 
     // This function has to be called with the engine stopped only
     // to avoid collecting new requests for the old track
@@ -262,12 +322,23 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
         // Also clears stems left from a sidecar that is gone
         pTrack->setStemInfos(stemInfos);
         if (!stemInfos.isEmpty()) {
-            m_pAudioSource = SoundSourceProxy(pTrack,
-                    QUrl::fromLocalFile(sidecar),
-                    std::make_shared<mixxx::SoundSourceProviderSTEM>())
-                                     .openAudioSource(config);
+            const QUrl sidecarUrl = QUrl::fromLocalFile(sidecar);
+            auto openSidecar = [pWeakTrack = TrackWeakPointer(pTrack),
+                                       sidecarUrl,
+                                       config]() -> mixxx::AudioSourcePointer {
+                const TrackPointer pTrack = pWeakTrack.lock();
+                if (!pTrack) {
+                    return nullptr;
+                }
+                return SoundSourceProxy(pTrack,
+                        sidecarUrl,
+                        std::make_shared<mixxx::SoundSourceProviderSTEM>())
+                        .openAudioSource(config);
+            };
+            m_pAudioSource = openSidecar();
             if (m_pAudioSource) {
                 kLogger.info() << m_group << "Playing the stems of" << sidecar;
+                m_openAudioSource = openSidecar;
             } else {
                 kLogger.warning() << m_group << "Failed to open stem sidecar" << sidecar;
                 pTrack->setStemInfos({});
@@ -286,7 +357,15 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
             !stemMask && mixxx::stems::instantStemsEnabled()) {
         mixxx::AudioSource::OpenParams stereoConfig;
         stereoConfig.setChannelCount(mixxx::audio::ChannelCount::stereo());
-        auto pStereoSource = SoundSourceProxy(pTrack).openAudioSource(stereoConfig);
+        auto openStereo = [pWeakTrack = TrackWeakPointer(pTrack),
+                                  stereoConfig]() -> mixxx::AudioSourcePointer {
+            const TrackPointer pTrack = pWeakTrack.lock();
+            if (!pTrack) {
+                return nullptr;
+            }
+            return SoundSourceProxy(pTrack).openAudioSource(stereoConfig);
+        };
+        auto pStereoSource = openStereo();
         if (pStereoSource &&
                 pStereoSource->getSignalInfo().getChannelCount() ==
                         mixxx::audio::ChannelCount::stereo() &&
@@ -300,12 +379,23 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
         if (pStemCache) {
             m_pAudioSource = std::make_shared<mixxx::AudioSourceProgressiveStemProxy>(
                     pStereoSource, pStemCache);
+            m_openAudioSource = [openStereo, pStemCache]() -> mixxx::AudioSourcePointer {
+                auto pSource = openStereo();
+                if (!pSource ||
+                        pSource->getSignalInfo().getChannelCount() !=
+                                mixxx::audio::ChannelCount::stereo()) {
+                    return nullptr;
+                }
+                return std::make_shared<mixxx::AudioSourceProgressiveStemProxy>(
+                        std::move(pSource), pStemCache);
+            };
             pTrack->setStemInfos(mixxx::stems::instantStemInfos());
             kLogger.info() << m_group << "Instant stems for" << pTrack->getLocation()
                            << pStemCache->readyChunkCount() << "/"
                            << pStemCache->chunkCount() << "chunks ready";
         } else {
             m_pAudioSource = pStereoSource;
+            m_openAudioSource = openStereo;
         }
     }
     m_pPreviousStemCache = m_pStemCache;
@@ -314,10 +404,12 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
     mixxx::stems::StemSeparationService::deckLoaded(m_group, pTrack, pStemCache, realStems);
 #endif
     if (!m_pAudioSource) {
-        m_pAudioSource = SoundSourceProxy(pTrack).openAudioSource(config);
+        m_openAudioSource = openAudioSourceOfTrack(pTrack, config);
+        m_pAudioSource = m_openAudioSource();
     }
 #else
-    m_pAudioSource = SoundSourceProxy(pTrack).openAudioSource(config);
+    m_openAudioSource = openAudioSourceOfTrack(pTrack, config);
+    m_pAudioSource = m_openAudioSource();
 #endif
     if (!m_pAudioSource) {
         kLogger.warning()
@@ -376,6 +468,9 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
         mixxx::SampleBuffer(tempReadBufferSize).swap(m_tempReadBuffer);
     }
 
+    m_openedSignalInfo = m_pAudioSource->getSignalInfo();
+    m_openedFrameIndexRange = m_pAudioSource->frameIndexRange();
+
     const auto update =
             ReaderStatusUpdate::trackLoaded(
                     m_pAudioSource->frameIndexRange());
@@ -400,6 +495,60 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
             m_pAudioSource->getSignalInfo().getSampleRate(),
             m_pAudioSource->getSignalInfo().getChannelCount(),
             mixxx::audio::FramePos(m_pAudioSource->frameLength()));
+}
+
+void CachingReaderWorker::resetReopenState() {
+    m_reopenAttempts = 0;
+    m_reopenBackoffMillis = 0;
+    m_reopenBackoffTimer.invalidate();
+}
+
+bool CachingReaderWorker::reopenAudioSource() {
+    if (!m_pAudioSource || !m_openAudioSource ||
+            m_reopenAttempts >= kMaxReopenAttempts) {
+        return false;
+    }
+    if (m_reopenBackoffTimer.isValid() &&
+            m_reopenBackoffTimer.elapsed() < m_reopenBackoffMillis) {
+        return false;
+    }
+    // The first try of a burst runs immediately, later ones wait longer
+    m_reopenBackoffMillis = m_reopenBackoffTimer.isValid()
+            ? std::min(m_reopenBackoffMillis * 2, kReopenBackoffMaxMillis)
+            : kReopenBackoffMinMillis;
+    m_reopenBackoffTimer.start();
+
+    const QString fileName = m_pAudioSource->getUrl().toLocalFile();
+    if (!QFileInfo::exists(fileName)) {
+        // The stick is gone (or not mounted again yet). A stat is cheap,
+        // so this does not use up an attempt: it is tried again every few
+        // seconds until the file is back.
+        return false;
+    }
+    ++m_reopenAttempts;
+
+    // Open into a local first: on failure the deck keeps its source
+    mixxx::AudioSourcePointer pAudioSource = m_openAudioSource();
+    if (!pAudioSource) {
+        kLogger.warning() << m_group << "Failed to re-open" << fileName
+                          << "attempt" << m_reopenAttempts << "of" << kMaxReopenAttempts;
+        return false;
+    }
+    if (pAudioSource->getSignalInfo() != m_openedSignalInfo ||
+            pAudioSource->frameIndexRange() != m_openedFrameIndexRange) {
+        // Same path, other content: all positions of the deck would be wrong
+        kLogger.warning() << m_group << "Re-opened file has changed:" << fileName
+                          << pAudioSource->getSignalInfo() << pAudioSource->frameIndexRange()
+                          << "instead of" << m_openedSignalInfo << m_openedFrameIndexRange;
+        pAudioSource->close();
+        m_reopenAttempts = kMaxReopenAttempts; // don't try this file again
+        return false;
+    }
+    kLogger.info() << m_group << "Re-opened" << fileName << "after a failed read,"
+                   << "attempt" << m_reopenAttempts << "of" << kMaxReopenAttempts;
+    m_pAudioSource->close();
+    m_pAudioSource = std::move(pAudioSource);
+    return true;
 }
 
 void CachingReaderWorker::quitWait() {

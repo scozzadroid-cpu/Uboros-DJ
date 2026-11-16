@@ -1,8 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 
+#include <QElapsedTimer>
 #include <QMutex>
 #include <QString>
 
@@ -188,11 +190,42 @@ class CachingReaderWorker : public EngineWorker {
     ReaderStatusUpdate processReadRequest(
             const CachingReaderChunkReadRequest& request);
 
+    /// Re-open the file of the loaded track after a read came back short
+    /// (nothing or only part of a chunk). After an I/O error the decoder
+    /// can't recover on its own: FFmpeg keeps its EOF/error flag until a
+    /// seek, FLAC stays in an aborted state, and once vold has unmounted a
+    /// USB stick the file descriptor stays dead even when the stick is back
+    /// at the same /storage/XXXX-XXXX path. Without this the deck played
+    /// silence until the track was reloaded.
+    ///
+    /// Rate limited with an exponential backoff, and at most
+    /// kMaxReopenAttempts real open attempts per failure burst (a stat of a
+    /// file that is not there does not count). Runs on this reader thread,
+    /// never in the audio callback. Returns true if m_pAudioSource has been
+    /// replaced by a fresh source with the same signal and frame range;
+    /// otherwise the current source is left untouched.
+    bool reopenAudioSource();
+    /// Called after a complete read: ends a failure burst.
+    void resetReopenState();
+
     void verifyFirstSound(const CachingReaderChunk* pChunk,
             mixxx::audio::ChannelCount channelCount);
 
     // The current audio source of the track loaded
     mixxx::AudioSourcePointer m_pAudioSource;
+
+    // Opens the current audio source again exactly as loadTrack() did
+    // (plain file, stem sidecar or instant stems proxy), for
+    // reopenAudioSource(). Reset with m_pAudioSource.
+    std::function<mixxx::AudioSourcePointer()> m_openAudioSource;
+    // What the source looked like when the track was loaded: a re-opened
+    // file must match, otherwise positions, cues and beats would be wrong.
+    mixxx::audio::SignalInfo m_openedSignalInfo;
+    mixxx::IndexRange m_openedFrameIndexRange;
+    // Read failure recovery, only touched by the reader thread
+    int m_reopenAttempts;
+    int m_reopenBackoffMillis;
+    QElapsedTimer m_reopenBackoffTimer;
 
     mixxx::audio::FramePos m_firstSoundFrameToVerify;
 
