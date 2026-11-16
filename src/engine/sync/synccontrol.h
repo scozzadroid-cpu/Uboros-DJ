@@ -157,6 +157,8 @@ class SyncControl : public EngineControl, public Syncable {
     ControlProxy* m_pPassthroughEnabled;
     ControlProxy* m_pSyncPhaseButton;
     ControlProxy* m_pQuantize;
+    // quantize before SYNC was turned on, -1 while not synced
+    double m_quantizeBeforeSync = -1;
 
     // m_pBeats is written from an engine worker thread
     mixxx::BeatsPointer m_pBeats;

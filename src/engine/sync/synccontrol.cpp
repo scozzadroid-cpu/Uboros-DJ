@@ -149,8 +149,21 @@ void SyncControl::setSyncMode(SyncMode mode) {
     }
     // SyncControl has absolutely no say in the matter. This is what EngineSync
     // requires. Bypass confirmation by using setAndConfirm.
+    const bool wasSynced = getSyncMode() != SyncMode::None;
     m_pSyncMode->setAndConfirm(static_cast<double>(mode));
     m_pSyncEnabled->setAndConfirm(mode != SyncMode::None);
+    // Android fork (user request 2026-11-17): SYNC turns quantize on, and
+    // turning SYNC off gives quantize back the state it had before (also if
+    // it was changed while synced). Before the phase request that follows
+    // the enabling (requestSync() only aligns the phase with quantize on).
+    const bool synced = mode != SyncMode::None;
+    if (synced && !wasSynced) {
+        m_quantizeBeforeSync = m_pQuantize->get();
+        m_pQuantize->set(1.0);
+    } else if (!synced && wasSynced && m_quantizeBeforeSync >= 0) {
+        m_pQuantize->set(m_quantizeBeforeSync);
+        m_quantizeBeforeSync = -1;
+    }
     m_pSyncLeaderEnabled->setAndConfirm(static_cast<double>(SyncModeToLeaderLight(mode)));
     if (mode == SyncMode::Follower) {
         if (m_pVCEnabled && m_pVCEnabled->toBool()) {
