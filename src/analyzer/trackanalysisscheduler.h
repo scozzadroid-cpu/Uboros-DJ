@@ -53,6 +53,11 @@ class TrackAnalysisScheduler : public QObject {
     bool scheduleTrack(AnalyzerScheduledTrack track);
     int scheduleTracks(const QList<AnalyzerScheduledTrack>& tracks);
 
+    // Drops trackId from the queue and aborts its analysis if a worker is
+    // running it. The partial results are discarded (Analyzer::cleanup()
+    // without storeResults()). Returns true if anything was cancelled.
+    bool cancelTrack(TrackId trackId);
+
   public slots:
     void suspend();
 
@@ -100,9 +105,31 @@ class TrackAnalysisScheduler : public QObject {
             return m_analyzerProgress;
         }
 
-        bool submitNextTrack(const AnalyzerTrack& track) {
+        bool submitNextTrack(const AnalyzerTrack& track, TrackId trackId) {
             DEBUG_ASSERT(m_thread);
-            return m_thread->submitNextTrack(std::move(track));
+            if (!m_thread->submitNextTrack(track)) {
+                return false;
+            }
+            m_submittedTrackId = trackId;
+            m_pSubmittedCancelFlag = track.cancelFlag();
+            return true;
+        }
+
+        // Asks the thread to abort the track it was handed last, if that is
+        // trackId and it has not reported it as Done yet. The thread answers
+        // with Done (progress unknown) as soon as it notices.
+        bool cancelSubmittedTrack(TrackId trackId) {
+            if (!m_pSubmittedCancelFlag || m_submittedTrackId != trackId) {
+                return false;
+            }
+            m_pSubmittedCancelFlag->store(true, std::memory_order_relaxed);
+            return true;
+        }
+
+        // The thread has finished with (or never got) the submitted track
+        void forgetSubmittedTrack() {
+            m_submittedTrackId = TrackId();
+            m_pSubmittedCancelFlag.reset();
         }
 
         void suspendThread() {
@@ -132,11 +159,15 @@ class TrackAnalysisScheduler : public QObject {
             DEBUG_ASSERT(m_thread);
             m_thread.reset();
             m_analyzerProgress = kAnalyzerProgressUnknown;
+            forgetSubmittedTrack();
         }
 
       private:
         AnalyzerThread::Pointer m_thread;
         AnalyzerProgress m_analyzerProgress;
+        // The track last handed to the thread, until it reports it Done
+        TrackId m_submittedTrackId;
+        AnalyzerTrack::CancelFlag m_pSubmittedCancelFlag;
     };
 
     bool submitNextTrack(Worker* worker);

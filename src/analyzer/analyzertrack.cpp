@@ -3,7 +3,9 @@
 #include "util/assert.h"
 
 AnalyzerTrack::AnalyzerTrack(TrackPointer track, Options options)
-        : m_track(track), m_options(options) {
+        : m_track(track),
+          m_options(options),
+          m_pCancelFlag(std::make_shared<std::atomic<bool>>(false)) {
     DEBUG_ASSERT(track);
 }
 
