@@ -9,6 +9,15 @@ import "Theme"
 ApplicationWindow {
     id: root
 
+    // Phones: draw edge to edge (camera hole side, hidden system bars)
+    flags: Qt.platform.os === "android" ? (Qt.Window | Qt.ExpandedClientAreaHint) : Qt.Window
+    // Qt 6.9 pads the content by the safe area (84 px band on the camera
+    // hole side): use the whole width, the hole is a small dot
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
+    bottomPadding: 0
+
     property alias maximizeLibrary: maximizeLibraryButton.checked
     property alias show4decks: show4DecksButton.checked
     property alias showEffects: showEffectsButton.checked

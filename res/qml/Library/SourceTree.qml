@@ -325,7 +325,7 @@ Mixxx.LibrarySourceTree {
     // storage. The columns are the ones of the file browser model, not the
     // library ones.
     Mixxx.LibraryBrowseSource {
-        label: qsTr("Computer")
+        label: qsTr("Locale")
 
         Mixxx.TrackListColumn {
             label: qsTr("Filename")
