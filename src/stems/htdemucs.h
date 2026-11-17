@@ -89,9 +89,23 @@ class HtdemucsNet {
 /// starting at the play position). Memory stays bounded: only the segments
 /// whose overlap with a neighbour is still open are kept, the final frames
 /// are handed to a callback as soon as every segment covering them is done.
+/// A network that separates a whole segment of normalized audio (STFT and
+/// inverse included), for TrackSeparator: e.g. SCNet
+class SegmentNet {
+  public:
+    virtual ~SegmentNet() = default;
+    virtual long segmentFrames() const = 0;
+    /// mix: planar [2][segmentFrames()], normalized like the whole track
+    /// (mean and std of its mono mix); stems: out, [kStemCount][2][segmentFrames()]
+    virtual bool separate(const float* mix, float* stems) = 0;
+};
+
+/// Overlapping segments weighted by a triangle, as demucs.apply_model; the
+/// network is htdemucs or a SegmentNet
 class TrackSeparator : public Separator {
   public:
     explicit TrackSeparator(HtdemucsNet* pNet, double overlap = 0.25);
+    TrackSeparator(SegmentNet* pNet, double overlap);
     ~TrackSeparator() override;
 
     void setTrack(const float* interleaved, long frames) override;
@@ -113,7 +127,7 @@ class TrackSeparator : public Separator {
 
     bool processSegment(int segment, const Output& output) override;
     double segmentSeconds() const override {
-        return (1.0 - m_overlap) * kSegmentFrames / kSampleRate;
+        return (1.0 - m_overlap) * m_segmentFrames / kSampleRate;
     }
 
     void segmentRange(int segment, long* pStart, long* pEnd) const override {
@@ -125,13 +139,19 @@ class TrackSeparator : public Separator {
 
   private:
     long segmentEnd(int segment) const {
-        return std::min<long>(m_offsets[segment] + kSegmentFrames, m_frames);
+        return std::min<long>(m_offsets[segment] + m_segmentFrames, m_frames);
     }
     void emitFinal(long start, long end, const Output& output);
     void spectrogram(const float* mix, float* mag) const; // mix planar [2][kSegmentFrames]
     void inverse(const float* spec, float* out) const;    // one channel [2][kBins][kSpecFrames] -> [kSegmentFrames]
 
-    HtdemucsNet* m_pNet;
+    void initWeights();
+    /// Outputs the frames that became final and frees what is not needed
+    bool finishSegment(int segment, const Output& output);
+
+    HtdemucsNet* m_pNet = nullptr;
+    SegmentNet* m_pSegmentNet = nullptr;
+    long m_segmentFrames = kSegmentFrames;
     double m_overlap;
     long m_frames = 0;
     std::vector<float> m_track[2]; // normalized, planar

@@ -43,6 +43,7 @@ class StemCache {
         kNotReady = 0,
         kLight = 1,    // Spleeter, for slow phones
         kBalanced = 2, // htdemucs
+        kBest = 3,     // SCNet, separated while no deck plays
     };
 
     /// Separation thread: stores final stems (6 floats per frame) and marks

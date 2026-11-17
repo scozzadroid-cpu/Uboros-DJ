@@ -17,6 +17,7 @@
 #include "moc_stemseparationservice.cpp"
 #include "sources/soundsourceproxy.h"
 #include "stems/htdemucs.h"
+#include "stems/scnet.h"
 #include "stems/spleeter.h"
 #include "stems/stemcache.h"
 #include "track/track.h"
@@ -259,6 +260,9 @@ StemCache::Level StemSeparationService::liveLevelForWorker() const {
 }
 
 StemCache::Level StemSeparationService::bestLevel() const {
+    if (!m_bestNetFailed.load(std::memory_order_relaxed)) {
+        return StemCache::kBest;
+    }
     return m_netFailed.load(std::memory_order_relaxed) ? StemCache::kLight
                                                         : StemCache::kBalanced;
 }
@@ -405,6 +409,39 @@ void StemSeparationService::reportSlow(const char* reason) {
 // ------------------------------------------------------------ worker thread
 
 bool StemSeparationService::ensureNet(StemCache::Level level) {
+    if (level == StemCache::kBest) {
+        if (m_pBestNet) {
+            return true;
+        }
+        if (m_bestNetFailed.load(std::memory_order_relaxed)) {
+            return false;
+        }
+        const QString dir = stemsDataDir();
+        QDir().mkpath(dir);
+        const QString model = dir + QStringLiteral("/scnet_small.mnn");
+#ifdef __ANDROID__
+        const QString asset = QStringLiteral("assets:/stems/scnet_small.mnn");
+        if (QFileInfo(model).size() != QFileInfo(asset).size()) {
+            QFile::remove(model);
+            if (!QFile::copy(asset, model)) {
+                kLogger.warning() << "Cannot copy the best model to" << model;
+                m_bestNetFailed = true;
+                return false;
+            }
+        }
+#endif
+        auto pNet = std::make_unique<ScnetNet>();
+        // 2 threads: it only runs while no deck plays, but a segment takes
+        // seconds and cannot be interrupted when a deck starts
+        if (!pNet->init(model.toStdString(), 2)) {
+            kLogger.warning() << "Cannot load the best stem model:"
+                              << QString::fromStdString(pNet->error());
+            m_bestNetFailed = true;
+            return false;
+        }
+        m_pBestNet = std::move(pNet);
+        return true;
+    }
     if (level == StemCache::kLight) {
         if (m_pLightNet) {
             return true;
@@ -537,6 +574,9 @@ bool StemSeparationService::prepareJob(Job* pJob) {
     }
     if (pJob->level == StemCache::kLight) {
         pJob->pSeparator = std::make_unique<SpleeterSeparator>(m_pLightNet.get());
+    } else if (pJob->level == StemCache::kBest) {
+        pJob->pSeparator = std::make_unique<TrackSeparator>(
+                static_cast<SegmentNet*>(m_pBestNet.get()), kOverlap);
     } else {
         pJob->pSeparator = std::make_unique<TrackSeparator>(m_pNet.get(), kOverlap);
     }
@@ -656,7 +696,9 @@ void StemSeparationService::workerLoop() {
             }
         }
         if (!ensureNet(pJob->level)) {
-            if (pJob->level == StemCache::kBalanced && ensureNet(StemCache::kLight)) {
+            if (pJob->level == StemCache::kBest && ensureNet(StemCache::kBalanced)) {
+                pJob->level = StemCache::kBalanced;
+            } else if (pJob->level == StemCache::kBalanced && ensureNet(StemCache::kLight)) {
                 // No htdemucs on this phone: the light quality instead
                 kLogger.warning() << "Using the light stem quality";
                 pJob->level = StemCache::kLight;
@@ -711,7 +753,9 @@ void StemSeparationService::workerLoop() {
                 kLogger.warning() << pJob->group << "Separation failed at level" << level
                                   << QString::fromStdString(level == StemCache::kLight
                                                      ? m_pLightNet->error()
-                                                     : m_pNet->error());
+                                                     : (level == StemCache::kBest
+                                                                       ? m_pBestNet->error()
+                                                                       : m_pNet->error()));
             } else {
                 kLogger.info() << pJob->group << "Stems complete at level" << level
                                << (pJob->idle ? "(while no deck played)" : "")
