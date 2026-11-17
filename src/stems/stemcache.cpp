@@ -20,7 +20,10 @@ namespace {
 
 const Logger kLogger("StemCache");
 
-constexpr char kMagic[8] = {'M', 'X', 'S', 'T', 'E', 'M', 'C', '1'};
+// 2: the ready flag of a chunk is its quality level. In version 1 it was
+// 1 for ready, and only htdemucs existed: read as kBalanced.
+constexpr char kMagic[8] = {'M', 'X', 'S', 'T', 'E', 'M', 'C', '2'};
+constexpr char kMagicV1[8] = {'M', 'X', 'S', 'T', 'E', 'M', 'C', '1'};
 constexpr int kHeaderSize = 64;
 constexpr int kSlots = 6;               // 3 stereo stems
 constexpr float kScale = 16384.0f;      // int16 with 2x headroom (stems can exceed the mix)
@@ -132,9 +135,11 @@ bool StemCache::map(int sampleRate) {
     }
     Header header;
     bool valid = false;
+    bool upgradeV1 = false;
     if (m_file.size() == size &&
             m_file.read(reinterpret_cast<char*>(&header), sizeof(header)) == sizeof(header)) {
-        valid = std::memcmp(header.magic, kMagic, sizeof(kMagic)) == 0 &&
+        upgradeV1 = std::memcmp(header.magic, kMagicV1, sizeof(kMagicV1)) == 0;
+        valid = (upgradeV1 || std::memcmp(header.magic, kMagic, sizeof(kMagic)) == 0) &&
                 header.frames == m_frames && header.sampleRate == sampleRate &&
                 header.chunkFrames == kChunkFrames;
     }
@@ -166,7 +171,13 @@ bool StemCache::map(int sampleRate) {
             // A chunk only half written by an earlier session is redone
             m_pReady[c] = 0;
         }
+        if (upgradeV1 && isChunkReady(c)) {
+            m_pReady[c] = kBalanced;
+        }
         m_chunkFill[c].store(0, std::memory_order_relaxed);
+    }
+    if (upgradeV1) {
+        std::memcpy(pMap, kMagic, sizeof(kMagic));
     }
     kLogger.info() << (valid ? "Reopened" : "Created") << m_file.fileName()
                    << readyChunkCount() << "/" << chunkCount() << "chunks ready";
