@@ -207,7 +207,7 @@ ColumnLayout {
     Option {
         enabled: !!root.options.bpmDetection
         option: "bpmReanalyzeImported"
-        subtitle: qsTr("Replaces the rekordbox grids with Mixxx's own: usually leave off")
+        subtitle: qsTr("Replaces the rekordbox grids with the app's own: usually leave off")
         title: qsTr("Re-detect BPM of imported tracks")
     }
     Option {
