@@ -36,6 +36,7 @@ const QString kStemsGroup = QStringLiteral("[Stems]");
 const ConfigKey kInstantStemsKey(kStemsGroup, QStringLiteral("InstantStems"));
 const ConfigKey kQualityKey(kStemsGroup, QStringLiteral("Quality"));
 const ConfigKey kBestWhenIdleKey(kStemsGroup, QStringLiteral("BestWhenIdle"));
+const ConfigKey kLiveStemsKey(kStemsGroup, QStringLiteral("LiveStems"));
 
 // The separation of a playing deck must stay ahead of the play position.
 // Below this multiple of real time, measured over a few segments while the
@@ -118,6 +119,21 @@ StemSeparationService::StemSeparationService(
         m_pConfig->setValue(kBestWhenIdleKey, value > 0 ? 1 : 0);
         std::lock_guard<std::mutex> lock(m_mutex);
         m_wake.notify_all();
+    });
+    m_pLiveStems = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("live_stems")));
+    m_pLiveStems->setParent(this);
+    m_pLiveStems->set(m_pConfig->getValue(kLiveStemsKey, false) ? 1 : 0);
+    connect(m_pLiveStems, &ControlObject::valueChanged, this, [this](double value) {
+        m_pConfig->setValue(kLiveStemsKey, value > 0 ? 1 : 0);
+        kLogger.info() << "Live stems" << (value > 0 ? "on" : "off");
+        if (value > 0) {
+            // The tracks already loaded too
+            for (const auto& pDeck : m_decks) {
+                if (!pDeck->realStems) {
+                    requestSeparation(pDeck.get());
+                }
+            }
+        }
     });
     m_pSpeed = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("speed")));
     m_pSpeed->setParent(this);
@@ -220,9 +236,16 @@ void StemSeparationService::slotDeckLoaded(const QString& group,
             pDeck->pJob = pJob;
             // Load the network now, while the track is being looked at, so
             // the first SMART CFX does not wait for it (~4.5 s)
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_preloadNet = true;
-            m_wake.notify_all();
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_preloadNet = true;
+                m_wake.notify_all();
+            }
+            // Live stems: separate every track without stems as soon as it
+            // is loaded, without waiting for SMART CFX
+            if (!realStems && m_pLiveStems->get() > 0) {
+                requestSeparation(pDeck.get());
+            }
         }
         slotUpdateControls();
         return;

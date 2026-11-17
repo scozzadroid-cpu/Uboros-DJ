@@ -116,6 +116,9 @@ class StemSeparationService : public QObject {
     // [Stems],best_when_idle: separate again at the best quality while no
     // deck plays
     ControlObject* m_pBestWhenIdle = nullptr;
+    // [Stems],live_stems: separate the tracks without stems as soon as they
+    // are loaded (toolbar button "Live Stems")
+    ControlObject* m_pLiveStems = nullptr;
     // [Stems],speed: separation speed as a multiple of real time (0 = unknown)
     ControlObject* m_pSpeed = nullptr;
     bool m_slowReported = false; // once per session

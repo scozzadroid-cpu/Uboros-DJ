@@ -374,6 +374,20 @@ ColumnLayout {
 
         onClicked: stemQuality.value = (Math.round(stemQuality.value) + 1) % 3
     }
+    Mixxx.ControlProxy {
+        id: stemLiveStems
+
+        group: "[Stems]"
+        key: "live_stems"
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        on: stemLiveStems.value > 0
+        subtitle: qsTr("The stems of every track without stems are separated as soon as it is loaded, without waiting for SMART CFX. Also the \"Live Stems\" button of the toolbar")
+        title: qsTr("Live stems")
+
+        onSwitched: value => stemLiveStems.value = value ? 1 : 0
+    }
     Skin.DashboardToggle {
         Layout.fillWidth: true
         on: stemBestWhenIdle.value > 0
