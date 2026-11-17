@@ -38,11 +38,25 @@ class StemCache {
         return m_file.fileName();
     }
 
+    /// Quality of the stems of a chunk, kept in the ready flag of the file
+    enum Level : uint8_t {
+        kNotReady = 0,
+        kLight = 1,    // Spleeter, for slow phones
+        kBalanced = 2, // htdemucs
+    };
+
     /// Separation thread: stores final stems (6 floats per frame) and marks
-    /// the chunks that are now complete as ready
-    void write(long start, long count, const float* stems);
+    /// the chunks that are now complete as ready at this level (never lower
+    /// than the level a chunk already has)
+    void write(long start, long count, const float* stems, Level level);
+    /// Separation thread: a new pass over the track starts; the frames
+    /// written per chunk are counted from zero again
+    void beginPass();
 
     bool isChunkReady(long chunk) const;
+    Level chunkLevel(long chunk) const;
+    /// Lowest level among the chunks of the frames [start, end)
+    Level minLevel(long start, long end) const;
     bool isFrameReady(long frame) const {
         return frame >= 0 && frame < m_frames && isChunkReady(frame / kChunkFrames);
     }

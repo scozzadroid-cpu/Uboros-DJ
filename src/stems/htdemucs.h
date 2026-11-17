@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "stems/separator.h"
+
 namespace mixxx {
 namespace stems {
 
@@ -87,40 +89,38 @@ class HtdemucsNet {
 /// starting at the play position). Memory stays bounded: only the segments
 /// whose overlap with a neighbour is still open are kept, the final frames
 /// are handed to a callback as soon as every segment covering them is done.
-class TrackSeparator {
+class TrackSeparator : public Separator {
   public:
-    /// Final stems of [start, start + count): interleaved per frame,
-    /// drums L R, bass + melody L R, vocals L R (6 floats per frame)
-    using Output = std::function<void(long start, long count, const float* stems)>;
-
-    /// overlap: 0.25 is the demucs default
     explicit TrackSeparator(HtdemucsNet* pNet, double overlap = 0.25);
-    ~TrackSeparator();
+    ~TrackSeparator() override;
 
-    /// Stereo track at 44.1 kHz, interleaved. Computes the whole-track
-    /// normalization (it changes the result: 26-36 dB if skipped).
-    void setTrack(const float* interleaved, long frames);
+    void setTrack(const float* interleaved, long frames) override;
 
-    long frames() const {
+    long frames() const override {
         return m_frames;
     }
-    int segmentCount() const {
+    int segmentCount() const override {
         return static_cast<int>(m_offsets.size());
     }
     long segmentOffset(int segment) const {
         return m_offsets[segment];
     }
-    bool isSegmentDone(int segment) const {
+    bool isSegmentDone(int segment) const override {
         return m_done[segment];
     }
-    int doneCount() const;
-    /// First segment covering the frame
-    int segmentAt(long frame) const;
+    int doneCount() const override;
+    int segmentAt(long frame) const override;
 
-    /// Separates one segment; the frames that become final go to output
-    bool processSegment(int segment, const Output& output);
+    bool processSegment(int segment, const Output& output) override;
+    double segmentSeconds() const override {
+        return (1.0 - m_overlap) * kSegmentFrames / kSampleRate;
+    }
 
-    /// True if every segment covering [start, end) is done
+    void segmentRange(int segment, long* pStart, long* pEnd) const override {
+        *pStart = m_offsets[segment];
+        *pEnd = segmentEnd(segment);
+    }
+
     bool isRangeFinal(long start, long end) const;
 
   private:

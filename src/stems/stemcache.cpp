@@ -188,7 +188,33 @@ long StemCache::readyChunkCount() const {
     return count;
 }
 
-void StemCache::write(long start, long count, const float* stems) {
+void StemCache::beginPass() {
+    for (long c = 0; c < chunkCount(); ++c) {
+        m_chunkFill[c].store(0, std::memory_order_relaxed);
+    }
+}
+
+StemCache::Level StemCache::chunkLevel(long chunk) const {
+    if (chunk < 0 || chunk >= chunkCount()) {
+        return kNotReady;
+    }
+    return static_cast<Level>(__atomic_load_n(&m_pReady[chunk], __ATOMIC_ACQUIRE));
+}
+
+StemCache::Level StemCache::minLevel(long start, long end) const {
+    start = std::max(0L, start);
+    end = std::min(end, m_frames);
+    if (start >= end) {
+        return kBalanced;
+    }
+    Level level = kBalanced;
+    for (long c = start / kChunkFrames; c <= (end - 1) / kChunkFrames; ++c) {
+        level = std::min(level, chunkLevel(c));
+    }
+    return level;
+}
+
+void StemCache::write(long start, long count, const float* stems, Level level) {
     start = std::max(0L, start);
     count = std::min(count, m_frames - start);
     if (count <= 0) {
@@ -207,9 +233,9 @@ void StemCache::write(long start, long count, const float* stems) {
         const long n = std::min(start + count, chunkStart + chunkLength) - frame;
         const int32_t filled = m_chunkFill[chunk].fetch_add(
                 static_cast<int32_t>(n), std::memory_order_acq_rel) + static_cast<int32_t>(n);
-        if (filled >= chunkLength && !isChunkReady(chunk)) {
+        if (filled >= chunkLength && chunkLevel(chunk) < level) {
             // The data above is visible before the flag (release)
-            __atomic_store_n(&m_pReady[chunk], uint8_t(1), __ATOMIC_RELEASE);
+            __atomic_store_n(&m_pReady[chunk], static_cast<uint8_t>(level), __ATOMIC_RELEASE);
             changed = true;
         }
         frame += n;

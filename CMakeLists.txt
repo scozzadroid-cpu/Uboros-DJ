@@ -2836,6 +2836,7 @@ if(STEM)
   # ~105 MB, fp16 weights) is packaged as an asset, not kept in git.
   set(MIXXX_MNN_DIR "" CACHE PATH "MNN source dir with an Android build (stem separation)")
   set(MIXXX_STEM_MODEL "" CACHE FILEPATH "htdemucs 3-stem MNN model")
+  set(MIXXX_STEM_LIGHT_MODEL "" CACHE FILEPATH "Spleeter 3-stem mask MNN model (light quality)")
   if(ANDROID AND MIXXX_MNN_DIR)
     set(MNN_ANDROID_LIB "${MIXXX_MNN_DIR}/build-android/OFF/arm64-v8a/libMNN.so")
     if(NOT EXISTS "${MNN_ANDROID_LIB}")
@@ -2847,6 +2848,7 @@ if(STEM)
       mixxx-lib
       PRIVATE
         src/stems/htdemucs.cpp
+        src/stems/spleeter.cpp
         src/stems/stemcache.cpp
         src/stems/stemseparationservice.cpp
         src/sources/audiosourceprogressivestemproxy.cpp
@@ -2866,6 +2868,16 @@ if(STEM)
         COMMAND
           ${CMAKE_COMMAND} -E copy_if_different "${MIXXX_STEM_MODEL}"
           ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets/stems/htdemucs3.mnn
+      )
+    endif()
+    if(MIXXX_STEM_LIGHT_MODEL)
+      add_custom_command(
+        TARGET copy-resource-android
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets/stems
+        COMMAND
+          ${CMAKE_COMMAND} -E copy_if_different "${MIXXX_STEM_LIGHT_MODEL}"
+          ${CMAKE_CURRENT_BINARY_DIR}/android-build/assets/stems/spleeter4.mnn
       )
     endif()
     message(STATUS "Stem separation: MNN ${MNN_ANDROID_LIB}, model '${MIXXX_STEM_MODEL}'")
