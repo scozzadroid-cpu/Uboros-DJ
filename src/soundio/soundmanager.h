@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include <QHash>
 #include <QList>
 #include <QObject>
@@ -129,6 +131,9 @@ class SoundManager : public QObject {
 
   private slots:
     void completeDevicesClosing();
+    // Android: reopens the audio output when it has been lost (USB
+    // controller unplugged), on the built-in output meanwhile
+    void checkAudioHealth();
 
   private:
     // Closes all the devices and empties the list of devices we have.
@@ -154,6 +159,15 @@ class SoundManager : public QObject {
     QList<CSAMPLE*> m_inputBuffers;
 
     SoundManagerConfig m_config;
+    // The configuration chosen by the user; m_config differs from it while a
+    // fallback output is used
+    SoundManagerConfig m_userConfig;
+    std::chrono::steady_clock::time_point m_lastCbCheck;
+    quint32 m_lastCbTotal = 0;
+    int m_stalledChecks = 0;
+    bool m_inFallback = false;
+    bool m_wasOutputOpen = false;
+    std::chrono::steady_clock::time_point m_lastRecovery;
     SoundDevicePointer m_pErrorDevice;
     QHash<AudioOutput, AudioSource*> m_registeredSources;
     QMultiHash<AudioInput, AudioDestination*> m_registeredDestinations;

@@ -4,6 +4,13 @@
 
 #include <QApplication>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QTimer>
+#include <cmath>
+#ifdef __ANDROID__
+#include <QJniObject>
+#include <QtCore/qnativeinterface.h>
+#endif
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
@@ -656,6 +663,123 @@ void CoreServices::initialize(QApplication* pApp) {
                     saveLoadedTracks();
                 }
             });
+
+    {
+        // Why did the previous runs end? (kill reasons are invisible otherwise)
+        QJniObject context = QNativeInterface::QAndroidApplication::context();
+        const QJniObject reasons = QJniObject::callStaticObjectMethod(
+                "org/mixxx/MidiHelper",
+                "getExitReasons",
+                "(Landroid/content/Context;)Ljava/lang/String;",
+                context.object<jobject>());
+        if (reasons.isValid()) {
+            qWarning().noquote() << "Previous process exits (newest first):\n"
+                                 << reasons.toString();
+        }
+    }
+
+    // Failsafe: remember what is loaded on the decks (and where) every few
+    // seconds. After an unclean end (crash, killed in the background, SIGKILL)
+    // the decks are reloaded, paused, at the same position. After 3 restores
+    // in a row without 60 s of stable running it is skipped (crash loop).
+    {
+        UserSettingsPointer pSession = m_pSettingsManager->settings();
+        const ConfigKey cleanKey(QStringLiteral("[Session]"), QStringLiteral("Clean"));
+        const ConfigKey attemptsKey(QStringLiteral("[Session]"), QStringLiteral("RestoreAttempts"));
+        const bool wasClean = pSession->getValue(cleanKey, true);
+        int attempts = pSession->getValue(attemptsKey, 0);
+        if (!wasClean) {
+            qWarning() << "Previous session did not end cleanly";
+            if (attempts >= 3) {
+                qWarning() << "Session restore skipped: 3 failed attempts in a row";
+            } else {
+                pSession->setValue(attemptsKey, ++attempts);
+                struct Item {
+                    int deck;
+                    QString path;
+                    double pos;
+                };
+                QList<Item> items;
+                const int deckCount = static_cast<int>(m_pPlayerManager->numberOfDecks());
+                for (int i = 1; i <= deckCount; ++i) {
+                    const QString path = pSession->getValueString(ConfigKey(
+                            QStringLiteral("[Session]"), QStringLiteral("Deck%1Path").arg(i)));
+                    if (path.isEmpty() || !QFileInfo::exists(path)) {
+                        continue;
+                    }
+                    items.append({i,
+                            path,
+                            pSession->getValue(ConfigKey(QStringLiteral("[Session]"),
+                                                       QStringLiteral("Deck%1Pos").arg(i)),
+                                    0.0)});
+                }
+                if (!items.isEmpty()) {
+                    QTimer::singleShot(3500, this, [this, items]() {
+                        for (const Item& item : items) {
+                            BaseTrackPlayer* pDeck = m_pPlayerManager->getDeck(item.deck);
+                            if (!pDeck || pDeck->getLoadedTrack()) {
+                                continue; // the user loaded something already
+                            }
+                            qInfo() << "Restoring deck" << item.deck << item.path;
+                            m_pPlayerManager->slotLoadToDeck(item.path, item.deck);
+                        }
+                        QTimer::singleShot(3000, this, [this, items]() {
+                            for (const Item& item : items) {
+                                ControlObject* pPos = ControlObject::getControl(
+                                        ConfigKey(PlayerManager::groupForDeck(item.deck - 1),
+                                                QStringLiteral("playposition")));
+                                ControlObject* pPlay = ControlObject::getControl(
+                                        ConfigKey(PlayerManager::groupForDeck(item.deck - 1),
+                                                QStringLiteral("play")));
+                                if (pPos && pPlay && pPlay->get() == 0.0 && item.pos > 0.0) {
+                                    pPos->set(item.pos);
+                                }
+                            }
+                        });
+                    });
+                }
+            }
+        }
+        pSession->setValue(cleanKey, false);
+        // Stable for a minute: the restore did not crash it
+        QTimer::singleShot(60000, this, [pSession, attemptsKey]() {
+            pSession->setValue(attemptsKey, 0);
+        });
+        connect(qApp, &QCoreApplication::aboutToQuit, this, [pSession, cleanKey]() {
+            pSession->setValue(cleanKey, true);
+            pSession->save();
+        });
+        auto* pSnapshotTimer = new QTimer(this);
+        pSnapshotTimer->setInterval(5000);
+        connect(pSnapshotTimer, &QTimer::timeout, this, [this, pSession]() {
+            const int deckCount = static_cast<int>(m_pPlayerManager->numberOfDecks());
+            bool changed = false;
+            for (int i = 1; i <= deckCount; ++i) {
+                BaseTrackPlayer* pDeck = m_pPlayerManager->getDeck(i);
+                const TrackPointer pTrack = pDeck ? pDeck->getLoadedTrack() : TrackPointer();
+                const QString path = pTrack ? pTrack->getLocation() : QString();
+                const ConfigKey pathKey(
+                        QStringLiteral("[Session]"), QStringLiteral("Deck%1Path").arg(i));
+                const ConfigKey posKey(
+                        QStringLiteral("[Session]"), QStringLiteral("Deck%1Pos").arg(i));
+                ControlObject* pPos = ControlObject::getControl(ConfigKey(
+                        PlayerManager::groupForDeck(i - 1), QStringLiteral("playposition")));
+                const double pos = (pTrack && pPos) ? std::round(pPos->get() * 1000.0) / 1000.0 : 0.0;
+                if (pSession->getValueString(pathKey) != path) {
+                    pSession->setValue(pathKey, path);
+                    changed = true;
+                }
+                if (pSession->getValue(posKey, 0.0) != pos) {
+                    pSession->setValue(posKey, pos);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                pSession->save();
+            }
+        });
+        pSnapshotTimer->start();
+    }
 #endif
 
     bool musicDirAdded = false;

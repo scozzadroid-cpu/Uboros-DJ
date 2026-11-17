@@ -33,6 +33,10 @@ class SoundDevice {
     void setConfigFramesPerBuffer(unsigned int framesPerBuffer);
     virtual SoundDeviceStatus open(bool isClkRefDevice, int syncBuffers) = 0;
     virtual bool isOpen() const = 0;
+    // False when an open stream has stopped by itself (e.g. USB device unplugged)
+    virtual bool isStreamAlive() const {
+        return true;
+    }
     virtual SoundDeviceStatus close() = 0;
     virtual void readProcess(SINT framesPerBuffer) = 0;
     virtual void writeProcess(SINT framesPerBuffer) = 0;

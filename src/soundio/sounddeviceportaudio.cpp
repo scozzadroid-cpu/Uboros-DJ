@@ -436,6 +436,14 @@ bool SoundDevicePortAudio::isOpen() const {
     return m_pStream.load() != nullptr;
 }
 
+bool SoundDevicePortAudio::isStreamAlive() const {
+    PaStream* pStream = m_pStream.load();
+    if (!pStream) {
+        return true;
+    }
+    return Pa_IsStreamActive(pStream) == 1;
+}
+
 void paFinishedCallback(void* soundDevice) {
     // This callback is called by PortAudio when Pa_IsStreamStopped becomes true.
     // This is triggered when Mixxx sets the return value from the process callback
