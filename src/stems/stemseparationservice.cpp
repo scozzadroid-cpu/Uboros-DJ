@@ -17,6 +17,7 @@
 #include "moc_stemseparationservice.cpp"
 #include "sources/soundsourceproxy.h"
 #include "stems/htdemucs.h"
+#include "stems/spleeter.h"
 #include "stems/stemcache.h"
 #include "track/track.h"
 #include "util/logger.h"
@@ -86,7 +87,11 @@ struct StemSeparationService::Job {
     // Worker thread only
     bool prepared = false;
     bool failed = false;
-    std::unique_ptr<TrackSeparator> pSeparator;
+    std::unique_ptr<Separator> pSeparator;
+    /// Quality of this separation
+    StemCache::Level level = StemCache::kBalanced;
+    /// The pass at the best quality while no deck plays
+    bool idle = false;
 };
 
 StemSeparationService::StemSeparationService(
@@ -101,6 +106,7 @@ StemSeparationService::StemSeparationService(
         const int quality = std::clamp(static_cast<int>(value), 0, 2);
         m_pConfig->setValue(kQualityKey, quality);
         kLogger.info() << "Quality set to" << quality;
+        restartLiveJobs();
     });
     m_pSlowDetected = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("slow_detected")));
     m_pSlowDetected->setParent(this);
@@ -197,6 +203,10 @@ void StemSeparationService::slotDeckLoaded(const QString& group,
             pDeck->pJob->cancelled = true;
             pDeck->pJob.reset();
         }
+        if (pDeck->pIdleJob) {
+            pDeck->pIdleJob->cancelled = true;
+            pDeck->pIdleJob.reset();
+        }
         pDeck->realStems = realStems;
         pDeck->starvedSeconds = 0;
         if (pCache && pTrack) {
@@ -229,12 +239,98 @@ void StemSeparationService::requestSeparation(Deck* pDeck) {
         kLogger.info() << pDeck->group << "Separating the stems of"
                        << pJob->pTrack->getLocation();
         pJob->requested = true;
+        pJob->level = liveLevel();
+        m_jobs.push_back(pJob);
+        m_wake.notify_all();
+    }
+}
+
+StemCache::Level StemSeparationService::liveLevel() const {
+    if (static_cast<int>(m_pQuality->get()) == 1 ||
+            m_netFailed.load(std::memory_order_relaxed)) {
+        return StemCache::kLight;
+    }
+    return StemCache::kBalanced;
+}
+
+StemCache::Level StemSeparationService::liveLevelForWorker() const {
+    // ControlObject::get() is thread safe
+    return liveLevel();
+}
+
+StemCache::Level StemSeparationService::bestLevel() const {
+    return m_netFailed.load(std::memory_order_relaxed) ? StemCache::kLight
+                                                        : StemCache::kBalanced;
+}
+
+void StemSeparationService::restartLiveJobs() {
+    const StemCache::Level level = liveLevel();
+    for (const auto& pDeck : m_decks) {
+        const auto pOld = pDeck->pJob;
+        if (!pOld || !pOld->requested || pOld->finished || pOld->level == level) {
+            continue;
+        }
+        // Same track and cache, separated from now on at the new quality
+        // (what is already separated is kept, see prepareJob())
+        pOld->cancelled = true;
+        auto pJob = std::make_shared<Job>();
+        pJob->group = pOld->group;
+        pJob->pTrack = pOld->pTrack;
+        pJob->pCache = pOld->pCache;
+        pJob->pPlayPosition = pOld->pPlayPosition;
+        pJob->pPlay = pOld->pPlay;
+        pDeck->pJob = pJob;
+        kLogger.info() << pDeck->group << "Separation goes on at level" << level;
+        requestSeparation(pDeck.get());
+    }
+}
+
+void StemSeparationService::startIdleJobs() {
+    const StemCache::Level level = bestLevel();
+    for (const auto& pDeck : m_decks) {
+        if (pDeck->realStems || !pDeck->pJob || pDeck->pIdleJob) {
+            continue;
+        }
+        const auto& pCache = pDeck->pJob->pCache;
+        if (pCache->minLevel(0, pCache->frames()) >= level) {
+            continue;
+        }
+        auto pJob = std::make_shared<Job>();
+        pJob->group = pDeck->group;
+        pJob->pTrack = pDeck->pJob->pTrack;
+        pJob->pCache = pCache;
+        pJob->pPlayPosition = pDeck->pPlayPosition;
+        pJob->pPlay = pDeck->pPlay;
+        pJob->level = level;
+        pJob->idle = true;
+        pDeck->pIdleJob = pJob;
+        kLogger.info() << pDeck->group << "No deck playing: separating at level" << level
+                       << pJob->pTrack->getLocation();
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_jobs.push_back(pJob);
         m_wake.notify_all();
     }
 }
 
 void StemSeparationService::slotUpdateControls() {
+    bool anyPlaying = false;
+    for (const auto& pDeck : m_decks) {
+        anyPlaying = anyPlaying || (pDeck->pPlay && pDeck->pPlay->get() > 0);
+    }
+    if (anyPlaying != m_anyPlaying.load(std::memory_order_relaxed)) {
+        m_anyPlaying.store(anyPlaying, std::memory_order_relaxed);
+        if (!anyPlaying) {
+            // Idle jobs waiting for the decks to stop
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_wake.notify_all();
+        }
+    }
+    m_idleSeconds = anyPlaying ? 0.0 : m_idleSeconds + 0.2;
+    constexpr double kIdleSecondsBeforeBest = 10.0;
+    if (m_idleSeconds >= kIdleSecondsBeforeBest && m_pBestWhenIdle->get() > 0) {
+        startIdleJobs();
+    }
+
     for (const auto& pDeck : m_decks) {
         if (pDeck->realStems) {
             pDeck->pProgress->forceSet(-1);
@@ -308,11 +404,51 @@ void StemSeparationService::reportSlow(const char* reason) {
 
 // ------------------------------------------------------------ worker thread
 
-bool StemSeparationService::ensureNet() {
+bool StemSeparationService::ensureNet(StemCache::Level level) {
+    if (level == StemCache::kLight) {
+        if (m_pLightNet) {
+            return true;
+        }
+        if (m_lightNetFailed.load(std::memory_order_relaxed)) {
+            return false;
+        }
+        const QString dir = stemsDataDir();
+        QDir().mkpath(dir);
+        const QString model = dir + QStringLiteral("/spleeter4.mnn");
+#ifdef __ANDROID__
+        const QString asset = QStringLiteral("assets:/stems/spleeter4.mnn");
+        if (QFileInfo(model).size() != QFileInfo(asset).size()) {
+            QFile::remove(model);
+            if (!QFile::copy(asset, model)) {
+                kLogger.warning() << "Cannot copy the light model to" << model;
+                m_lightNetFailed = true;
+                return false;
+            }
+        }
+#endif
+        const auto start = std::chrono::steady_clock::now();
+        auto pNet = std::make_unique<SpleeterNet>();
+        // 4 threads: ~12x real time on a Snapdragon 8 Gen 1, still above
+        // real time on phones a few times slower (the thread runs below
+        // the audio, see workerLoop())
+        if (!pNet->init(model.toStdString(), 4)) {
+            kLogger.warning() << "Cannot load the light stem model:"
+                              << QString::fromStdString(pNet->error());
+            m_lightNetFailed = true;
+            return false;
+        }
+        kLogger.info() << "Light stem model loaded in"
+                       << std::chrono::duration<double>(
+                                  std::chrono::steady_clock::now() - start)
+                                  .count()
+                       << "s";
+        m_pLightNet = std::move(pNet);
+        return true;
+    }
     if (m_pNet) {
         return true;
     }
-    if (m_netFailed) {
+    if (m_netFailed.load(std::memory_order_relaxed)) {
         return false;
     }
     const QString dir = stemsDataDir();
@@ -325,7 +461,7 @@ bool StemSeparationService::ensureNet() {
         QFile::remove(model);
         if (!QFile::copy(asset, model)) {
             kLogger.warning() << "Cannot copy the model to" << model;
-            m_netFailed = true;
+            m_netFailed.store(true);
             return false;
         }
     }
@@ -353,7 +489,7 @@ bool StemSeparationService::ensureNet() {
         if (!pNet->init(config)) {
             kLogger.warning() << "Cannot load the stem model:"
                               << QString::fromStdString(pNet->error());
-            m_netFailed = true;
+            m_netFailed.store(true);
             return false;
         }
     }
@@ -399,8 +535,36 @@ bool StemSeparationService::prepareJob(Job* pJob) {
     if (pJob->cancelled) {
         return false;
     }
-    pJob->pSeparator = std::make_unique<TrackSeparator>(m_pNet.get(), kOverlap);
+    if (pJob->level == StemCache::kLight) {
+        pJob->pSeparator = std::make_unique<SpleeterSeparator>(m_pLightNet.get());
+    } else {
+        pJob->pSeparator = std::make_unique<TrackSeparator>(m_pNet.get(), kOverlap);
+    }
     pJob->pSeparator->setTrack(audio.data(), frames);
+    if (pJob->idle) {
+        // Everything is separated again; the chunks keep their current
+        // stems until the new ones are complete
+        pJob->pCache->beginPass();
+    } else if (pJob->pSeparator->canSkipSegments()) {
+        // The parts already separated (at this quality or a better one, e.g.
+        // before switching to the light quality) are kept
+        int skipped = 0;
+        for (int segment = 0; segment < pJob->pSeparator->segmentCount(); ++segment) {
+            long first = 0;
+            long end = 0;
+            pJob->pSeparator->segmentRange(segment, &first, &end);
+            if (pJob->pCache->minLevel(first, end) >= pJob->level) {
+                pJob->pSeparator->skipSegment(segment);
+                ++skipped;
+            }
+        }
+        if (skipped > 0) {
+            kLogger.info() << pJob->group << skipped << "segments already separated";
+        }
+        if (skipped == pJob->pSeparator->segmentCount()) {
+            return false;
+        }
+    }
     kLogger.info() << pJob->group << "Decoded" << frames << "frames in"
                    << std::chrono::duration<double>(
                               std::chrono::steady_clock::now() - start)
@@ -416,9 +580,19 @@ std::shared_ptr<StemSeparationService::Job> StemSeparationService::pickJob(int* 
                          m_jobs.end(),
                          [](const auto& pJob) { return pJob->cancelled.load(); }),
             m_jobs.end());
+    // The decks that may play first; the pass at the best quality only
+    // while no deck plays
+    const bool anyPlaying = m_anyPlaying.load(std::memory_order_relaxed);
+    for (const bool idle : {false, true}) {
+    if (idle && anyPlaying) {
+        break;
+    }
     for (size_t k = 0; k < m_jobs.size(); ++k) {
         const size_t index = (m_nextJob + k) % m_jobs.size();
         const auto& pJob = m_jobs[index];
+        if (pJob->idle != idle) {
+            continue;
+        }
         if (!pJob->prepared) {
             m_nextJob = index + 1;
             *pSegment = -1;
@@ -427,7 +601,7 @@ std::shared_ptr<StemSeparationService::Job> StemSeparationService::pickJob(int* 
         if (!pJob->pSeparator) {
             continue;
         }
-        const TrackSeparator& sep = *pJob->pSeparator;
+        const Separator& sep = *pJob->pSeparator;
         const double position = pJob->pPlayPosition ? pJob->pPlayPosition->get() : 0.0;
         const int from = sep.segmentAt(static_cast<long>(std::max(0.0, position) * sep.frames()));
         for (int n = 0; n < sep.segmentCount(); ++n) {
@@ -439,7 +613,16 @@ std::shared_ptr<StemSeparationService::Job> StemSeparationService::pickJob(int* 
             }
         }
     }
+    }
     return nullptr;
+}
+
+bool StemSeparationService::hasRunnableJob() const {
+    // Caller holds m_mutex
+    const bool anyPlaying = m_anyPlaying.load(std::memory_order_relaxed);
+    return std::any_of(m_jobs.begin(), m_jobs.end(), [anyPlaying](const auto& pJob) {
+        return pJob->cancelled.load() || !pJob->idle || !anyPlaying;
+    });
 }
 
 void StemSeparationService::workerLoop() {
@@ -458,7 +641,7 @@ void StemSeparationService::workerLoop() {
         int segment = -1;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_wake.wait(lock, [this] { return m_quit || m_preloadNet || !m_jobs.empty(); });
+            m_wake.wait(lock, [this] { return m_quit || m_preloadNet || hasRunnableJob(); });
             if (m_quit) {
                 return;
             }
@@ -467,15 +650,22 @@ void StemSeparationService::workerLoop() {
             if (!pJob) {
                 if (preload) {
                     lock.unlock();
-                    ensureNet();
+                    ensureNet(liveLevelForWorker());
                 }
                 continue;
             }
         }
-        if (!ensureNet()) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_jobs.clear();
-            continue;
+        if (!ensureNet(pJob->level)) {
+            if (pJob->level == StemCache::kBalanced && ensureNet(StemCache::kLight)) {
+                // No htdemucs on this phone: the light quality instead
+                kLogger.warning() << "Using the light stem quality";
+                pJob->level = StemCache::kLight;
+            } else {
+                pJob->finished = true;
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_jobs.erase(std::remove(m_jobs.begin(), m_jobs.end(), pJob), m_jobs.end());
+                continue;
+            }
         }
         if (segment < 0) {
             if (!prepareJob(pJob.get())) {
@@ -487,19 +677,21 @@ void StemSeparationService::workerLoop() {
         }
         const auto start = std::chrono::steady_clock::now();
         StemCache* pCache = pJob->pCache.get();
-        m_busy.store(true, std::memory_order_relaxed);
+        const StemCache::Level level = pJob->level;
+        // The audio dropout check is only about the separations that run
+        // while decks may play
+        m_busy.store(!pJob->idle, std::memory_order_relaxed);
         const bool ok = pJob->pSeparator->processSegment(segment,
-                [pCache](long first, long count, const float* stems) {
-                    pCache->write(first, count, stems);
+                [pCache, level](long first, long count, const float* stems) {
+                    pCache->write(first, count, stems, level);
                 });
         m_busy.store(false, std::memory_order_relaxed);
         const double seconds = std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - start)
                                        .count();
         kLogger.debug() << pJob->group << "segment" << segment << "in" << seconds << "s";
-        if (ok && seconds > 0) {
-            // New audio per segment: the stride between segments
-            const double speed = (1.0 - kOverlap) * kSegmentFrames / kSampleRate / seconds;
+        if (ok && seconds > 0 && !pJob->idle) {
+            const double speed = pJob->pSeparator->segmentSeconds() / seconds;
             const double previous = m_speed.load(std::memory_order_relaxed);
             m_speed.store(previous > 0 ? 0.6 * previous + 0.4 * speed : speed,
                     std::memory_order_relaxed);
@@ -516,10 +708,13 @@ void StemSeparationService::workerLoop() {
         const bool finished = pJob->pSeparator->doneCount() == pJob->pSeparator->segmentCount();
         if (!ok || finished) {
             if (!ok) {
-                kLogger.warning() << pJob->group << "Separation failed:"
-                                  << QString::fromStdString(m_pNet->error());
+                kLogger.warning() << pJob->group << "Separation failed at level" << level
+                                  << QString::fromStdString(level == StemCache::kLight
+                                                     ? m_pLightNet->error()
+                                                     : m_pNet->error());
             } else {
-                kLogger.info() << pJob->group << "Stems complete for"
+                kLogger.info() << pJob->group << "Stems complete at level" << level
+                               << (pJob->idle ? "(while no deck played)" : "")
                                << pJob->pTrack->getLocation();
             }
             // The decoded track and the segments are not needed any more

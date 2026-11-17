@@ -27,6 +27,7 @@
 #include <thread>
 
 #include "preferences/usersettings.h"
+#include "stems/stemcache.h"
 #include "track/steminfo.h"
 #include "track/track_decl.h"
 
@@ -38,6 +39,7 @@ namespace stems {
 
 class StemCache;
 class HtdemucsNet;
+class SpleeterNet;
 class TrackSeparator;
 
 /// Whether decks open tracks without stems as progressive stem tracks
@@ -82,14 +84,25 @@ class StemSeparationService : public QObject {
         // but not ready yet
         double starvedSeconds = 0;
         std::shared_ptr<Job> pJob; // null: nothing to separate
+        // Separates the track again at the best quality while no deck plays
+        std::shared_ptr<Job> pIdleJob;
     };
 
     void requestSeparation(Deck* pDeck);
+    /// Quality of the stems separated while a deck may play
+    StemCache::Level liveLevel() const;
+    /// Quality of the separation while no deck plays
+    StemCache::Level bestLevel() const;
+    StemCache::Level liveLevelForWorker() const;
+    bool hasRunnableJob() const;
+    /// The quality changed: the separations in progress go on with it
+    void restartLiveJobs();
+    void startIdleJobs();
     /// Main thread: the separation does not keep up on this phone
     void checkPerformance();
     void reportSlow(const char* reason);
     void workerLoop();
-    bool ensureNet();
+    bool ensureNet(StemCache::Level level);
     bool prepareJob(Job* pJob);
     std::shared_ptr<Job> pickJob(int* pSegment);
 
@@ -125,10 +138,15 @@ class StemSeparationService : public QObject {
     std::atomic<double> m_speed{0};
     std::atomic<int> m_slowSegments{0}; // consecutive, while the deck plays
     std::atomic<bool> m_busy{false};
+    std::atomic<bool> m_anyPlaying{false};
+    // Set by the worker when a network cannot be loaded on this phone
+    std::atomic<bool> m_netFailed{false};
+    std::atomic<bool> m_lightNetFailed{false};
+    double m_idleSeconds = 0; // main thread
 
     // Worker thread only
     std::unique_ptr<HtdemucsNet> m_pNet;
-    bool m_netFailed = false;
+    std::unique_ptr<SpleeterNet> m_pLightNet;
 };
 
 } // namespace stems
