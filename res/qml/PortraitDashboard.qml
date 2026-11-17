@@ -46,7 +46,7 @@ Rectangle {
                     color: Theme.white
                     font.bold: true
                     font.pixelSize: 26
-                    text: "Mixxx"
+                    text: "Ubøros DJ"
                 }
                 Skin.Button {
                     activeColor: Theme.white
