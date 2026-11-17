@@ -47,6 +47,15 @@ QString deviceRootForFile(const QString& location);
 /// Does nothing when the cache already has the waveform of this track.
 bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao);
 
+/// "size|mtime" of the track's sidecar on the drive, empty if there is none.
+/// Lets the caller skip the costly comparison (needsExport compresses the
+/// waveforms) for sidecars it already verified or wrote.
+QString sidecarStamp(const TrackPointer& pTrack);
+
+/// Reads every sidecar of the drive once (worker thread) so the later imports
+/// on the GUI thread find them in the OS file cache instead of the slow drive
+void prefetchSidecars(const QString& root);
+
 /// True when the track has an analysis (beats and waveform) that is not on
 /// the device yet or differs from the one on the device.
 bool needsExport(const TrackPointer& pTrack, AnalysisDao& analysisDao);

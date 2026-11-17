@@ -104,6 +104,7 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     void onTrackAnalyzerProgress(TrackId trackId, AnalyzerProgress progress);
     void onTracksChanged(const QSet<TrackId>& trackIds);
     void exportNextAnalyses();
+    void autoScanDevices();
 
   private:
     QString formatRootViewHtml() const;
@@ -131,6 +132,11 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QFutureWatcher<QString> m_tracksFutureWatcher;
     QFuture<QString> m_tracksFuture;
     QString m_title;
+    // Android: look for drives by itself and analyze them in the background
+    QTimer m_autoScanTimer;
+    bool m_autoScan = false;
+    bool m_backgroundLoad = false;
+    void loadDevice(TreeItem* item, const QString& label, const QString& path);
 
     QSharedPointer<BaseTrackCache> m_trackSource;
 };

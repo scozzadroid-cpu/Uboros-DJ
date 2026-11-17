@@ -1602,6 +1602,33 @@ RekordboxFeature::RekordboxFeature(
             &RekordboxFeature::onTracksFound);
     // initialize the model
     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
+#ifdef __ANDROID__
+    // A drive that appears is read and analyzed right away, without opening
+    // the Rekordbox entry: first scan shortly after start, then every 5 s
+    connect(&m_autoScanTimer, &QTimer::timeout, this, &RekordboxFeature::autoScanDevices);
+    m_autoScanTimer.start(5000);
+    QTimer::singleShot(3000, this, &RekordboxFeature::autoScanDevices);
+#endif
+}
+
+void RekordboxFeature::autoScanDevices() {
+    if (m_devicesFuture.isRunning() || m_tracksFuture.isRunning()) {
+        return;
+    }
+    m_autoScan = true;
+    m_devicesFuture = QtConcurrent::run(findRekordboxDevices);
+    m_devicesFutureWatcher.setFuture(m_devicesFuture);
+}
+
+void RekordboxFeature::loadDevice(
+        TreeItem* item, const QString& label, const QString& path) {
+    m_tracksFuture = QtConcurrent::run(parseDeviceDB,
+            static_cast<Library*>(parent())->dbConnectionPool(),
+            item,
+            label,
+            path);
+    m_tracksFutureWatcher.setFuture(m_tracksFuture);
+    setBusyText(tr("Loading USB drive…"));
 }
 
 RekordboxFeature::~RekordboxFeature() {
@@ -1754,13 +1781,8 @@ void RekordboxFeature::activateChild(const QModelIndex& index) {
         qDebug() << "Parse Rekordbox Device DB: " << playlist;
 
         // Let a worker thread do the XML parsing
-        m_tracksFuture = QtConcurrent::run(parseDeviceDB,
-                static_cast<Library*>(parent())->dbConnectionPool(),
-                item,
-                item->getLabel(),
-                playlist);
-        m_tracksFutureWatcher.setFuture(m_tracksFuture);
-        setBusyText(tr("Loading USB drive…"));
+        m_backgroundLoad = false;
+        loadDevice(item, item->getLabel(), playlist);
 
         // This device is now a playlist element, future activations should treat is
         // as such
@@ -1847,6 +1869,25 @@ void RekordboxFeature::onRekordboxDevicesFound() {
     // calls a slot in the sidebarmodel such that 'isLoading' is removed from the feature title.
     m_title = tr("Rekordbox");
     emit featureLoadingFinished(this);
+
+    // Background scan: start reading any drive not loaded yet
+    if (m_autoScan) {
+        m_autoScan = false;
+        for (int i = 0; i < root->childRows() && !m_tracksFuture.isRunning(); i++) {
+            TreeItem* child = root->child(i);
+            const QList<QVariant> data = child->getData().toList();
+            if (data.size() < 2 || data[1].toString() != IS_RECORDBOX_DEVICE) {
+                continue;
+            }
+            qInfo() << "Rekordbox drive found:" << child->getLabel()
+                    << "- loading and analyzing in background";
+            QList<QVariant> updated = data;
+            updated[1] = QVariant(IS_NOT_RECORDBOX_DEVICE);
+            child->setData(QVariant(updated));
+            m_backgroundLoad = true;
+            loadDevice(child, child->getLabel(), data[0].toString());
+        }
+    }
 }
 
 void RekordboxFeature::setBusyText(const QString& text) {
@@ -1874,7 +1915,10 @@ void RekordboxFeature::onTracksFound() {
     qDebug() << "Show Rekordbox Device Playlist: " << devicePlaylist;
 
     m_pRekordboxPlaylistModel->setPlaylist(devicePlaylist);
-    emit showTrackModel(m_pRekordboxPlaylistModel);
+    if (!m_backgroundLoad) {
+        emit showTrackModel(m_pRekordboxPlaylistModel);
+    }
+    m_backgroundLoad = false;
 
     // Pre-analyze all the tracks of this device, once per device and run
     if (m_pConfig->getValue(mixxx::deviceanalysis::preanalysisConfigKey(), true) &&
@@ -1886,6 +1930,8 @@ void RekordboxFeature::onTracksFound() {
         m_preanalysisTracks.clear();
         qInfo() << "Rekordbox pre-analysis:" << m_pPreanalysisModel->rowCount()
                 << "track(s) on" << devicePlaylist;
+        // Warm the file cache with the drive's analyses in a worker thread
+        (void)QtConcurrent::run(mixxx::deviceanalysis::prefetchSidecars, devicePlaylist);
         // Let the UI settle first
         m_preanalysisTimer.start(1500);
         setBusyText(tr("Preparing USB drive…"));
@@ -1904,7 +1950,7 @@ void RekordboxFeature::preanalyzeNextBatch() {
     // interface draw (4 tracks per turn made it stutter for a minute)
     QElapsedTimer budget;
     budget.start();
-    constexpr qint64 kBudgetMs = 12;
+    constexpr qint64 kBudgetMs = 5;
     const int rowCount = m_pPreanalysisModel->rowCount();
     for (int i = 0; m_preanalysisRow < rowCount && (i == 0 || budget.elapsed() < kBudgetMs);
             ++i, ++m_preanalysisRow) {
@@ -1917,16 +1963,26 @@ void RekordboxFeature::preanalyzeNextBatch() {
             // Analysis already on the device: no need to analyze again
             mixxx::deviceanalysis::importIfAvailable(pTrack, analysisDao);
             // Analysis made here but not on the device yet
-            if (mixxx::deviceanalysis::needsExport(pTrack, analysisDao) &&
-                    !m_exportQueue.contains(pTrack->getId())) {
-                m_exportQueue.append(pTrack->getId());
+            // needsExport() compresses the waveforms: skip it for a sidecar
+            // already verified (same size and time as when it was checked)
+            const ConfigKey stampKey(QStringLiteral("[DeviceAnalysis]"),
+                    pTrack->getId().toString());
+            const QString stamp = mixxx::deviceanalysis::sidecarStamp(pTrack);
+            if (stamp.isEmpty() || m_pConfig->getValueString(stampKey) != stamp) {
+                if (mixxx::deviceanalysis::needsExport(pTrack, analysisDao)) {
+                    if (!m_exportQueue.contains(pTrack->getId())) {
+                        m_exportQueue.append(pTrack->getId());
+                    }
+                } else if (!stamp.isEmpty()) {
+                    m_pConfig->setValue(stampKey, stamp);
+                }
             }
             m_preanalysisTracks.append(AnalyzerScheduledTrack(pTrack->getId()));
         }
     }
     if (m_preanalysisRow < rowCount) {
         setBusyText(tr("Preparing USB drive… %1/%2").arg(m_preanalysisRow).arg(rowCount));
-        m_preanalysisTimer.start(30);
+        m_preanalysisTimer.start(25);
         return;
     }
     setBusyText(QString());
