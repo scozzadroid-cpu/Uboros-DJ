@@ -317,6 +317,24 @@ Mixxx.LibrarySourceTree {
         label: qsTr("All...")
         columns: root.defaultColumns
     }
+    // Ways to split the library: playlists and crates (Mixxx), artists and
+    // folders (groups of the library tracks)
+    Mixxx.LibraryPlaylistSource {
+        label: qsTr("Playlists")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryCrateSource {
+        label: qsTr("Crates")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryArtistSource {
+        label: qsTr("Artists")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryFolderSource {
+        label: qsTr("Folders")
+        columns: root.defaultColumns
+    }
     // USB drives exported with Rekordbox. The devices are searched when the
     // entry is selected.
     Mixxx.LibraryRekordboxSource {

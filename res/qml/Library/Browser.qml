@@ -158,6 +158,21 @@ Rectangle {
         }
     }
 
+    // Any LOAD button of the controller acts as Enter while the cursor is on
+    // the sources (the track list handles them itself, see Control.qml)
+    Instantiator {
+        model: 8
+        delegate: Mixxx.ControlProxy {
+            required property int index
+            group: "[Channel" + (Math.floor(index / 2) + 1) + "]"
+            key: index % 2 == 0 ? "LoadSelectedTrack" : "LoadSelectedTrackAndPlay"
+            onValueChanged: (value) => {
+                if (value != 0 && root.controllerFocus)
+                    Qt.callLater(root.openSelection);
+            }
+        }
+    }
+
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "GoToItem"

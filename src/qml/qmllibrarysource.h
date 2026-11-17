@@ -23,6 +23,39 @@
 
 class LibraryTableModel;
 class TreeItemModel;
+class TreeItem;
+
+/// Library tracks grouped by artist or by folder: the sidebar lists the
+/// groups, selecting one shows its tracks (a library search on that group)
+class GroupedTrackFeature final : public LibraryFeature {
+    Q_OBJECT
+  public:
+    enum class Mode { Artist, Folder };
+    GroupedTrackFeature(Library* pLibrary, UserSettingsPointer pConfig, Mode mode);
+    ~GroupedTrackFeature() override = default;
+
+    QVariant title() override {
+        return m_mode == Mode::Artist ? tr("Artists") : tr("Folders");
+    }
+    TreeItemModel* sidebarModel() const override {
+        return m_pSidebarModel;
+    }
+    bool hasTrackTable() override {
+        return true;
+    }
+
+  public slots:
+    void activate() override;
+    void activateChild(const QModelIndex& index) override;
+
+  private:
+    void reloadGroups();
+
+    const Mode m_mode;
+    LibraryTableModel* m_pTableModel;
+    parented_ptr<TreeItemModel> m_pSidebarModel;
+    bool m_loaded = false;
+};
 class AllTrackLibraryFeature final : public LibraryFeature {
     Q_OBJECT
   public:
@@ -149,6 +182,63 @@ class QmlLibraryBrowseSource : public QmlLibrarySource {
   private:
     // Owned by the library
     LibraryFeature* m_pLibraryFeature;
+};
+
+/// Playlists and crates of the library (owned by the library)
+class QmlLibraryPlaylistSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryPlaylistSource)
+  public:
+    explicit QmlLibraryPlaylistSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature;
+    }
+
+  private:
+    LibraryFeature* m_pLibraryFeature;
+};
+
+class QmlLibraryCrateSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryCrateSource)
+  public:
+    explicit QmlLibraryCrateSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature;
+    }
+
+  private:
+    LibraryFeature* m_pLibraryFeature;
+};
+
+class QmlLibraryArtistSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryArtistSource)
+  public:
+    explicit QmlLibraryArtistSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+
+  private:
+    std::unique_ptr<GroupedTrackFeature> m_pLibraryFeature;
+};
+
+class QmlLibraryFolderSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryFolderSource)
+  public:
+    explicit QmlLibraryFolderSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+
+  private:
+    std::unique_ptr<GroupedTrackFeature> m_pLibraryFeature;
 };
 
 } // namespace qml
