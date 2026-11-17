@@ -271,6 +271,11 @@ double EngineBufferScaleLinear::do_scale(CSAMPLE* buf, SINT buf_size) {
                 SampleUtil::copy(m_floorSample.data(), &m_bufferInt[sampleCount], chCount);
             }
 
+            // Nothing to read (e.g. spinning back past the start of the track):
+            // getNextSamples() would return 0 forever and the audio callback
+            // never returned. A few empty reads are normal after a loop jump.
+            int emptyReads = 0;
+            bool noMoreSamples = false;
             do {
                 SINT oldBufferFrames = getOutputSignal().samples2frames(m_bufferIntSize);
                 if (unscaled_frames_needed == 0) {
@@ -291,6 +296,10 @@ double EngineBufferScaleLinear::do_scale(CSAMPLE* buf, SINT buf_size) {
                 // Note we may get 0 samples once if we just hit a loop trigger,
                 // e.g. when reloop_toggle jumps back to loop_in, or when
                 // moving a loop causes the play position to be moved along.
+                if (m_bufferIntSize == 0 && ++emptyReads > 4) {
+                    noMoreSamples = true;
+                    break;
+                }
 
                 unscaled_frames_needed -= getOutputSignal().samples2frames(m_bufferIntSize);
 
@@ -301,6 +310,10 @@ double EngineBufferScaleLinear::do_scale(CSAMPLE* buf, SINT buf_size) {
 
                 sampleCount = getOutputSignal().frames2samples(currentFrameFloor);
             } while (sampleCount + 2 * chCount - 1 >= m_bufferIntSize);
+            if (noMoreSamples) {
+                // the rest of the buffer is cleared after the loop
+                break;
+            }
 
             // Now that the buffer is up to date, we can get the value of the sample
             // at the floor of our position.
