@@ -24,6 +24,21 @@ Rectangle {
         group: "[Stems]"
         key: "slow_detected"
     }
+    // Not modal and reported once per session: if nobody answers it goes
+    // away by itself, also when the screen turns off or the app is paused.
+    Timer {
+        interval: 15000
+        running: root.shown
+        onTriggered: slowControl.value = 0
+    }
+    Connections {
+        function onStateChanged() {
+            if (Qt.application.state !== Qt.ApplicationActive && root.shown)
+                slowControl.value = 0;
+        }
+
+        target: Qt.application
+    }
     Mixxx.ControlProxy {
         id: qualityControl
 
