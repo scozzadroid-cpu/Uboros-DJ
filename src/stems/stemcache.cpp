@@ -216,9 +216,9 @@ StemCache::Level StemCache::minLevel(long start, long end) const {
     start = std::max(0L, start);
     end = std::min(end, m_frames);
     if (start >= end) {
-        return kBalanced;
+        return kBest;
     }
-    Level level = kBalanced;
+    Level level = kBest;
     for (long c = start / kChunkFrames; c <= (end - 1) / kChunkFrames; ++c) {
         level = std::min(level, chunkLevel(c));
     }

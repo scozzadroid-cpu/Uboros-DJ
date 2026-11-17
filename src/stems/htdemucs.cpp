@@ -188,19 +188,7 @@ TrackSeparator::TrackSeparator(HtdemucsNet* pNet, double overlap)
         : m_pNet(pNet),
           m_overlap(overlap),
           m_pFft(std::make_unique<Fft>()) {
-    // demucs: triangle with its maximum in the middle, normalized to 1
-    m_weight.resize(kSegmentFrames);
-    const int half = kSegmentFrames / 2;
-    for (int i = 0; i < half; ++i) {
-        m_weight[i] = static_cast<float>(i + 1);
-    }
-    for (int i = half; i < kSegmentFrames; ++i) {
-        m_weight[i] = static_cast<float>(kSegmentFrames - i);
-    }
-    const float maxWeight = *std::max_element(m_weight.begin(), m_weight.end());
-    for (float& w : m_weight) {
-        w /= maxWeight;
-    }
+    initWeights();
     // torch.hann_window (periodic)
     m_window.resize(kNfft);
     for (int n = 0; n < kNfft; ++n) {
@@ -222,6 +210,33 @@ TrackSeparator::TrackSeparator(HtdemucsNet* pNet, double overlap)
     m_x.resize(kStemCount * kMagSize);
     m_xt.resize(kStemCount * 2 * kSegmentFrames);
     m_stem.resize(kSegmentFrames);
+}
+
+TrackSeparator::TrackSeparator(SegmentNet* pNet, double overlap)
+        : m_pSegmentNet(pNet),
+          m_segmentFrames(pNet->segmentFrames()),
+          m_overlap(overlap),
+          m_pFft(std::make_unique<Fft>()) {
+    initWeights();
+    m_mix.resize(2 * m_segmentFrames);
+    // The stems of a segment
+    m_xt.resize(kStemCount * 2 * m_segmentFrames);
+}
+
+void TrackSeparator::initWeights() {
+    // demucs: triangle with its maximum in the middle, normalized to 1
+    m_weight.resize(m_segmentFrames);
+    const long half = m_segmentFrames / 2;
+    for (long i = 0; i < half; ++i) {
+        m_weight[i] = static_cast<float>(i + 1);
+    }
+    for (long i = half; i < m_segmentFrames; ++i) {
+        m_weight[i] = static_cast<float>(m_segmentFrames - i);
+    }
+    const float maxWeight = *std::max_element(m_weight.begin(), m_weight.end());
+    for (float& w : m_weight) {
+        w /= maxWeight;
+    }
 }
 
 TrackSeparator::~TrackSeparator() = default;
@@ -248,7 +263,7 @@ void TrackSeparator::setTrack(const float* interleaved, long frames) {
     }
     // As demucs: int((1 - overlap) * segment_length) in double (with a float
     // overlap the stride can be one frame shorter: every segment shifted)
-    const long stride = static_cast<long>((1.0 - m_overlap) * kSegmentFrames);
+    const long stride = static_cast<long>((1.0 - m_overlap) * m_segmentFrames);
     m_offsets.clear();
     for (long offset = 0; offset < frames; offset += stride) {
         m_offsets.push_back(offset);
@@ -259,7 +274,7 @@ void TrackSeparator::setTrack(const float* interleaved, long frames) {
 
 int TrackSeparator::segmentAt(long frame) const {
     for (int i = 0; i < segmentCount(); ++i) {
-        if (frame < m_offsets[i] + kSegmentFrames) {
+        if (frame < m_offsets[i] + m_segmentFrames) {
             return i;
         }
     }
@@ -320,17 +335,31 @@ bool TrackSeparator::processSegment(int segment, const Output& output) {
         return true;
     }
     const long offset = m_offsets[segment];
-    const long length = std::min<long>(kSegmentFrames, m_frames - offset);
+    const long length = std::min<long>(m_segmentFrames, m_frames - offset);
     // demucs TensorChunk.padded(): a short last chunk is centered, taking the
     // audio before it, and zero padded after the end of the track
-    const long delta = kSegmentFrames - length;
+    const long delta = m_segmentFrames - length;
     const long start = offset - delta / 2;
     for (int c = 0; c < 2; ++c) {
-        for (long i = 0; i < kSegmentFrames; ++i) {
+        for (long i = 0; i < m_segmentFrames; ++i) {
             const long src = start + i;
-            m_mix[long(c) * kSegmentFrames + i] =
+            m_mix[long(c) * m_segmentFrames + i] =
                     (src >= 0 && src < m_frames) ? m_track[c][src] : 0.0f;
         }
+    }
+    const long trim = delta / 2; // demucs center_trim
+    std::vector<float>& segOut = m_segmentOut[segment];
+    if (m_pSegmentNet) {
+        if (!m_pSegmentNet->separate(m_mix.data(), m_xt.data())) {
+            return false;
+        }
+        segOut.assign(size_t(kStemCount) * 2 * length, 0.0f);
+        for (int sc = 0; sc < kStemCount * 2; ++sc) {
+            std::copy_n(m_xt.data() + sc * m_segmentFrames + trim,
+                    length,
+                    segOut.data() + sc * length);
+        }
+        return finishSegment(segment, output);
     }
     spectrogram(m_mix.data(), m_mag.data());
     // The normalizations of the network input, done here in double: their
@@ -343,8 +372,6 @@ bool TrackSeparator::processSegment(int segment, const Output& output) {
     if (!m_pNet->run(mixn.data(), magn.data(), m_x.data(), m_xt.data())) {
         return false;
     }
-    const long trim = delta / 2; // demucs center_trim
-    std::vector<float>& segOut = m_segmentOut[segment];
     segOut.assign(size_t(kStemCount) * 2 * length, 0.0f);
     for (int s = 0; s < kStemCount; ++s) {
         float* x = m_x.data() + long(s) * kMagSize;
@@ -361,6 +388,12 @@ bool TrackSeparator::processSegment(int segment, const Output& output) {
             }
         }
     }
+    return finishSegment(segment, output);
+}
+
+bool TrackSeparator::finishSegment(int segment, const Output& output) {
+    const long offset = m_offsets[segment];
+    const long length = segmentEnd(segment) - offset;
     m_done[segment] = true;
 
     // Frames of this segment that are final now: split at the boundaries of
@@ -441,7 +474,7 @@ int TrackSeparator::doneCount() const {
 bool TrackSeparator::isRangeFinal(long start, long end) const {
     for (int i = 0; i < segmentCount(); ++i) {
         const long segStart = m_offsets[i];
-        const long segEnd = std::min<long>(segStart + kSegmentFrames, m_frames);
+        const long segEnd = std::min<long>(segStart + m_segmentFrames, m_frames);
         if (segStart < end && segEnd > start && !m_done[i]) {
             return false;
         }

@@ -40,6 +40,7 @@ namespace stems {
 class StemCache;
 class HtdemucsNet;
 class SpleeterNet;
+class ScnetNet;
 class TrackSeparator;
 
 /// Whether decks open tracks without stems as progressive stem tracks
@@ -142,11 +143,13 @@ class StemSeparationService : public QObject {
     // Set by the worker when a network cannot be loaded on this phone
     std::atomic<bool> m_netFailed{false};
     std::atomic<bool> m_lightNetFailed{false};
+    std::atomic<bool> m_bestNetFailed{false};
     double m_idleSeconds = 0; // main thread
 
     // Worker thread only
     std::unique_ptr<HtdemucsNet> m_pNet;
     std::unique_ptr<SpleeterNet> m_pLightNet;
+    std::unique_ptr<ScnetNet> m_pBestNet;
 };
 
 } // namespace stems
