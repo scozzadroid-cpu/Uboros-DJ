@@ -6,7 +6,40 @@
 #include "moc_asyncimageprovider.cpp"
 #include "track/track.h"
 
+#include <QCache>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QStandardPaths>
+
 namespace {
+// Thumbnail caches: the track table asks for the same few covers again every
+// time a row is created/reused while scrolling. Decoding them from the audio
+// file (a USB stick or SD card) each time caused scroll hitches.
+// RAM: 400 thumbnails (~96x96 -> 37 KB each); disk: survives restarts.
+QMutex s_thumbMutex;
+QCache<QString, QImage>& thumbCache() {
+    static QCache<QString, QImage> s_cache(400);
+    return s_cache;
+}
+QString thumbDiskPath(const QString& key) {
+    static const QString dir = [] {
+        QString d = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+                QStringLiteral("/thumbs");
+        QDir().mkpath(d);
+        return d;
+    }();
+    return dir + QLatin1Char('/') +
+            QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1)
+                                        .toHex()) +
+            QStringLiteral(".jpg");
+}
+// Only small thumbnails are cached (table rows); big covers are not
+bool cacheable(const QSize& size) {
+    return size.width() > 0 && size.width() <= 256 && size.height() > 0 && size.height() <= 256;
+}
 const QString kCoverArtPrefix = QStringLiteral("coverart/");
 
 // Covers embedded in files are often 1000-3000 px wide: decoding and
@@ -69,6 +102,39 @@ void AsyncImageResponse::run() {
         return;
     }
     const QString trackLocation = AsyncImageProvider::coverArtUrlIdToTrackLocation(m_id);
+    const bool useCache = cacheable(m_requestedSize);
+    const QString cacheKey = trackLocation + QLatin1Char('|') +
+            QString::number(m_requestedSize.width()) + QLatin1Char('x') +
+            QString::number(m_requestedSize.height());
+    if (useCache) {
+        {
+            QMutexLocker lock(&s_thumbMutex);
+            if (const QImage* pCached = thumbCache().object(cacheKey)) {
+                m_image = *pCached;
+                emit finished();
+                return;
+            }
+        }
+        QImage fromDisk(thumbDiskPath(cacheKey));
+        if (!fromDisk.isNull()) {
+            m_image = fromDisk;
+            QMutexLocker lock(&s_thumbMutex);
+            thumbCache().insert(cacheKey, new QImage(fromDisk));
+            emit finished();
+            return;
+        }
+    }
+    // Stores the result (after the cover has been loaded) in both caches
+    auto storeInCache = [&]() {
+        if (!useCache || m_image.isNull()) {
+            return;
+        }
+        {
+            QMutexLocker lock(&s_thumbMutex);
+            thumbCache().insert(cacheKey, new QImage(m_image));
+        }
+        m_image.save(thumbDiskPath(cacheKey), "JPG", 85);
+    };
     const auto trackRef = TrackRef::fromFilePath(trackLocation);
 
     // TODO: Only load CoverInfo from TrackCollectionManager
@@ -94,6 +160,7 @@ void AsyncImageResponse::run() {
                 mixxx::FileAccess(mixxx::FileInfo(trackLocation)));
         if (!image.isNull()) {
             m_image = scaledCover(image, m_requestedSize);
+            storeInCache();
         }
         emit finished();
         return;
@@ -109,6 +176,7 @@ void AsyncImageResponse::run() {
     case CoverInfo::LoadedImage::Result::Ok:
         DEBUG_ASSERT(!loadedImage.image.isNull());
         m_image = scaledCover(loadedImage.image, m_requestedSize);
+        storeInCache();
         break;
     default:
         qWarning() << "ImageProvider: Failed to load cover art" << trackRef;

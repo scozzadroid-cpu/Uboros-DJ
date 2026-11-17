@@ -161,8 +161,10 @@ Mixxx.LibrarySourceTree {
 
     defaultColumns: [
         Mixxx.TrackListColumn {
-            // Smaller cover column on phones, the table needs the room
-            preferredWidth: Qt.platform.os === "android" ? 40 : 110
+            // No cover column on phones (width 0: TableView creates no cells
+            // for it): covers are shown on the decks, and loading one per row
+            // made scrolling stutter
+            preferredWidth: Qt.platform.os === "android" ? 0 : 110
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
 
