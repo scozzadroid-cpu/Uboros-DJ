@@ -263,6 +263,24 @@ ApplicationWindow {
 
                     onClicked: Mixxx.AutoMix.active = !Mixxx.AutoMix.active
                 }
+                Skin.Button {
+                    id: liveStemsButton
+                    // Separate the stems of every track without stems as
+                    // soon as it is loaded (not only on SMART CFX)
+                    activeColor: "#c77dff"
+                    checkable: true
+                    checked: liveStemsControl.value > 0
+                    text: "Live Stems"
+
+                    onClicked: liveStemsControl.value = liveStemsControl.value > 0 ? 0 : 1
+
+                    Mixxx.ControlProxy {
+                        id: liveStemsControl
+
+                        group: "[Stems]"
+                        key: "live_stems"
+                    }
+                }
                 Text {
                     // What Auto Mix is doing: next track, countdown, mixing
                     Layout.fillWidth: true
