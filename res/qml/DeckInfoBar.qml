@@ -462,8 +462,10 @@ Rectangle {
         width: root.rightColumnWidth
         // Current BPM like on a CDJ: the track's BPM times the tempo fader.
         // Not the local "bpm" of the beat grid, which wanders by a few
-        // hundredths on rekordbox grids (one tempo per beat).
-        readonly property real displayBpm: fileBpmControl.value > 0
+        // hundredths on rekordbox grids (one tempo per beat). With SYNC on,
+        // the tempo that sync matches (the local "bpm"), so that synced decks
+        // show the same BPM even when a grid is not constant.
+        readonly property real displayBpm: fileBpmControl.value > 0 && !syncEnabledControl.value
             ? fileBpmControl.value * rateRatioControl.value
             : bpmControl.value
         // A rekordbox grid that could not be checked against the audio (its
