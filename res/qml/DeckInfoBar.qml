@@ -330,6 +330,24 @@ Rectangle {
         anchors.verticalCenter: infoBarArtist.verticalCenter
         spacing: 3
 
+        // Instant stems: progress, green when ready. Tap: separate the stems
+        // of this track now (as SMART CFX)
+        Skin.StatusChip {
+            id: instantStemBadge
+
+            readonly property real progress: stemProgressControl.value
+
+            text: progress >= 1
+                ? "STEMS"
+                : (progress > 0 ? "STEMS " + Math.floor(progress * 100) + "%" : "STEMS \u25B6")
+            tint: progress >= 1 ? "#40ff60" : "#33c8ff"
+            active: progress >= 0
+
+            TapHandler {
+                onTapped: stemSeparateControl.value = 1
+            }
+        }
+
         Skin.StatusChip {
             text: "MASTER"
             tint: "#ff9a3c"
@@ -650,46 +668,6 @@ Rectangle {
 
         group: root.group
         key: "stem_separate"
-    }
-
-    // Tap: separate the stems of this track now (as SMART CFX)
-    Rectangle {
-        id: instantStemBadge
-
-        readonly property real progress: stemProgressControl.value
-
-        visible: progress >= 0 && trackLoadedControl.value != 0
-        z: 10
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 4
-        width: instantStemText.implicitWidth + 8
-        height: instantStemText.implicitHeight + 2
-        radius: 3
-        opacity: 0.9
-        color: progress >= 1 ? "#1f4a2a" : (progress > 0 ? "#102a3a" : "#2a2a2a")
-        border.width: 1
-        border.color: progress >= 1 ? "#40ff60" : "#33c8ff"
-
-        Text {
-            id: instantStemText
-
-            anchors.centerIn: parent
-            text: instantStemBadge.progress >= 1
-                ? qsTr("STEMS")
-                : (instantStemBadge.progress > 0
-                    ? qsTr("STEMS %1%").arg(Math.floor(instantStemBadge.progress * 100))
-                    : qsTr("STEMS ▶"))
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.textFontPixelSize - 5
-            font.bold: true
-            color: instantStemBadge.progress >= 1 ? "#9fffb0" : "#9fe6ff"
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: stemSeparateControl.value = 1
-        }
     }
 
     Rectangle {
