@@ -1032,20 +1032,6 @@
         </controls>
         <outputs>
             <output>
-                <group>[Channel2]</group>
-                <key>hotcue_4_enabled</key>
-                <description></description>
-                <options>
-                    <normal/>
-                </options>
-                <minimum>0.5</minimum>
-                <maximum>1</maximum>
-                <status>0x90</status>
-                <midino>0x1c</midino>
-                <on>0x7f</on>
-                <off>0x0</off>
-            </output>
-            <output>
                 <group>[Channel1]</group>
                 <key>hotcue_1_enabled</key>
                 <description></description>
@@ -1158,20 +1144,6 @@
                 <off>0x0</off>
             </output>
             <output>
-                <group>[Channel2]</group>
-                <key>loop_start_position</key>
-                <description></description>
-                <options>
-                    <normal/>
-                </options>
-                <minimum>0</minimum>
-                <maximum>1e+07</maximum>
-                <status>0x90</status>
-                <midino>0x1</midino>
-                <on>0x7f</on>
-                <off>0x0</off>
-            </output>
-            <output>
                 <status>0x90</status>
                 <midino>0x1b</midino>
                 <group>[EffectRack1_EffectUnit1]</group>
@@ -1238,20 +1210,6 @@
                 <maximum>1</maximum>
                 <status>0x90</status>
                 <midino>0x23</midino>
-                <on>0x7f</on>
-                <off>0x0</off>
-            </output>
-            <output>
-                <group>[Channel2]</group>
-                <key>hotcue_3_enabled</key>
-                <description></description>
-                <options>
-                    <normal/>
-                </options>
-                <minimum>0.5</minimum>
-                <maximum>1</maximum>
-                <status>0x90</status>
-                <midino>0x1b</midino>
                 <on>0x7f</on>
                 <off>0x0</off>
             </output>

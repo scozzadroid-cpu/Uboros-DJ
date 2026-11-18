@@ -380,6 +380,23 @@ void ControllerManager::autoConfigureController(Controller* pController) {
             ++matches;
         }
     }
+    if (matches > 1) {
+        // Ambiguous last word ("Control", "Advanced"...): try the full name
+        const QString fullName = pController->getName().toLower();
+        QString exactPath;
+        int exactMatches = 0;
+        for (const MappingInfo& mapping : mappings) {
+            const QString mappingName = mapping.getName().toLower();
+            if (fullName.contains(mappingName) || mappingName.contains(fullName)) {
+                exactPath = mapping.getPath();
+                ++exactMatches;
+            }
+        }
+        if (exactMatches == 1) {
+            matchPath = exactPath;
+            matches = 1;
+        }
+    }
     if (matches != 1) {
         qDebug() << "No unique mapping for" << pController->getName() << "found"
                  << matches;

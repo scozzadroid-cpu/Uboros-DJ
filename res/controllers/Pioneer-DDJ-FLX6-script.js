@@ -284,6 +284,12 @@ PioneerDDJFLX6.sidebarFocused = function() {
 PioneerDDJFLX6.browsePressed = function(_channel, _control, value) {
     if (value === 0) { return; }
 
+    // Compact (phone) layout hides the library: first press shows it again
+    if (engine.getValue("[Skin]", "show_library") === 0) {
+        engine.setValue("[Skin]", "show_library", 1);
+        return;
+    }
+
     if (PioneerDDJFLX6.sidebarFocused()) {
         script.triggerControl("[Library]", "GoToItem", 100);
     } else {

@@ -1,5 +1,23 @@
 var RaneFour = {};
 
+// State used by the jog/scratch handlers below (undefined before, so a call threw)
+RaneFour.scratchEnabled = false;
+RaneFour.swapJogWheel = false;
+RaneFour.rightJogWheelGroup = "[Channel2]";
+RaneFour.previewOnDeck = {"[Channel1]": false, "[Channel2]": false};
+RaneFour.navigationStatus = {enabled: false, timeoutId: null, direction: 0};
+RaneFour.userSettings = {
+    useSingleJogWheelHack: false,
+    crossfaderScratchCurve: false,
+    sensitivity: 1,
+    vinylSpeed: 33 + 1 / 3,
+    alpha: 1 / 8,
+    beta: 1 / 8 / 32
+};
+RaneFour.doNavigateAction = function() {};
+RaneFour.init = function() {};
+RaneFour.shutdown = function() {};
+
 //colorines led varios serato
 // The SysEx message to send to the controller to force the midi controller
 // to send the status of every item on the control surface.
@@ -410,3 +428,43 @@ Allí tienes un script de ejemplo para saber la razón de cambio, es simplemente
 
 
 */
+
+// ---------------------------------------------------------------------------
+// Jog wheels (clean versions, they replace the drafts above).
+// Message numbers come from a capture on a real Four (notes in this file):
+//   jog turn  : CC 0x06 on channel 1 (deck 1) / channel 2 (deck 2), 0xB0/0xB1
+//   jog touch : note 0x50, 0x90/0x91 pressed, 0x80/0x81 released
+// Relative values: 1..63 forward, 65..127 backward (two's complement 7 bits).
+// Not verified on the unit: if the wheel goes the wrong way, flip `direction`.
+// ---------------------------------------------------------------------------
+RaneFour.scratchEnabled = true;
+
+RaneFour.jogDelta = function(value) {
+    return value < 0x40 ? value : value - 0x80;
+};
+
+RaneFour.wheelTouch = function(channel, control, value, status, group) {
+    const deck = script.deckFromGroup(group);
+    if (value > 0 && RaneFour.scratchEnabled) {
+        engine.scratchEnable(deck,
+            256 * RaneFour.userSettings.sensitivity,
+            RaneFour.userSettings.vinylSpeed,
+            RaneFour.userSettings.alpha,
+            RaneFour.userSettings.beta);
+    } else {
+        engine.scratchDisable(deck);
+    }
+    RaneFour.swapJogWheel = value > 0;
+};
+
+// One handler for both cases: scratching while touched, pitch bend otherwise
+RaneFour.scratchWheel = function(channel, control, value, status, group) {
+    const delta = RaneFour.jogDelta(value);
+    const deck = script.deckFromGroup(group);
+    if (engine.isScratching(deck)) {
+        engine.scratchTick(deck, delta);
+    } else {
+        engine.setValue(group, "jog", delta * 0.1);
+    }
+};
+RaneFour.jogWheel = RaneFour.scratchWheel;
