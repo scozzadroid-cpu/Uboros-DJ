@@ -4,6 +4,8 @@
 #include <optional>
 #include <QtConcurrentRun>
 
+#include "util/threadpriority.h"
+
 #include "library/library.h"
 #include "mixer/playerinfo.h"
 
@@ -1563,6 +1565,7 @@ RekordboxFeature::RekordboxFeature(
             &QTimer::timeout,
             this,
             &RekordboxFeature::preanalyzeNextBatch);
+    m_exportPool.setMaxThreadCount(1);
     m_exportTimer.setSingleShot(true);
     connect(&m_exportTimer,
             &QTimer::timeout,
@@ -1963,8 +1966,9 @@ void RekordboxFeature::preanalyzeNextBatch() {
             // Analysis already on the device: no need to analyze again
             mixxx::deviceanalysis::importIfAvailable(pTrack, analysisDao);
             // Analysis made here but not on the device yet
-            // needsExport() compresses the waveforms: skip it for a sidecar
-            // already verified (same size and time as when it was checked)
+            // The comparison with the sidecar (compressing the waveforms) is
+            // slow even in the export worker: skip it for a sidecar already
+            // verified (same size and time as when it was checked)
             const ConfigKey stampKey(QStringLiteral("[DeviceAnalysis]"),
                     pTrack->getId().toString());
             const QString stamp = mixxx::deviceanalysis::sidecarStamp(pTrack);
@@ -2037,6 +2041,19 @@ void RekordboxFeature::exportNextAnalyses() {
     if (m_exportWrite.isValid() && m_exportWrite.isFinished()) {
         const auto result = m_exportWrite.result();
         m_exportWrite = {};
+        // The sidecar now matches the analysis: remember its size and time so
+        // that the next start does not compare it again
+        if (m_exportWriteTrack && m_exportWriteTrack->getId().isValid() &&
+                (result == mixxx::deviceanalysis::ExportResult::Written ||
+                        result == mixxx::deviceanalysis::ExportResult::Unchanged)) {
+            const QString stamp = mixxx::deviceanalysis::sidecarStamp(m_exportWriteTrack);
+            if (!stamp.isEmpty()) {
+                m_pConfig->setValue(ConfigKey(QStringLiteral("[DeviceAnalysis]"),
+                                            m_exportWriteTrack->getId().toString()),
+                        stamp);
+            }
+        }
+        m_exportWriteTrack.reset();
         if (result == mixxx::deviceanalysis::ExportResult::ReadOnly) {
             if (!m_exportReadOnlyLogged) {
                 qInfo() << "Device analysis: the device is read-only, analyses"
@@ -2061,11 +2078,16 @@ void RekordboxFeature::exportNextAnalyses() {
         }
         mixxx::deviceanalysis::ExportJob job =
                 mixxx::deviceanalysis::prepareExport(pTrack, analysisDao);
-        if (job.content.isEmpty()) {
+        if (!job.hasData) {
             continue;
         }
-        m_exportWrite = QtConcurrent::run(
-                [job = std::move(job)]() { return mixxx::deviceanalysis::writeExport(job); });
+        m_exportWriteTrack = pTrack;
+        m_exportWrite = QtConcurrent::run(&m_exportPool, [job = std::move(job)]() {
+            // Compressing the waveforms must never slow down the interface
+            mixxx::demoteCurrentThreadToBackground(
+                    mixxx::kThreadNiceLowest, "DeviceAnalysisExport");
+            return mixxx::deviceanalysis::writeExport(job);
+        });
         break;
     }
     if (!m_exportQueue.isEmpty() || m_exportWrite.isValid()) {

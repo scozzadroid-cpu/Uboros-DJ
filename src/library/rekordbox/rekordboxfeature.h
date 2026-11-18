@@ -32,6 +32,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QStringListModel>
+#include <QThreadPool>
 #include <QtConcurrentRun>
 #include <fstream>
 
@@ -126,6 +127,10 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     bool m_exportReadOnlyLogged = false;
     // Comparing with the drive and writing run in a worker thread, one at a time
     QFuture<mixxx::deviceanalysis::ExportResult> m_exportWrite;
+    TrackPointer m_exportWriteTrack;
+    // Own pool: its only thread is lowered to background priority (the global
+    // pool is shared and a thread cannot get its priority back)
+    QThreadPool m_exportPool;
 
     QFutureWatcher<QList<TreeItem*>> m_devicesFutureWatcher;
     QFuture<QList<TreeItem*>> m_devicesFuture;

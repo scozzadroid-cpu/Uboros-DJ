@@ -1,5 +1,8 @@
 #pragma once
 
+#include <QByteArray>
+#include <QJsonObject>
+#include <QList>
 #include <QString>
 
 #include "preferences/configobject.h"
@@ -48,7 +51,7 @@ QString deviceRootForFile(const QString& location);
 bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao);
 
 /// "size|mtime" of the track's sidecar on the drive, empty if there is none.
-/// Lets the caller skip the costly comparison (needsExport compresses the
+/// Lets the caller skip the costly comparison (writeExport compresses the
 /// waveforms) for sidecars it already verified or wrote.
 QString sidecarStamp(const TrackPointer& pTrack);
 
@@ -56,8 +59,10 @@ QString sidecarStamp(const TrackPointer& pTrack);
 /// on the GUI thread find them in the OS file cache instead of the slow drive
 void prefetchSidecars(const QString& root);
 
-/// True when the track has an analysis (beats and waveform) that is not on
-/// the device yet or differs from the one on the device.
+/// True when the track is on a device and has a waveform in Mixxx's analysis
+/// cache, so it is worth comparing with (and storing on) the device. Cheap:
+/// the comparison, which needs the compressed sidecar, is done by
+/// writeExport() outside the GUI thread.
 bool needsExport(const TrackPointer& pTrack, AnalysisDao& analysisDao);
 
 enum class ExportResult {
@@ -74,14 +79,24 @@ ExportResult exportAnalysis(const TrackPointer& pTrack, AnalysisDao& analysisDao
 
 /// The two halves of exportAnalysis(), so that the slow part (comparing with
 /// the file on the drive and writing it) can run outside the GUI thread.
+/// A waveform of the sidecar, still uncompressed (compressing it is the slow
+/// part: it happens in writeExport())
+struct SidecarBlob {
+    QString name;
+    QString version;
+    QString description;
+    QByteArray data;
+};
 struct ExportJob {
-    ExportResult result = ExportResult::NothingToExport; // final unless content is set
+    ExportResult result = ExportResult::NothingToExport; // final unless hasData is set
     QString root;
     QString relPath;
     QString path;
-    QByteArray content;
+    bool hasData = false;
+    QJsonObject header;
+    QList<SidecarBlob> blobs;
 };
-/// GUI thread (library database): builds the sidecar content
+/// GUI thread (library database): gathers what goes into the sidecar
 ExportJob prepareExport(const TrackPointer& pTrack, AnalysisDao& analysisDao);
 /// Any thread: compares with the file on the drive and writes it
 ExportResult writeExport(const ExportJob& job);

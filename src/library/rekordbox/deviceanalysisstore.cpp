@@ -145,14 +145,16 @@ bool hasCachedWaveform(TrackId trackId, AnalysisDao& analysisDao) {
                     .isEmpty();
 }
 
-/// Builds the sidecar for the track, or returns false when there is nothing
-/// worth storing (no beats and no waveform)
-bool buildSidecar(const TrackPointer& pTrack,
+/// Gathers the sidecar of the track (GUI thread: track and database), or
+/// returns false when there is nothing worth storing (no beats and no
+/// waveform). The compression is left to assembleSidecar().
+bool gatherSidecar(const TrackPointer& pTrack,
         AnalysisDao& analysisDao,
         const QString& relPath,
         const QFileInfo& fileInfo,
         const QString& sidecarFile,
-        QByteArray* pOut) {
+        QJsonObject* pHeader,
+        QList<SidecarBlob>* pBlobs) {
     QJsonObject header;
     header.insert(QStringLiteral("format"), kFormatVersion);
     header.insert(QStringLiteral("generator"), QStringLiteral("Mixxx"));
@@ -198,40 +200,52 @@ bool buildSidecar(const TrackPointer& pTrack,
     }
     header.insert(QStringLiteral("cues"), cues);
 
-    QByteArray blobs;
-    QJsonObject blobIndex;
+    QList<SidecarBlob> rawBlobs;
     const auto addBlob = [&](const QString& name, AnalysisDao::AnalysisType type) {
         const auto analyses = analysisDao.getAnalysesForTrackByType(pTrack->getId(), type);
         if (analyses.isEmpty() || analyses.first().data.isEmpty()) {
             return;
         }
         const auto& analysis = analyses.first();
-        const QByteArray compressed = qCompress(analysis.data, 6);
-        QJsonObject blob;
-        blob.insert(QStringLiteral("version"), analysis.version);
-        blob.insert(QStringLiteral("description"), analysis.description);
-        blob.insert(QStringLiteral("offset"), blobs.size());
-        blob.insert(QStringLiteral("length"), compressed.size());
-        blobIndex.insert(name, blob);
-        blobs.append(compressed);
+        rawBlobs.append({name, analysis.version, analysis.description, analysis.data});
         hasData = true;
     };
     addBlob(QStringLiteral("waveform"), AnalysisDao::TYPE_WAVEFORM);
     addBlob(QStringLiteral("waveformSummary"), AnalysisDao::TYPE_WAVESUMMARY);
-    header.insert(QStringLiteral("blobs"), blobIndex);
 
     if (!hasData) {
         return false;
     }
+    *pHeader = header;
+    *pBlobs = rawBlobs;
+    return true;
+}
+
+/// Builds the content of the sidecar file (any thread): compresses the
+/// waveforms (deflate level 6, the slow part) and lays everything out
+QByteArray assembleSidecar(QJsonObject header, const QList<SidecarBlob>& rawBlobs) {
+    QByteArray blobs;
+    QJsonObject blobIndex;
+    for (const SidecarBlob& raw : rawBlobs) {
+        const QByteArray compressed = qCompress(raw.data, 6);
+        QJsonObject blob;
+        blob.insert(QStringLiteral("version"), raw.version);
+        blob.insert(QStringLiteral("description"), raw.description);
+        blob.insert(QStringLiteral("offset"), blobs.size());
+        blob.insert(QStringLiteral("length"), compressed.size());
+        blobIndex.insert(raw.name, blob);
+        blobs.append(compressed);
+    }
+    header.insert(QStringLiteral("blobs"), blobIndex);
     const QByteArray headerJson = QJsonDocument(header).toJson(QJsonDocument::Compact);
-    pOut->clear();
-    pOut->append(kMagic);
+    QByteArray out;
+    out.append(kMagic);
     char length[4];
     qToLittleEndian<quint32>(static_cast<quint32>(headerJson.size()), length);
-    pOut->append(length, 4);
-    pOut->append(headerJson);
-    pOut->append(blobs);
-    return true;
+    out.append(length, 4);
+    out.append(headerJson);
+    out.append(blobs);
+    return out;
 }
 
 } // namespace
@@ -410,17 +424,7 @@ bool needsExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
     if (root.isEmpty() || !hasCachedWaveform(pTrack->getId(), analysisDao)) {
         return false;
     }
-    const QString relPath = relativePath(root, location);
-    const QString path = sidecarPath(root, relPath);
-    QByteArray content;
-    if (!buildSidecar(pTrack, analysisDao, relPath, QFileInfo(location), path, &content)) {
-        return false;
-    }
-    QFile existing(path);
-    if (!existing.open(QIODevice::ReadOnly)) {
-        return true;
-    }
-    return existing.readAll() != content;
+    return true;
 }
 
 ExportJob prepareExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
@@ -436,21 +440,28 @@ ExportJob prepareExport(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
     }
     job.relPath = relativePath(job.root, location);
     job.path = sidecarPath(job.root, job.relPath);
-    if (!buildSidecar(pTrack, analysisDao, job.relPath, QFileInfo(location), job.path, &job.content)) {
-        job.content.clear();
+    job.hasData = gatherSidecar(pTrack,
+            analysisDao,
+            job.relPath,
+            QFileInfo(location),
+            job.path,
+            &job.header,
+            &job.blobs);
+    if (!job.hasData) {
         job.result = ExportResult::NothingToExport;
     }
     return job;
 }
 
 ExportResult writeExport(const ExportJob& job) {
-    if (job.content.isEmpty()) {
+    if (!job.hasData) {
         return job.result;
     }
+    const QByteArray content = assembleSidecar(job.header, job.blobs);
     {
         QFile existing(job.path);
-        if (existing.open(QIODevice::ReadOnly) && existing.size() == job.content.size() &&
-                existing.readAll() == job.content) {
+        if (existing.open(QIODevice::ReadOnly) && existing.size() == content.size() &&
+                existing.readAll() == content) {
             return ExportResult::Unchanged;
         }
     }
@@ -463,11 +474,11 @@ ExportResult writeExport(const ExportJob& job) {
     if (!file.open(QIODevice::WriteOnly)) {
         return ExportResult::ReadOnly;
     }
-    if (file.write(job.content) != job.content.size() || !file.commit()) {
+    if (file.write(content) != content.size() || !file.commit()) {
         qWarning() << "Device analysis: writing failed for" << job.relPath << file.errorString();
         return ExportResult::Failed;
     }
-    qInfo() << "Device analysis: stored" << job.relPath << job.content.size() << "bytes";
+    qInfo() << "Device analysis: stored" << job.relPath << content.size() << "bytes";
     return ExportResult::Written;
 }
 
