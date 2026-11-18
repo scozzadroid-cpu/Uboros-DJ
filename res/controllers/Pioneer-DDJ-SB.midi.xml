@@ -8,6 +8,7 @@
     </info>
     <controller id="PIONEER">
         <scriptfiles>
+            <file filename="common-stems.js"/>
             <file functionprefix="PioneerDDJSB" filename="Pioneer-DDJ-SB-scripts.js"/>
         </scriptfiles>
         <controls>
@@ -1987,6 +1988,46 @@
                 <key>PioneerDDJSB.fxKnobShiftedMSB</key>
                 <status>0xB5</status>
                 <midino>0x00</midino>
+                <options>
+                    <script-binding/>
+                </options>
+            </control>
+            <control>
+                <group>[Channel1]</group>
+                <key>PioneerDDJSB.stemPadPressed</key>
+                <description>Stems: PAD3 +SHIFT (Deck 1) CUE LOOP-Mode (kill pads) - toggle vocals (Stem 4)</description>
+                <status>0x97</status>
+                <midino>0x6A</midino>
+                <options>
+                    <script-binding/>
+                </options>
+            </control>
+            <control>
+                <group>[Channel1]</group>
+                <key>PioneerDDJSB.stemPadPressed</key>
+                <description>Stems: PAD4 +SHIFT (Deck 1) CUE LOOP-Mode (kill pads) - toggle drums (Stem 1)</description>
+                <status>0x97</status>
+                <midino>0x6B</midino>
+                <options>
+                    <script-binding/>
+                </options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>PioneerDDJSB.stemPadPressed</key>
+                <description>Stems: PAD3 +SHIFT (Deck 2) CUE LOOP-Mode (kill pads) - toggle vocals (Stem 4)</description>
+                <status>0x98</status>
+                <midino>0x6A</midino>
+                <options>
+                    <script-binding/>
+                </options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>PioneerDDJSB.stemPadPressed</key>
+                <description>Stems: PAD4 +SHIFT (Deck 2) CUE LOOP-Mode (kill pads) - toggle drums (Stem 1)</description>
+                <status>0x98</status>
+                <midino>0x6B</midino>
                 <options>
                     <script-binding/>
                 </options>

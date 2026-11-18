@@ -200,6 +200,55 @@ PioneerDDJ400.init = function() {
 
     // query the controller for current control positions on startup
     midi.sendSysexMsg([0xF0, 0x00, 0x40, 0x05, 0x00, 0x00, 0x02, 0x06, 0x00, 0x03, 0x01, 0xf7], 12);
+
+    // Stems (common-stems.js): LEDs of the SHIFT + BEAT JUMP pads 1-4
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.watch([1, 2], PioneerDDJ400.stemLed);
+    }
+};
+
+//
+// Stems (SHIFT + BEAT JUMP mode pads 1-6)
+//
+// The DDJ-400 has no KEYBOARD mode nor SMART CFX, and every pad of the other
+// modes is already used. The SHIFT layer of the BEAT JUMP pads has 6 free pads
+// (7 and 8 change the beat jump size):
+//   pads 1-4 = mute / unmute stem 1-4 (1 drums, 2 bass, 3 other, 4 vocals)
+//   pad 5    = only vocals (acapella); press again = all stems back
+//   pad 6    = all stems back to full volume
+// A deck without stems: the first press asks for the separation of its track
+// (instant stems), nothing else changes. LED on = stem playing (pads 1-4).
+// The EQ knobs stay EQ (no free modifier button to turn them into stem
+// volumes). Implementation in common-stems.js.
+//
+
+PioneerDDJ400.stemPadLedStatus = {1: 0x98, 2: 0x9A};
+PioneerDDJ400.stemPadsFirstControl = 0x20;
+
+PioneerDDJ400.stemPadPressed = function(_channel, control, value, _status, group) {
+    if (value !== 0x7f || typeof CommonStems === "undefined") {
+        return;
+    }
+    const pad = control - PioneerDDJ400.stemPadsFirstControl + 1;
+    if (pad >= 1 && pad <= 4) {
+        CommonStems.toggleMute(group, pad);
+    } else if (pad === 5) {
+        CommonStems.solo(group, 4, true);
+    } else if (pad === 6) {
+        CommonStems.resetOrSeparate(group);
+    }
+};
+
+PioneerDDJ400.stemLed = function(deck, stem, lit) {
+    const status = PioneerDDJ400.stemPadLedStatus[deck];
+    if (status === undefined || stem > 4) {
+        return;
+    }
+    midi.sendShortMsg(status, PioneerDDJ400.stemPadsFirstControl + stem - 1, lit ? 0x7f : 0x00);
+    if (stem === 4) {
+        // pad 5 = acapella: lit while the vocals are alone
+        midi.sendShortMsg(status, PioneerDDJ400.stemPadsFirstControl + 4, CommonStems.isSolo(deck, 4) ? 0x7f : 0x00);
+    }
 };
 
 //
@@ -685,6 +734,16 @@ PioneerDDJ400.shutdown = function() {
         midi.sendShortMsg(0x98, 0x00 + i, 0x00);    // Deck 1 pads with SHIFT
         midi.sendShortMsg(0x99, 0x00 + i, 0x00);    // Deck 2 pads
         midi.sendShortMsg(0x9A, 0x00 + i, 0x00);    // Deck 2 pads with SHIFT
+    }
+
+    // stems: stop watching and turn off the SHIFT + BEAT JUMP pad lights 1-5
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
+    for (const status of [0x98, 0x9A]) {
+        for (let i = 0; i < 5; ++i) {
+            midi.sendShortMsg(status, PioneerDDJ400.stemPadsFirstControl + i, 0x00);
+        }
     }
 
     // turn off loop in and out lights

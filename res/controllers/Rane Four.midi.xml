@@ -5,6 +5,7 @@
     </info>
     <controller id="RaneFour">
         <scriptfiles>
+            <file filename="common-stems.js"/>
             <file filename="Rane-four_scripts.js" functionprefix="RaneFour"/>
         </scriptfiles>
         <controls>

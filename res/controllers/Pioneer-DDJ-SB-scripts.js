@@ -121,6 +121,25 @@ PioneerDDJSB.init = function (id) {
     PioneerDDJSB.initDeck('[Channel2]');
 };
 
+// Stems (common-stems.js). The 4-pad layout has no free pad, only two SHIFT
+// pads are unused: SHIFT + PAD3 / PAD4 of the kill pads (notes 0x6A / 0x6B)
+// toggle the vocals (stem 4) and the drums (stem 1) of the deck (the one
+// selected by the deck switch: 1/3, 2/4). A deck without stems: the first
+// press asks for the separation of its track (instant stems), nothing else
+// changes. No LED (the SB mapping lights pads by virtual deck). The EQ and
+// all the other pads are unchanged.
+PioneerDDJSB.stemPads = {0x6A: 4, 0x6B: 1};
+
+PioneerDDJSB.stemPadPressed = function (channel, control, value, status, group) {
+    if (!value || typeof CommonStems === 'undefined') {
+        return;
+    }
+    var stem = PioneerDDJSB.stemPads[control];
+    if (stem !== undefined) {
+        CommonStems.toggleMute(PioneerDDJSB.deckSwitchTable[group] || group, stem);
+    }
+};
+
 PioneerDDJSB.shutdown = function () {
     PioneerDDJSB.bindAllControlConnections(true);
     PioneerDDJSB.setAllSoftTakeover(true);

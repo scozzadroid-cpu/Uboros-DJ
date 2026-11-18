@@ -65,6 +65,9 @@ DDJ200.init = function() {
 };
 
 DDJ200.shutdown = function() {
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
     DDJ200.LEDsOff();
 };
 
@@ -268,6 +271,19 @@ DDJ200.eq = function(channel, control, value, status, group) {
     // https://github.com/mixxxdj/mixxx/pull/3178 only
     var vDeckNo = DDJ200.vDeckNo[deckNo];
     var vgroup = group.replace("Channel" + deckNo, "Channel" + vDeckNo);
+    // Stems (common-stems.js): with SHIFT held on the side of this deck, the
+    // EQ knobs are the stem volumes of the deck (HIGH = vocals, MID = bass +
+    // other, LOW = drums; centre and right = full, left = down to silence),
+    // with pickup so that nothing jumps. A deck without usable stems keeps
+    // its EQ, with or without SHIFT.
+    if (typeof CommonStems !== "undefined" &&
+        DDJ200.shiftPressed[deckNo === "1" || deckNo === 1 ? "left" : "right"]) {
+        var band = {0x07: "high", 0x0B: "mid", 0x0F: "low"}[control];
+        if (band !== undefined &&
+            CommonStems.eqToStemsState(vDeckNo, band, value / 127) !== "nostems") {
+            return;
+        }
+    }
     engine.setValue(vgroup, "parameter" + eq, val);
 };
 

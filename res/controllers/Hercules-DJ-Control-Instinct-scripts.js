@@ -177,3 +177,25 @@ HCInstinct.tempPitch = function (midino, control, value, status, group) {
     engine.setValue(group, rate, 1);
     engine.setValue(group, rate, 0);
 };
+
+// ----------------------------------------------------------------------
+// Stems (common-stems.js) - NOT BOUND: no free button.
+// Every button of the Instinct is already used (the 4 FX buttons per deck
+// assign the deck to an effect unit; VINYL is the SHIFT of the pitch buttons).
+// To use the stems, bind this handler in the XML to the buttons you give up
+// (note -> stem, 1 drums, 2 bass, 3 other, 4 vocals) and fill the table:
+//     HCInstinct.stemKeys = {0x01: 1, 0x02: 2, 0x03: 3, 0x04: 4};   // e.g. FX1-4 deck 1
+// SHIFT (VINYL) + button = only that stem plays (again = all stems back).
+// A deck without stems: it only asks for the separation (instant stems).
+HCInstinct.stemKeys = {};
+HCInstinct.stemKeyPressed = function(channel, control, value, status, group) {
+    var stem = HCInstinct.stemKeys[control];
+    if (value === 0 || stem === undefined || typeof CommonStems === "undefined") {
+        return;
+    }
+    if (HCInstinct.vinylButton) {
+        CommonStems.solo(group, stem, true);
+    } else {
+        CommonStems.toggleMute(group, stem);
+    }
+};

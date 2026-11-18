@@ -22,6 +22,7 @@
     </settings>
     <controller id="DDJ-FLX6">
         <scriptfiles>
+            <file filename="common-stems.js"/>
             <file filename="Pioneer-DDJ-FLX6-script.js" functionprefix="PioneerDDJFLX6"/>
         </scriptfiles>
         <controls>
@@ -5353,6 +5354,326 @@
                 <midino>0x43</midino>
                 <options>
                     <script-binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 1 +SHIFT (DECK1) KEYBOARD MODE - press - Toggle Stem 1</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x40</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 +SHIFT (DECK1) KEYBOARD MODE - press - Toggle Stem 2</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x41</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 +SHIFT (DECK1) KEYBOARD MODE - press - Toggle Stem 3</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x42</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 +SHIFT (DECK1) KEYBOARD MODE - press - Toggle Stem 4</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x43</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 +SHIFT (DECK1) KEYBOARD MODE - press - Only Stem 1 (again = all)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x44</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 +SHIFT (DECK1) KEYBOARD MODE - press - Only Stem 2 (again = all)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x45</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 7 +SHIFT (DECK1) KEYBOARD MODE - press - Only Stem 3 (again = all)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x46</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 8 +SHIFT (DECK1) KEYBOARD MODE - press - Only Stem 4 (again = all)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x47</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 1 +SHIFT (DECK2) KEYBOARD MODE - press - Toggle Stem 1</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x40</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 +SHIFT (DECK2) KEYBOARD MODE - press - Toggle Stem 2</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x41</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 +SHIFT (DECK2) KEYBOARD MODE - press - Toggle Stem 3</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x42</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 +SHIFT (DECK2) KEYBOARD MODE - press - Toggle Stem 4</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x43</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 +SHIFT (DECK2) KEYBOARD MODE - press - Only Stem 1 (again = all)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x44</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 +SHIFT (DECK2) KEYBOARD MODE - press - Only Stem 2 (again = all)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x45</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 7 +SHIFT (DECK2) KEYBOARD MODE - press - Only Stem 3 (again = all)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x46</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 8 +SHIFT (DECK2) KEYBOARD MODE - press - Only Stem 4 (again = all)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x47</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 1 +SHIFT (DECK3) KEYBOARD MODE - press - Toggle Stem 1</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x40</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 +SHIFT (DECK3) KEYBOARD MODE - press - Toggle Stem 2</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x41</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 +SHIFT (DECK3) KEYBOARD MODE - press - Toggle Stem 3</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x42</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 +SHIFT (DECK3) KEYBOARD MODE - press - Toggle Stem 4</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x43</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 +SHIFT (DECK3) KEYBOARD MODE - press - Only Stem 1 (again = all)</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x44</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 +SHIFT (DECK3) KEYBOARD MODE - press - Only Stem 2 (again = all)</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x45</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 7 +SHIFT (DECK3) KEYBOARD MODE - press - Only Stem 3 (again = all)</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x46</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 8 +SHIFT (DECK3) KEYBOARD MODE - press - Only Stem 4 (again = all)</description>
+                <group>[Channel3]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9C</status>
+                <midino>0x47</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 1 +SHIFT (DECK4) KEYBOARD MODE - press - Toggle Stem 1</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x40</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 +SHIFT (DECK4) KEYBOARD MODE - press - Toggle Stem 2</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x41</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 +SHIFT (DECK4) KEYBOARD MODE - press - Toggle Stem 3</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x42</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 +SHIFT (DECK4) KEYBOARD MODE - press - Toggle Stem 4</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x43</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 +SHIFT (DECK4) KEYBOARD MODE - press - Only Stem 1 (again = all)</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x44</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 +SHIFT (DECK4) KEYBOARD MODE - press - Only Stem 2 (again = all)</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x45</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 7 +SHIFT (DECK4) KEYBOARD MODE - press - Only Stem 3 (again = all)</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x46</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 8 +SHIFT (DECK4) KEYBOARD MODE - press - Only Stem 4 (again = all)</description>
+                <group>[Channel4]</group>
+                <key>PioneerDDJFLX6.stemPadPressed</key>
+                <status>0x9E</status>
+                <midino>0x47</midino>
+                <options>
+                    <Script-Binding/>
                 </options>
             </control>
         </controls>

@@ -267,6 +267,45 @@ PioneerDDJFLX6.init = function() {
     // midi controller will send the status of every item on the
     // control surface. (Mixxx will be initialized with current values)
     midi.sendSysexMsg(ControllerStatusSysex, ControllerStatusSysex.length);
+
+    // Stems (common-stems.js): LEDs of the SHIFT + KEYBOARD pads
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.watch([1, 2, 3, 4], PioneerDDJFLX6.stemLed);
+    }
+};
+
+//
+// Stems (SHIFT + KEYBOARD mode pads)
+//
+// The plain KEYBOARD pads keep playing the track pitched (keyboardButtonPressed).
+// With SHIFT held in KEYBOARD mode the 8 pads control the stems of the deck:
+//   pads 1-4 = mute / unmute stem 1-4 (drums, bass, other, vocals)
+//   pads 5-8 = only stem 1-4 plays (press again = all stems back)
+// A deck without stems: the first press asks for the separation of its track
+// (instant stems), nothing else changes. LED on = stem playing (pads 1-4),
+// stem solo (pads 5-8). Implementation in common-stems.js. The stems follow
+// the Mixxx order: 1 drums, 2 bass, 3 other, 4 vocals.
+//
+
+// Pad LED status per deck, SHIFT layer (the pads with SHIFT held)
+PioneerDDJFLX6.stemPadLedStatus = {1: 0x98, 2: 0x9A, 3: 0x9C, 4: 0x9E};
+PioneerDDJFLX6.stemPadsFirstControl = 0x40;
+
+PioneerDDJFLX6.stemPadPressed = function(_channel, control, value, _status, group) {
+    if (value !== 0x7f || typeof CommonStems === "undefined") {
+        return;
+    }
+    CommonStems.padPress(group, control - PioneerDDJFLX6.stemPadsFirstControl + 1);
+};
+
+PioneerDDJFLX6.stemLed = function(deck, stem, lit) {
+    const status = PioneerDDJFLX6.stemPadLedStatus[deck];
+    if (status === undefined) {
+        return;
+    }
+    midi.sendShortMsg(status, PioneerDDJFLX6.stemPadsFirstControl + stem - 1, lit ? 0x7f : 0x00);
+    midi.sendShortMsg(status, PioneerDDJFLX6.stemPadsFirstControl + stem + 3,
+        CommonStems.isSolo(deck, stem) ? 0x7f : 0x00);
 };
 
 //
@@ -1340,6 +1379,16 @@ PioneerDDJFLX6.shutdown = function() {
         midi.sendShortMsg(0x9C, 0x00 + i, 0x00);    // Deck 3 pads with SHIFT
         midi.sendShortMsg(0x9D, 0x00 + i, 0x00);    // Deck 4 pads
         midi.sendShortMsg(0x9E, 0x00 + i, 0x00);    // Deck 4 pads with SHIFT
+    }
+
+    // stems: stop watching and turn off the SHIFT + KEYBOARD pad lights
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
+    for (const status of [0x98, 0x9A, 0x9C, 0x9E]) {
+        for (i = 0; i <= 7; ++i) {
+            midi.sendShortMsg(status, PioneerDDJFLX6.stemPadsFirstControl + i, 0x00);
+        }
     }
 
     // turn off loop in and out lights

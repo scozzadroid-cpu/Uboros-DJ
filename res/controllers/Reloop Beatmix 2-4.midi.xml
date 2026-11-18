@@ -7,8 +7,27 @@
         <forums>https://mixxx.discourse.group/t/reloop-beatmix-2-4-mapping/16049</forums>
         <manual>reloop_beatmix_2</manual>
     </info>
+    <settings>
+        <group label="Stems">
+            <row orientation="vertical">
+                <option variable="stemsOnShiftSamplerPads"
+                        type="boolean"
+                        default="false"
+                        label="SHIFT + sampler pads (bank B) control the stems of the deck">
+                    <description>
+                        Off (default): SHIFT + pad of bank B stops / ejects the sampler, as always.
+                        On: SHIFT + pads 1-4 of bank B mute / unmute stem 1-4 (drums, bass, other,
+                        vocals) of the deck, SHIFT + pads 5-8 play only stem 1-4 (press again = all
+                        stems back). A deck without stems: the first press asks for the separation
+                        of its track. The normal pad presses (no SHIFT) keep playing the samplers.
+                    </description>
+                </option>
+            </row>
+        </group>
+    </settings>
     <controller id="Reloop Beatmix 2/4">
         <scriptfiles>
+            <file filename="common-stems.js"/>
             <file functionprefix="ReloopBeatmix24" filename="Reloop-Beatmix-2-4-scripts.js"/>
         </scriptfiles>
         <controls>

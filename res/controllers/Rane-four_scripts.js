@@ -468,3 +468,22 @@ RaneFour.scratchWheel = function(channel, control, value, status, group) {
     }
 };
 RaneFour.jogWheel = RaneFour.scratchWheel;
+
+// ----------------------------------------------------------------------
+// Stems (common-stems.js) - NOT BOUND YET.
+// The Rane Four XML has no pad / stem notes: they were never captured (see
+// RANE_FOUR_CATTURA.md). When they are known, put them here (note number ->
+// stem 1 drums, 2 bass, 3 other, 4 vocals) and bind this handler in the XML
+// for every pad (status 0x94 / 0x95 or what the capture says, group
+// [ChannelN]):
+//     RaneFour.stemPadNotes = {0x??: 1, 0x??: 2, 0x??: 3, 0x??: 4};
+// Press = mute / unmute the stem; on a deck without stems it only asks for the
+// separation of the track (instant stems).
+RaneFour.stemPadNotes = {};
+RaneFour.stemPadPressed = function(_channel, control, value, _status, group) {
+    const stem = RaneFour.stemPadNotes[control];
+    if (value === 0 || stem === undefined || typeof CommonStems === "undefined") {
+        return;
+    }
+    CommonStems.toggleMute(group, stem);
+};

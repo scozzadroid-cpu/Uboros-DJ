@@ -12,6 +12,7 @@
     <scriptfiles>
       <file filename="lodash.mixxx.js"/>
       <file filename="midi-components-0.0.js"/>
+      <file filename="common-stems.js"/>
       <file functionprefix="PioneerDDJSB3" filename="Pioneer-DDJ-SB3-scripts.js"/>
     </scriptfiles>
     <controls>
@@ -5091,6 +5092,366 @@
         <description>Slicer, Button: PAD8 (in SLICER-Mode, Deck 4 active)</description>
         <status>0x9A</status>
         <midino>0x67</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 (Deck 1) PAD SCRATCH mode - stems - Toggle Stem 1 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x97</status>
+        <midino>0x20</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 2 (Deck 1) PAD SCRATCH mode - stems - Toggle Stem 2 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x97</status>
+        <midino>0x21</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 3 (Deck 1) PAD SCRATCH mode - stems - Toggle Stem 3 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x97</status>
+        <midino>0x22</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 4 (Deck 1) PAD SCRATCH mode - stems - Toggle Stem 4 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x97</status>
+        <midino>0x23</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 5 (Deck 1) PAD SCRATCH mode - stems - Only Stem 1, again = all stems back</description>
+        <status>0x97</status>
+        <midino>0x24</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 6 (Deck 1) PAD SCRATCH mode - stems - Only Stem 2, again = all stems back</description>
+        <status>0x97</status>
+        <midino>0x25</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 7 (Deck 1) PAD SCRATCH mode - stems - Only Stem 3, again = all stems back</description>
+        <status>0x97</status>
+        <midino>0x26</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 8 (Deck 1) PAD SCRATCH mode - stems - Only Stem 4, again = all stems back</description>
+        <status>0x97</status>
+        <midino>0x27</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel1]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 +SHIFT (Deck 1) PAD SCRATCH mode - stems - All stems back to full volume</description>
+        <status>0x97</status>
+        <midino>0x28</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 (Deck 2) PAD SCRATCH mode - stems - Toggle Stem 1 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x98</status>
+        <midino>0x20</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 2 (Deck 2) PAD SCRATCH mode - stems - Toggle Stem 2 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x98</status>
+        <midino>0x21</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 3 (Deck 2) PAD SCRATCH mode - stems - Toggle Stem 3 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x98</status>
+        <midino>0x22</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 4 (Deck 2) PAD SCRATCH mode - stems - Toggle Stem 4 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x98</status>
+        <midino>0x23</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 5 (Deck 2) PAD SCRATCH mode - stems - Only Stem 1, again = all stems back</description>
+        <status>0x98</status>
+        <midino>0x24</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 6 (Deck 2) PAD SCRATCH mode - stems - Only Stem 2, again = all stems back</description>
+        <status>0x98</status>
+        <midino>0x25</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 7 (Deck 2) PAD SCRATCH mode - stems - Only Stem 3, again = all stems back</description>
+        <status>0x98</status>
+        <midino>0x26</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 8 (Deck 2) PAD SCRATCH mode - stems - Only Stem 4, again = all stems back</description>
+        <status>0x98</status>
+        <midino>0x27</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel2]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 +SHIFT (Deck 2) PAD SCRATCH mode - stems - All stems back to full volume</description>
+        <status>0x98</status>
+        <midino>0x28</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 (Deck 3) PAD SCRATCH mode - stems - Toggle Stem 1 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x99</status>
+        <midino>0x20</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 2 (Deck 3) PAD SCRATCH mode - stems - Toggle Stem 2 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x99</status>
+        <midino>0x21</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 3 (Deck 3) PAD SCRATCH mode - stems - Toggle Stem 3 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x99</status>
+        <midino>0x22</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 4 (Deck 3) PAD SCRATCH mode - stems - Toggle Stem 4 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x99</status>
+        <midino>0x23</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 5 (Deck 3) PAD SCRATCH mode - stems - Only Stem 1, again = all stems back</description>
+        <status>0x99</status>
+        <midino>0x24</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 6 (Deck 3) PAD SCRATCH mode - stems - Only Stem 2, again = all stems back</description>
+        <status>0x99</status>
+        <midino>0x25</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 7 (Deck 3) PAD SCRATCH mode - stems - Only Stem 3, again = all stems back</description>
+        <status>0x99</status>
+        <midino>0x26</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 8 (Deck 3) PAD SCRATCH mode - stems - Only Stem 4, again = all stems back</description>
+        <status>0x99</status>
+        <midino>0x27</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel3]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 +SHIFT (Deck 3) PAD SCRATCH mode - stems - All stems back to full volume</description>
+        <status>0x99</status>
+        <midino>0x28</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 (Deck 4) PAD SCRATCH mode - stems - Toggle Stem 1 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x9A</status>
+        <midino>0x20</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 2 (Deck 4) PAD SCRATCH mode - stems - Toggle Stem 2 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x9A</status>
+        <midino>0x21</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 3 (Deck 4) PAD SCRATCH mode - stems - Toggle Stem 3 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x9A</status>
+        <midino>0x22</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 4 (Deck 4) PAD SCRATCH mode - stems - Toggle Stem 4 (1 drums, 2 bass, 3 other, 4 vocals)</description>
+        <status>0x9A</status>
+        <midino>0x23</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 5 (Deck 4) PAD SCRATCH mode - stems - Only Stem 1, again = all stems back</description>
+        <status>0x9A</status>
+        <midino>0x24</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 6 (Deck 4) PAD SCRATCH mode - stems - Only Stem 2, again = all stems back</description>
+        <status>0x9A</status>
+        <midino>0x25</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 7 (Deck 4) PAD SCRATCH mode - stems - Only Stem 3, again = all stems back</description>
+        <status>0x9A</status>
+        <midino>0x26</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 8 (Deck 4) PAD SCRATCH mode - stems - Only Stem 4, again = all stems back</description>
+        <status>0x9A</status>
+        <midino>0x27</midino>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <group>[Channel4]</group>
+        <key>PioneerDDJSB3.stemPadPressed</key>
+        <description>PAD 1 +SHIFT (Deck 4) PAD SCRATCH mode - stems - All stems back to full volume</description>
+        <status>0x9A</status>
+        <midino>0x28</midino>
         <options>
           <script-binding/>
         </options>

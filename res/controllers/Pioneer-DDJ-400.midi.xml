@@ -9,6 +9,7 @@
     </info>
     <controller id="DDJ-400">
         <scriptfiles>
+            <file filename="common-stems.js"/>
             <file functionprefix="PioneerDDJ400" filename="Pioneer-DDJ-400-script.js"/>
         </scriptfiles>
         <controls>
@@ -2104,6 +2105,126 @@
             <!-- SAMPLER MODE END -->
 
             <!-- PAD Section END -->
+            <control>
+                <description>PAD 1 (DECK1) +SHIFT BEAT JUMP MODE - press - Toggle Stem 1 (drums)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x20</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 (DECK1) +SHIFT BEAT JUMP MODE - press - Toggle Stem 2 (bass)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x21</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 (DECK1) +SHIFT BEAT JUMP MODE - press - Toggle Stem 3 (other)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x22</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 (DECK1) +SHIFT BEAT JUMP MODE - press - Toggle Stem 4 (vocals)</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x23</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 (DECK1) +SHIFT BEAT JUMP MODE - press - Only vocals (acapella), again = all stems back</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x24</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 (DECK1) +SHIFT BEAT JUMP MODE - press - All stems back to full volume</description>
+                <group>[Channel1]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x98</status>
+                <midino>0x25</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 1 (DECK2) +SHIFT BEAT JUMP MODE - press - Toggle Stem 1 (drums)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x20</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 2 (DECK2) +SHIFT BEAT JUMP MODE - press - Toggle Stem 2 (bass)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x21</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 3 (DECK2) +SHIFT BEAT JUMP MODE - press - Toggle Stem 3 (other)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x22</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 4 (DECK2) +SHIFT BEAT JUMP MODE - press - Toggle Stem 4 (vocals)</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x23</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 5 (DECK2) +SHIFT BEAT JUMP MODE - press - Only vocals (acapella), again = all stems back</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x24</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
+            <control>
+                <description>PAD 6 (DECK2) +SHIFT BEAT JUMP MODE - press - All stems back to full volume</description>
+                <group>[Channel2]</group>
+                <key>PioneerDDJ400.stemPadPressed</key>
+                <status>0x9A</status>
+                <midino>0x25</midino>
+                <options>
+                    <Script-Binding/>
+                </options>
+            </control>
         </controls>
         <outputs>
             <!-- PLAY -->

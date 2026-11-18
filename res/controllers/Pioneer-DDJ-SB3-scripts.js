@@ -289,6 +289,44 @@ PioneerDDJSB3.init = function() {
 
     PioneerDDJSB3.flasher.init();
     PioneerDDJSB3.initFlashingPadLedControl();
+
+    // Stems (common-stems.js): LEDs of the PAD SCRATCH mode pads
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.watch([1, 2, 3, 4], PioneerDDJSB3.stemLed);
+    }
+};
+
+///////////////////////////////////////////////////////////////
+//        STEMS (PAD SCRATCH mode pads, common-stems.js)      //
+///////////////////////////////////////////////////////////////
+// PAD SCRATCH (scratch samples) is not implemented in this mapping, so its
+// 8 pads (notes 0x20-0x27, SHIFT 0x28-0x2F) are free for the stems:
+//   pads 1-4 = mute / unmute stem 1-4 (1 drums, 2 bass, 3 other, 4 vocals)
+//   pads 5-8 = only stem 1-4 plays (press again = all stems back)
+//   SHIFT + pad 1 = all stems back to full volume
+// A deck without stems: the first press asks for the separation of its track
+// (instant stems), nothing else changes. LED on = stem playing (pads 1-4),
+// stem solo (pads 5-8). The EQ knobs stay EQ.
+
+PioneerDDJSB3.stemPadsFirstControl = 0x20;
+
+PioneerDDJSB3.stemPadPressed = function(channel, control, value, status, group) {
+    if (value === 0 || typeof CommonStems === "undefined") {
+        return;
+    }
+    var offset = control - PioneerDDJSB3.stemPadsFirstControl;
+    if (offset >= 0 && offset < 8) {
+        CommonStems.padPress(group, offset + 1);
+    } else if (offset === 8) {
+        CommonStems.resetOrSeparate(group);
+    }
+};
+
+PioneerDDJSB3.stemLed = function(deck, stem, lit) {
+    var status = 0x97 + deck - 1;
+    midi.sendShortMsg(status, PioneerDDJSB3.stemPadsFirstControl + stem - 1, lit ? 0x7F : 0x00);
+    midi.sendShortMsg(status, PioneerDDJSB3.stemPadsFirstControl + stem + 3,
+        CommonStems.isSolo(deck, stem) ? 0x7F : 0x00);
 };
 
 PioneerDDJSB3.shiftListeners = [];
@@ -538,6 +576,9 @@ PioneerDDJSB3.Pad.prototype.beatJumpDivide = function(channel, control, value, s
 };
 
 PioneerDDJSB3.shutdown = function() {
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
     // turn off button LEDs
     var skip = [0x72, 0x1B, 0x69, 0x1E, 0x6B, 0x20, 0x6D, 0x22, 0x6F, 0x70, 0x75];
     for (var channel = 0; channel <= 10; channel++) {

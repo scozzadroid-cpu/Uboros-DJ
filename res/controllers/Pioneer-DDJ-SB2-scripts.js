@@ -185,6 +185,37 @@ PioneerDDJSB2.init = function(_id) {
 
     // request the positions of the knobs and faders from the controller
     midi.sendShortMsg(0x9B, 0x09, 0x7f);
+
+    // Stems (common-stems.js): LEDs of the SHIFT + PAD3/PAD4 kill pads
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.watch([1, 2, 3, 4], PioneerDDJSB2.stemLed);
+    }
+};
+
+// Stems (common-stems.js). The 4-pad layout has no free pad, only two SHIFT
+// pads are unused: SHIFT + PAD3 / PAD4 of the CUE LOOP mode (the kill pads,
+// notes 0x6A / 0x6B) toggle the vocals (stem 4) and the drums (stem 1) of the
+// deck. A deck without stems: the first press asks for the separation of its
+// track (instant stems), nothing else changes. LED on = stem playing. The EQ
+// and all the other pads are unchanged.
+PioneerDDJSB2.stemPads = {0x6A: 4, 0x6B: 1};
+
+PioneerDDJSB2.stemPadPressed = function(channel, control, value, status, group) {
+    if (!value || typeof CommonStems === "undefined") {
+        return;
+    }
+    var stem = PioneerDDJSB2.stemPads[control];
+    if (stem !== undefined) {
+        CommonStems.toggleMute(group, stem);
+    }
+};
+
+PioneerDDJSB2.stemLed = function(deck, stem, lit) {
+    for (var control in PioneerDDJSB2.stemPads) {
+        if (PioneerDDJSB2.stemPads[control] === stem) {
+            midi.sendShortMsg(0x97 + deck - 1, Number(control), lit ? 0x7F : 0x00);
+        }
+    }
 };
 
 PioneerDDJSB2.Deck = function(deckNumber) {
@@ -371,6 +402,9 @@ PioneerDDJSB2.Deck = function(deckNumber) {
 PioneerDDJSB2.Deck.prototype = components.ComponentContainer.prototype;
 
 PioneerDDJSB2.shutdown = function() {
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
     // turn off button LEDs
     var skip = [0x72, 0x1B, 0x69, 0x1E, 0x6B, 0x20, 0x6D, 0x22, 0x6F, 0x70, 0x75];
     for (var channel = 0; channel <= 10; channel++) {

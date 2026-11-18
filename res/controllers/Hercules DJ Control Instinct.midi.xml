@@ -8,6 +8,7 @@
     </info>
     <controller id="Hercules DJControl Instinct MID" port="">
     <scriptfiles>
+            <file filename="common-stems.js"/>
             <file functionprefix="HCInstinct" filename="Hercules-DJ-Control-Instinct-scripts.js"/>
         </scriptfiles>
         <controls>

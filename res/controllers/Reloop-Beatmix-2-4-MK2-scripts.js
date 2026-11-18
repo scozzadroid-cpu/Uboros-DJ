@@ -218,6 +218,9 @@ ReloopBeatmix24.init = function(id, _debug) {
 };
 
 ReloopBeatmix24.shutdown = function() {
+    if (typeof CommonStems !== "undefined") {
+        CommonStems.shutdown();
+    }
     ReloopBeatmix24.TurnLEDsOff(); // Turn off all LEDs
     console.log(`Reloop Beatmix: ${ ReloopBeatmix24.id } shut down.`);
 };
@@ -368,6 +371,14 @@ ReloopBeatmix24.SamplerPad = function(channel, control, value, status, group) {
 
 ReloopBeatmix24.ShiftSamplerPad = function(channel, control, value, status,
     group) {
+    // Stems (common-stems.js), only if the user turned the option on: SHIFT +
+    // pads of bank B = stems of the deck of the pad (status 0x91-0x94 = deck 1-4)
+    if (typeof CommonStems !== "undefined" && engine.getSetting("stemsOnShiftSamplerPads")) {
+        if (value === DOWN) {
+            CommonStems.padPress(status & 0x0F, (control & 0x07) + 1);
+        }
+        return;
+    }
     if (value === DOWN) {
         if (engine.getValue(group, "track_loaded")) { //Sampler loaded (playing or not)
             if (engine.getValue(group, "play")) { // Sampler is playing
