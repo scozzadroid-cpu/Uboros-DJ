@@ -1,3 +1,4 @@
+#include "util/threadpriority.h"
 #include "soundio/sounddeviceportaudio.h"
 
 #include <float.h>
@@ -991,6 +992,11 @@ int SoundDevicePortAudio::callbackProcessClkRef(
         // already set up correctly because of the audio server, or it's still set to
         // the SCHED_OTHER policy in which case the call also wouldn't do anything.
         QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
+#endif
+#ifdef __ANDROID__
+        // Playback has the top priority: on top of what AAudio gives to the
+        // callback thread, ask for the highest nice level allowed to apps.
+        mixxx::setCurrentThreadNice(-19);
 #endif
         m_bSetThreadPriority = true;
 
