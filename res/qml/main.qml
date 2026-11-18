@@ -26,6 +26,12 @@ ApplicationWindow {
     // Phones / small tablets: the desktop layout needs ~1000 px of height.
     readonly property bool compact: height < 700
     readonly property bool isAndroid: Qt.platform.os === "android"
+    // Android tablet: the short side of the screen is >= 600 dp (Qt sizes
+    // are already in dp). Tablets get the big layout, any orientation, and
+    // the 4 decks like a desktop.
+    readonly property bool isTablet: isAndroid && Math.min(Screen.width, Screen.height) >= 600
+    // Large screens (desktop, 4K, big tablets): everything gets a bit more room
+    readonly property bool large: height >= 1200
     // Narrow window (portrait phone): popups must fit the width
     readonly property bool narrow: width < 1000
     // Portrait start screen on phones when no DJ controller is connected.
@@ -40,11 +46,11 @@ ApplicationWindow {
 
     function enterDjView() {
         dashboardMode = false;
-        Mixxx.Config.setScreenOrientation(Mixxx.Config.ScreenOrientation.Landscape);
+        Mixxx.Config.setScreenOrientation(isTablet ? Mixxx.Config.ScreenOrientation.Any : Mixxx.Config.ScreenOrientation.Landscape);
     }
     function enterDashboard() {
         dashboardMode = true;
-        Mixxx.Config.setScreenOrientation(Mixxx.Config.ScreenOrientation.Portrait);
+        Mixxx.Config.setScreenOrientation(isTablet ? Mixxx.Config.ScreenOrientation.Any : Mixxx.Config.ScreenOrientation.Portrait);
     }
 
     onControllerCountChanged: {
@@ -84,7 +90,7 @@ ApplicationWindow {
     readonly property bool waveformView: compact && !showMixer && !maximizeLibrary && showLibraryControl.value === 0
     readonly property real waveformHeight: {
         if (!compact)
-            return 120;
+            return large ? Math.min(220, Math.floor(height * 0.12)) : 120;
         // The on-screen mixer needs the whole height on a phone
         if (showMixer)
             return 0;
@@ -104,7 +110,10 @@ ApplicationWindow {
 
     // Black while the screen is off: OLED pixels really off
     color: screenAsleep ? "black" : Theme.backgroundColor
-    height: 1080
+    // Do not open bigger than the screen (laptops 1366x768, 1280x800)
+    height: Math.min(1080, Screen.desktopAvailableHeight > 0 ? Screen.desktopAvailableHeight : 1080)
+    minimumHeight: isAndroid ? 0 : 480
+    minimumWidth: isAndroid ? 0 : 640
 
     Mixxx.ControlProxy {
         id: showLibraryControl
@@ -121,7 +130,7 @@ ApplicationWindow {
         }
     }
     visible: true
-    width: 1920
+    width: Math.min(1920, Screen.desktopAvailableWidth > 0 ? Screen.desktopAvailableWidth : 1920)
 
     // ------------------------------------------------------------- OLED care
     // Burn-in protection: dimmer whites (Theme) and the whole view moved by
@@ -203,7 +212,7 @@ ApplicationWindow {
                     checkable: true
                     text: "4 Decks"
                     // Two decks on the phone (FLX4): no room for four
-                    visible: !root.isAndroid
+                    visible: !root.isAndroid || (root.isTablet && !root.compact)
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
@@ -320,6 +329,13 @@ ApplicationWindow {
                         height: 480
                         width: 640
                     }
+                }
+                Skin.Button {
+                    id: exportButton
+                    activeColor: Theme.white
+                    text: "Export"
+
+                    onClicked: exportPopup.open()
                 }
                 Skin.Button {
                     id: showDashboardButton
@@ -481,6 +497,12 @@ ApplicationWindow {
         anchors.topMargin: 8
         width: Math.min(parent.width - 16, 900)
         z: 100
+    }
+    Skin.ExportPopup {
+        id: exportPopup
+        width: Math.min(parent.width - 16, 520)
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
     }
     Skin.Settings {
         id: settingsPopup
