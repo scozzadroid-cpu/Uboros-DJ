@@ -818,7 +818,7 @@ void CoreServices::initialize(QApplication* pApp) {
                     "(Ljava/lang/String;)V",
                     ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION.object());
             QJniObject jniPath = QJniObject::fromString(
-                    QStringLiteral("package:%1").arg(ANDROID_PACKAGE_NAME));
+                    QStringLiteral("package:%1").arg(QJniObject(QNativeInterface::QAndroidApplication::context()).callObjectMethod("getPackageName", "()Ljava/lang/String;").toString()));
             QJniObject jniUri =
                     QJniObject::callStaticObjectMethod("android/net/Uri",
                             "parse",

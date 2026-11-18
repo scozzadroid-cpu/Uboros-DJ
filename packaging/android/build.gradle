@@ -74,6 +74,28 @@ android {
         abortOnError = false
     }
 
+    // Install-time asset pack with the stem separation models (created by
+    // tools/make_aab.sh); merged into the assets at runtime ("assets:/stems/...").
+    if (findProject(':stems_pack') != null) {
+        assetPacks = [':stems_pack']
+    }
+
+    if (project.hasProperty('uborosSign')) {
+        signingConfigs {
+            uboros {
+                storeFile file(System.getenv('QT_ANDROID_KEYSTORE_PATH'))
+                storePassword System.getenv('QT_ANDROID_KEYSTORE_STORE_PASS')
+                keyAlias System.getenv('QT_ANDROID_KEYSTORE_ALIAS')
+                keyPassword System.getenv('QT_ANDROID_KEYSTORE_KEY_PASS')
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.uboros
+            }
+        }
+    }
+
     aaptOptions {
         // Do not compress Qt binary resources file
         noCompress 'rcc'
@@ -81,6 +103,14 @@ android {
 
     defaultConfig {
         resConfig "en"
+        // Play Store build (tools/make_aab.sh): applicationId differs from the
+        // namespace/Java package (org.mixxx), which stays unchanged.
+        if (project.hasProperty('uborosApplicationId'))
+            applicationId project.property('uborosApplicationId')
+        if (project.hasProperty('uborosVersionCode'))
+            versionCode project.property('uborosVersionCode').toInteger()
+        if (project.hasProperty('uborosVersionName'))
+            versionName project.property('uborosVersionName')
         minSdkVersion qtMinSdkVersion
         targetSdkVersion qtTargetSdkVersion
         ndk.abiFilters = qtTargetAbiList.split(",")

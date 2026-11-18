@@ -1,6 +1,12 @@
 #include "util/threadpriority.h"
 #include "soundio/sounddeviceportaudio.h"
 
+#ifdef __ANDROID__
+#include <QJniObject>
+#include <QCoreApplication>
+#include <string>
+#endif
+
 #include <float.h>
 
 #include <QRegularExpression>
@@ -258,8 +264,14 @@ SoundDeviceStatus SoundDevicePortAudio::open(bool isClkRefDevice, int syncBuffer
         obeoStreamInfo.androidInputPreset = PaOboe_InputPreset::Generic,
         obeoStreamInfo.performanceMode = PaOboe_PerformanceMode::LowLatency,
         obeoStreamInfo.sharingMode = PaOboe_SharingMode::Exclusive,
-        obeoStreamInfo.contentType = PaOboe_ContentType::Music,
-        obeoStreamInfo.packageName = ANDROID_PACKAGE_NAME;
+        obeoStreamInfo.contentType = PaOboe_ContentType::Music;
+        // Runtime package name: applicationId (Play build) differs from the Java package
+        static const std::string sPackageName =
+                QJniObject(QNativeInterface::QAndroidApplication::context())
+                        .callObjectMethod("getPackageName", "()Ljava/lang/String;")
+                        .toString()
+                        .toStdString();
+        obeoStreamInfo.packageName = sPackageName.c_str();
 
         m_outputParams.hostApiSpecificStreamInfo = (void*)&obeoStreamInfo;
     } else {
