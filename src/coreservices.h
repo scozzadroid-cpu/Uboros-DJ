@@ -137,6 +137,8 @@ class CoreServices : public QObject {
     // Always declared: the class layout must not depend on a define that
     // only some targets see (mixxx-qml-lib vs mixxx-lib)
     std::unique_ptr<QObject> m_pStemSeparationService;
+    // [Skin],performance_mode (ControlPushButton), never persisted
+    std::unique_ptr<QObject> m_pPerformanceMode;
     std::shared_ptr<RecordingManager> m_pRecordingManager;
 #ifdef __BROADCAST__
     std::shared_ptr<BroadcastManager> m_pBroadcastManager;

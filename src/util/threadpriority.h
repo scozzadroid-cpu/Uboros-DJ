@@ -5,7 +5,13 @@
 #include <unistd.h>
 #endif
 
+#include <atomic>
+
 namespace mixxx {
+
+// Kernel thread id of the audio callback thread (0 until the first callback);
+// read by the Android performance hint session
+inline std::atomic<int> g_audioCallbackTid{0};
 
 // Nice values of the calling thread (Linux/Android): -20 = highest priority,
 // 19 = lowest. Android apps may use down to THREAD_PRIORITY_URGENT_AUDIO (-19)

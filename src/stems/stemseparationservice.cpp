@@ -344,6 +344,14 @@ void StemSeparationService::slotUpdateControls() {
     for (const auto& pDeck : m_decks) {
         anyPlaying = anyPlaying || (pDeck->pPlay && pDeck->pPlay->get() > 0);
     }
+    // Performance mode ([Skin],performance_mode): the passes at the best
+    // quality wait as if a deck were playing, so the CPU is left to audio
+    // and rendering (jobs requested explicitly keep running)
+    if (!m_pPerformanceMode) {
+        m_pPerformanceMode = std::make_unique<ControlProxy>(
+                ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("performance_mode")));
+    }
+    anyPlaying = anyPlaying || m_pPerformanceMode->toBool();
     if (anyPlaying != m_anyPlaying.load(std::memory_order_relaxed)) {
         m_anyPlaying.store(anyPlaying, std::memory_order_relaxed);
         if (!anyPlaying) {

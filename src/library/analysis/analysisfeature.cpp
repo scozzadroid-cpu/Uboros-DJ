@@ -72,7 +72,7 @@ AnalysisFeature::AnalysisFeature(
 
 #ifdef __ANDROID__
 void AnalysisFeature::slotPlayingDeckChanged(int deck) {
-    const bool playing = deck >= 0;
+    const bool playing = deck >= 0 || (m_pPerformanceMode && m_pPerformanceMode->toBool());
     if (playing == m_pausedForPlayback) {
         return;
     }

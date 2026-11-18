@@ -21,6 +21,7 @@
 #include "broadcast/broadcastmanager.h"
 #endif
 #include "control/controlindicatortimer.h"
+#include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
 #include "controllers/scripting/controllerscriptenginebase.h"
@@ -587,6 +588,16 @@ void CoreServices::initialize(QApplication* pApp) {
     }
 
     m_pPlayerManager->addConfiguredDecks();
+    // Performance mode: always off at start (never saved). Read by the
+    // stem separation, the analysis and the QML application.
+    {
+        auto pPerf = std::make_unique<ControlPushButton>(
+                ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("performance_mode")),
+                false,
+                0.0);
+        pPerf->setButtonMode(mixxx::control::ButtonMode::Toggle);
+        m_pPerformanceMode = std::move(pPerf);
+    }
 #ifdef __STEM_SEPARATION__
     // Instant stems (controls [ChannelN],stem_separate etc.): needs the decks
     m_pStemSeparationService = std::make_unique<mixxx::stems::StemSeparationService>(
@@ -1123,6 +1134,7 @@ void CoreServices::finalize() {
     // Stops the separation thread; uses the controls of the decks
     m_pStemSeparationService.reset();
 #endif
+    m_pPerformanceMode.reset();
 
     // Stop all pending library operations
     qDebug() << t.elapsed(false).debugMillisWithUnit() << "stopping pending Library tasks";

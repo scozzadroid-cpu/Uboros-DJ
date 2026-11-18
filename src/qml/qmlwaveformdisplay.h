@@ -50,6 +50,15 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     QML_NAMED_ELEMENT(WaveformDisplay)
 
   public:
+    // Performance mode: redraw every frame also while the deck is paused
+    // (no idle timer, so no delay when playing starts)
+    static void setPerformanceMode(bool on) {
+        s_performanceMode.store(on, std::memory_order_relaxed);
+    }
+    static bool performanceMode() {
+        return s_performanceMode.load(std::memory_order_relaxed);
+    }
+
     QmlWaveformDisplay(QQuickItem* parent = nullptr);
     ~QmlWaveformDisplay() override;
 
@@ -117,6 +126,7 @@ class QmlWaveformDisplay : public QQuickItem, VSyncTimeProvider, public Waveform
     // for a while (paused deck), redraw at a low rate instead of every frame.
     // Written on the render thread during sync (GUI thread blocked), read on
     // the GUI thread.
+    inline static std::atomic<bool> s_performanceMode{false};
     std::atomic<int> m_stillFrames{0};
     int m_lastPosVSample{-1};
     double m_lastZoom{-1.0};

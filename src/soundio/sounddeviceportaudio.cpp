@@ -1009,6 +1009,7 @@ int SoundDevicePortAudio::callbackProcessClkRef(
         // Playback has the top priority: on top of what AAudio gives to the
         // callback thread, ask for the highest nice level allowed to apps.
         mixxx::setCurrentThreadNice(-19);
+        mixxx::g_audioCallbackTid.store(gettid(), std::memory_order_relaxed);
 #endif
         m_bSetThreadPriority = true;
 

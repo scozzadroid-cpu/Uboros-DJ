@@ -87,7 +87,8 @@ void QmlWaveformDisplay::slotFrameSwapped() {
     // hidden or empty waveforms every frame keeps the whole window rendering
     // at the display refresh rate (120 Hz on many phones) for nothing.
     if (isVisible() && getTrackInfo()) {
-        if (m_stillFrames.load(std::memory_order_relaxed) < kStillFramesBeforeIdle) {
+        if (s_performanceMode.load(std::memory_order_relaxed) ||
+                m_stillFrames.load(std::memory_order_relaxed) < kStillFramesBeforeIdle) {
             update();
         } else if (!m_idleTimer.isActive()) {
             // Paused deck: nothing moves, check again a few times per second

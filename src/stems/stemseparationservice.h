@@ -26,6 +26,7 @@
 #include <mutex>
 #include <thread>
 
+#include "control/controlproxy.h"
 #include "preferences/usersettings.h"
 #include "stems/stemcache.h"
 #include "track/steminfo.h"
@@ -142,7 +143,10 @@ class StemSeparationService : public QObject {
     std::atomic<double> m_speed{0};
     std::atomic<int> m_slowSegments{0}; // consecutive, while the deck plays
     std::atomic<bool> m_busy{false};
+    // true while a deck plays or the performance mode is on: the idle
+    // (best quality) passes wait
     std::atomic<bool> m_anyPlaying{false};
+    std::unique_ptr<ControlProxy> m_pPerformanceMode;
     // Set by the worker when a network cannot be loaded on this phone
     std::atomic<bool> m_netFailed{false};
     std::atomic<bool> m_lightNetFailed{false};

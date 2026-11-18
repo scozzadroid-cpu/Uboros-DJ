@@ -6,6 +6,7 @@
 #include <QVariant>
 
 #include "analyzer/trackanalysisscheduler.h"
+#include "control/controlproxy.h"
 #include "library/libraryfeature.h"
 #include "library/treeitemmodel.h"
 #include "preferences/usersettings.h"
@@ -79,4 +80,5 @@ class AnalysisFeature : public LibraryFeature {
     // The title is dynamic and reflects the current progress
     QString m_title;
     bool m_pausedForPlayback{false};
+    std::unique_ptr<ControlProxy> m_pPerformanceMode;
 };
