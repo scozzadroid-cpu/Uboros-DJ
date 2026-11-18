@@ -206,6 +206,7 @@ Popup {
                         font.pixelSize: 16
                         font.weight: Font.DemiBold
                         text: "Settings"
+                        visible: !root.narrow
                     }
                     Skin.Button {
                         anchors.left: parent.left
