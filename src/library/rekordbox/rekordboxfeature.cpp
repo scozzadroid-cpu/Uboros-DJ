@@ -1,6 +1,8 @@
 #include "library/rekordbox/rekordboxfeature.h"
 
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <optional>
 #include <QtConcurrentRun>
 
@@ -109,7 +111,7 @@ bool createLibraryTable(QSqlDatabase& database, const QString& tableName) {
             "    bpm FLOAT,"
             "    key TEXT,"
             "    rating INTEGER,"
-            "    analyze_path TEXT UNIQUE,"
+            "    analyze_path TEXT,"
             "    device TEXT,"
             "    color INTEGER"
             ");");
@@ -500,6 +502,20 @@ void insertTrack(
 
     if (finderQuery.next()) {
         trackID = finderQuery.value(finderQuery.record().indexOf("id")).toInt();
+    } else {
+        // The insert failed (e.g. the same file listed twice): use the row of
+        // that file so the track is not lost
+        QSqlQuery byLocation(database);
+        byLocation.prepare("select id from " + kRekordboxLibraryTable +
+                " where location=:location");
+        byLocation.bindValue(":location", location);
+        if (byLocation.exec() && byLocation.next()) {
+            trackID = byLocation.value(0).toInt();
+        }
+    }
+    if (trackID < 0) {
+        qWarning() << "Rekordbox: track" << rbID << location << "not imported";
+        return;
     }
 
     // Insert into device all tracks playlist
@@ -827,6 +843,9 @@ void buildPlaylistTree(
                 if (finderQuery.next()) {
                     trackID = finderQuery.value(finderQuery.record().indexOf("id")).toInt();
                 }
+                if (trackID < 0) {
+                    continue;
+                }
 
                 queryInsertIntoPlaylistTracks.bindValue(":playlist_id", playlistID);
                 queryInsertIntoPlaylistTracks.bindValue(":track_id", trackID);
@@ -1025,7 +1044,7 @@ std::optional<ConstantTempoGrid> fitConstantTempoGrid(
             beatLengthMs};
 }
 
-void readAnalyze(TrackPointer track,
+void readAnalyzeImpl(TrackPointer track,
         mixxx::audio::SampleRate sampleRate,
         double timingOffset,
         const QString& beatsSubversion,
@@ -1269,6 +1288,23 @@ void readAnalyze(TrackPointer track,
                         memoryCueOrLoop.color);
             }
         }
+    }
+}
+
+// A read error (drive unplugged, corrupt file) must never abort the app: the
+// Kaitai parser throws std::ios_base::failure / kaitai exceptions
+void readAnalyze(TrackPointer track,
+        mixxx::audio::SampleRate sampleRate,
+        double timingOffset,
+        const QString& beatsSubversion,
+        bool ignoreCues,
+        const QString& anlzPath) {
+    try {
+        readAnalyzeImpl(track, sampleRate, timingOffset, beatsSubversion, ignoreCues, anlzPath);
+    } catch (const std::exception& e) {
+        qWarning() << "Rekordbox: cannot read the analysis file" << anlzPath << ":" << e.what();
+    } catch (...) {
+        qWarning() << "Rekordbox: cannot read the analysis file" << anlzPath;
     }
 }
 
@@ -1912,6 +1948,10 @@ void RekordboxFeature::onTracksFound() {
         qWarning() << "Failed to load Rekordbox database:" << e.what();
         setBusyText(QString());
         return;
+    } catch (...) {
+        qWarning() << "Failed to load Rekordbox database";
+        setBusyText(QString());
+        return;
     }
     setBusyText(QString());
 
@@ -1942,6 +1982,41 @@ void RekordboxFeature::onTracksFound() {
 }
 
 void RekordboxFeature::preanalyzeNextBatch() {
+    // No exception may leave a timer slot
+    try {
+        preanalyzeNextBatchImpl();
+    } catch (const std::exception& e) {
+        qWarning() << "Rekordbox pre-analysis failed:" << e.what();
+        abortDeviceWork(QStringLiteral("error"));
+    } catch (...) {
+        qWarning() << "Rekordbox pre-analysis failed";
+        abortDeviceWork(QStringLiteral("error"));
+    }
+}
+
+bool RekordboxFeature::deviceStillThere() const {
+    if (m_preanalysisPlaylist.isEmpty()) {
+        return true;
+    }
+    const QDir root(m_preanalysisPlaylist);
+    return root.exists() && QFileInfo(root.filePath(QStringLiteral("PIONEER"))).isDir();
+}
+
+void RekordboxFeature::abortDeviceWork(const QString& why) {
+    m_preanalysisTimer.stop();
+    m_exportTimer.stop();
+    m_exportQueue.clear();
+    m_preanalysisTracks.clear();
+    m_preanalysisPlaylist.clear();
+    setBusyText(QString());
+    qInfo() << "Rekordbox: device work stopped (" << why << ")";
+}
+
+void RekordboxFeature::preanalyzeNextBatchImpl() {
+    if (!deviceStillThere()) {
+        abortDeviceWork(QStringLiteral("device removed"));
+        return;
+    }
     // Reading the files competes with the decks for the storage: wait
     if (PlayerInfo::instance().getCurrentPlayingDeck() >= 0) {
         setBusyText(QString());
@@ -2013,6 +2088,9 @@ void RekordboxFeature::onTrackAnalyzerProgress(TrackId trackId, AnalyzerProgress
 }
 
 void RekordboxFeature::onTracksChanged(const QSet<TrackId>& trackIds) {
+    if (m_exportDisabled) {
+        return;
+    }
     for (const TrackId& trackId : trackIds) {
         if (trackId.isValid() && !m_exportQueue.contains(trackId)) {
             m_exportQueue.append(trackId);
@@ -2024,6 +2102,27 @@ void RekordboxFeature::onTracksChanged(const QSet<TrackId>& trackIds) {
 }
 
 void RekordboxFeature::exportNextAnalyses() {
+    // No exception may leave a timer slot
+    try {
+        exportNextAnalysesImpl();
+    } catch (const std::exception& e) {
+        qWarning() << "Device analysis export failed:" << e.what();
+        m_exportQueue.clear();
+    } catch (...) {
+        qWarning() << "Device analysis export failed";
+        m_exportQueue.clear();
+    }
+}
+
+void RekordboxFeature::exportNextAnalysesImpl() {
+    if (m_exportDisabled) {
+        m_exportQueue.clear();
+        return;
+    }
+    if (!deviceStillThere()) {
+        abortDeviceWork(QStringLiteral("device removed"));
+        return;
+    }
     if (!m_pConfig->getValue(mixxx::deviceanalysis::storeOnDeviceConfigKey(), true)) {
         m_exportQueue.clear();
         return;
@@ -2054,6 +2153,13 @@ void RekordboxFeature::exportNextAnalyses() {
             }
         }
         m_exportWriteTrack.reset();
+        if (result == mixxx::deviceanalysis::ExportResult::Failed) {
+            qWarning() << "Device analysis: write error (drive unplugged or"
+                          " damaged?), no more analyses stored on the device";
+            m_exportDisabled = true;
+            m_exportQueue.clear();
+            return;
+        }
         if (result == mixxx::deviceanalysis::ExportResult::ReadOnly) {
             if (!m_exportReadOnlyLogged) {
                 qInfo() << "Device analysis: the device is read-only, analyses"
@@ -2075,6 +2181,17 @@ void RekordboxFeature::exportNextAnalyses() {
         if (!pTrack ||
                 mixxx::deviceanalysis::deviceRootForFile(pTrack->getLocation()).isEmpty()) {
             continue;
+        }
+        {
+            const QString root = mixxx::deviceanalysis::deviceRootForFile(pTrack->getLocation());
+            if (QStorageInfo(root).isReadOnly()) {
+                if (!m_exportReadOnlyLogged) {
+                    qInfo() << "Device analysis: the device is mounted read-only";
+                    m_exportReadOnlyLogged = true;
+                }
+                m_exportQueue.clear();
+                return;
+            }
         }
         mixxx::deviceanalysis::ExportJob job =
                 mixxx::deviceanalysis::prepareExport(pTrack, analysisDao);

@@ -100,11 +100,16 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     // then queues their analysis (waveforms), so that loading a track later
     // does not wait for "Analyzing". Writes only to Mixxx's own database.
     void preanalyzeNextBatch();
+    void preanalyzeNextBatchImpl();
+    // The device vanished or cannot be written: stop the background work
+    void abortDeviceWork(const QString& why);
+    bool deviceStillThere() const;
     // Analysis stored ON the device (MIXXX/ANLZ, see deviceanalysisstore.h):
     // queued after an analysis or a change, written while no deck plays
     void onTrackAnalyzerProgress(TrackId trackId, AnalyzerProgress progress);
     void onTracksChanged(const QSet<TrackId>& trackIds);
     void exportNextAnalyses();
+    void exportNextAnalysesImpl();
     void autoScanDevices();
 
   private:
@@ -125,6 +130,8 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QTimer m_exportTimer;
     QList<TrackId> m_exportQueue;
     bool m_exportReadOnlyLogged = false;
+    // An I/O error while writing: no more writes to the devices this session
+    bool m_exportDisabled = false;
     // Comparing with the drive and writing run in a worker thread, one at a time
     QFuture<mixxx::deviceanalysis::ExportResult> m_exportWrite;
     TrackPointer m_exportWriteTrack;

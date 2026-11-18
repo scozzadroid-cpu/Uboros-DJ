@@ -753,16 +753,29 @@ void CoreServices::initialize(QApplication* pApp) {
         }
         pSession->setValue(cleanKey, false);
         // Stable for a minute: the restore did not crash it
-        QTimer::singleShot(60000, this, [pSession, attemptsKey]() {
-            pSession->setValue(attemptsKey, 0);
+        // A child timer (stopped in finalize()) instead of a free singleShot:
+        // it fired while the track collection was being destroyed
+        auto* pStableTimer = new QTimer(this);
+        pStableTimer->setObjectName(QStringLiteral("SessionStableTimer"));
+        pStableTimer->setSingleShot(true);
+        pStableTimer->setInterval(60000);
+        connect(pStableTimer, &QTimer::timeout, this, [pSession, attemptsKey]() {
+            if (pSession) {
+                pSession->setValue(attemptsKey, 0);
+            }
         });
+        pStableTimer->start();
         connect(qApp, &QCoreApplication::aboutToQuit, this, [pSession, cleanKey]() {
             pSession->setValue(cleanKey, true);
             pSession->save();
         });
         auto* pSnapshotTimer = new QTimer(this);
+        pSnapshotTimer->setObjectName(QStringLiteral("SessionSnapshotTimer"));
         pSnapshotTimer->setInterval(5000);
         connect(pSnapshotTimer, &QTimer::timeout, this, [this, pSession]() {
+            if (!pSession || !m_pPlayerManager) {
+                return;
+            }
             const int deckCount = static_cast<int>(m_pPlayerManager->numberOfDecks());
             bool changed = false;
             for (int i = 1; i <= deckCount; ++i) {
@@ -1116,6 +1129,13 @@ void CoreServices::finalize() {
 
     Timer t("CoreServices::~CoreServices");
     t.start();
+
+    // Session timers must not fire while the objects they use are destroyed
+    for (QTimer* pTimer : findChildren<QTimer*>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (pTimer->objectName().startsWith(QLatin1String("Session"))) {
+            pTimer->stop();
+        }
+    }
 
 #ifdef MIXXX_USE_QML
     // Delete all the QML singletons in order to prevent controller leaks
