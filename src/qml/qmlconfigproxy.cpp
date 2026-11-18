@@ -39,6 +39,8 @@ const bool kWaveformZoomSynchronizationDefault = true;
 const double kWaveformDefaultZoomDefault = 3.0;
 const QString kWaveformGpuKey = QStringLiteral("GpuRendering");
 const QString kScreenGroup = QStringLiteral("[Screen]");
+const QString kTutorialGroup = QStringLiteral("[Tutorial]");
+const QString kTutorialDoneKey = QStringLiteral("Done");
 const QString kBurnInProtectionKey = QStringLiteral("BurnInProtection");
 const QString kScreenOffMinutesKey = QStringLiteral("ScreenOffMinutes");
 
@@ -169,6 +171,19 @@ void QmlConfigProxy::setWaveformGpu(bool enabled) {
     m_pConfig->setValue(ConfigKey(kWaveformGroup, kWaveformGpuKey), enabled);
     m_pConfig->save();
     emit waveformGpuChanged(enabled);
+}
+
+bool QmlConfigProxy::tutorialDone() const {
+    return m_pConfig->getValue(ConfigKey(kTutorialGroup, kTutorialDoneKey), false);
+}
+
+void QmlConfigProxy::setTutorialDone(bool done) {
+    if (done == tutorialDone()) {
+        return;
+    }
+    m_pConfig->setValue(ConfigKey(kTutorialGroup, kTutorialDoneKey), done);
+    m_pConfig->save();
+    emit tutorialDoneChanged(done);
 }
 
 bool QmlConfigProxy::burnInProtection() const {

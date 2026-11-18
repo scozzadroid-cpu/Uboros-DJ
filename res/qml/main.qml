@@ -490,6 +490,7 @@ ApplicationWindow {
             root.enterDjView();
         }
         onOpenSettings: settingsPopup.open()
+        onShowTutorial: tutorial.open()
     }
     Skin.StemSlowBanner {
         anchors.horizontalCenter: parent.horizontalCenter
@@ -497,6 +498,16 @@ ApplicationWindow {
         anchors.topMargin: 8
         width: Math.min(parent.width - 16, 900)
         z: 100
+    }
+    Skin.Tutorial {
+        id: tutorial
+    }
+    // First run: after the startup check, once, unless it was skipped/finished
+    Timer {
+        interval: 3500
+        running: !Mixxx.Config.tutorialDone
+        repeat: false
+        onTriggered: if (!Mixxx.Config.tutorialDone && !tutorial.opened) tutorial.open()
     }
     Skin.ExportPopup {
         id: exportPopup

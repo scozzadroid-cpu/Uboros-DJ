@@ -10,6 +10,7 @@ ColumnLayout {
     id: root
 
     property var info: ({})
+    signal showTutorial
     readonly property var options: Mixxx.Analysis.options
     // Destructive actions ask for a second tap within a few seconds
     property string armedAction: ""
@@ -250,6 +251,17 @@ ColumnLayout {
         title: qsTr("Waveforms drawn by the GPU")
 
         onSwitched: value => Mixxx.Config.waveformGpu = value
+    }
+
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        subtitle: qsTr("Show the first-run tour again")
+        title: qsTr("Tutorial")
+
+        onClicked: {
+            Mixxx.Config.tutorialDone = false;
+            root.showTutorial();
+        }
     }
 
     // ------------------------------------------------------------------ Screen

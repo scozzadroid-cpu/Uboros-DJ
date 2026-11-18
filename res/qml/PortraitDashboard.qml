@@ -19,6 +19,7 @@ Rectangle {
     property bool openedByUser: false
 
     signal openSettings
+    signal showTutorial
     signal continueWithoutController
 
     gradient: Gradient {
@@ -216,6 +217,7 @@ Rectangle {
                 onClicked: root.continueWithoutController()
             }
             Skin.DashboardMaintenance {
+                onShowTutorial: root.showTutorial()
                 Layout.bottomMargin: 24
                 Layout.fillWidth: true
                 // Not built until the dashboard is shown

@@ -22,6 +22,8 @@ class QmlConfigProxy : public QObject {
     Q_PROPERTY(bool waveformGpuSupported READ waveformGpuSupported CONSTANT)
     // OLED burn-in protection: whites a bit dimmer, the DJ view moved by a
     // couple of pixels every few minutes. No cost per frame.
+    // First-run tutorial: true once finished or skipped, never shown again
+    Q_PROPERTY(bool tutorialDone READ tutorialDone WRITE setTutorialDone NOTIFY tutorialDoneChanged)
     Q_PROPERTY(bool burnInProtection READ burnInProtection WRITE setBurnInProtection NOTIFY burnInProtectionChanged)
     // Screen turned black (nothing drawn, audio goes on) after these minutes
     // without DJ controller input or touches; 0 = never
@@ -61,6 +63,8 @@ class QmlConfigProxy : public QObject {
     Q_ENUM(ScreenOrientation)
     Q_INVOKABLE void setScreenOrientation(mixxx::qml::QmlConfigProxy::ScreenOrientation orientation);
 
+    bool tutorialDone() const;
+    void setTutorialDone(bool done);
     bool burnInProtection() const;
     void setBurnInProtection(bool enabled);
     int screenOffMinutes() const;
@@ -81,6 +85,7 @@ class QmlConfigProxy : public QObject {
 
   signals:
     void waveformGpuChanged(bool enabled);
+    void tutorialDoneChanged(bool done);
     void burnInProtectionChanged(bool enabled);
     void screenOffMinutesChanged(int minutes);
     void screenAsleepChanged(bool asleep);
