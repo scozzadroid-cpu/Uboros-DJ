@@ -12,7 +12,7 @@ Category {
     tabs: ["engine", "delays"]
 
     // Phone-sized window: stack the engine columns and scroll the page.
-    readonly property bool compact: (Window.window ? Window.window.height : 1080) < 700
+    readonly property bool compact: (Window.window ? Window.window.height : 1080) < 700 || (Window.window ? Window.window.width : 1920) < 700
 
     property bool hasChanges: router.hasChanges
     property bool committing: false
@@ -590,7 +590,7 @@ Category {
             label: "Router"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: root.compact ? 360 : 0
+            Layout.minimumHeight: root.compact ? 480 : 0
             clip: true
             // On phones the router is wider than the popup: scroll it horizontally
             Flickable {
