@@ -189,7 +189,7 @@ CommonStems.resetDeck = function(deck) {
     if (count <= 0) {
         return false;
     }
-    for (let i = 1; i <= CommonStems.MAX_STEMS; i++) {
+    for (let i = 1; i <= Math.min(count, CommonStems.MAX_STEMS); i++) {
         const group = CommonStems.stemGroup(deck, i);
         engine.setValue(group, "volume", 1);
         engine.setValue(group, "mute", 0);

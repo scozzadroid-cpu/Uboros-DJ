@@ -66,7 +66,14 @@ AnalysisFeature::AnalysisFeature(
             &PlayerInfo::currentPlayingDeckChanged,
             this,
             &AnalysisFeature::slotPlayingDeckChanged);
-    m_pausedForPlayback = PlayerInfo::instance().getCurrentPlayingDeck() >= 0;
+    // [Skin],performance_mode is created by CoreServices before the Library.
+    m_pPerformanceMode = std::make_unique<ControlProxy>(
+            QStringLiteral("[Skin]"), QStringLiteral("performance_mode"), this);
+    m_pPerformanceMode->connectValueChanged(this, [this](double) {
+        slotPlayingDeckChanged(PlayerInfo::instance().getCurrentPlayingDeck());
+    });
+    m_pausedForPlayback = PlayerInfo::instance().getCurrentPlayingDeck() >= 0 ||
+            m_pPerformanceMode->toBool();
 #endif
 }
 

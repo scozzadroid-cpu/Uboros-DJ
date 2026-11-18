@@ -16,6 +16,7 @@
 #include <QTimer>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #ifdef __ANDROID__
 #include <android/log.h>
 #include <sys/system_properties.h>
@@ -104,7 +105,10 @@ struct QmlApplication::PerfHint {
     QMetaObject::Connection beginConnection;
     QMetaObject::Connection endConnection;
     QTimer* pCheckTimer = nullptr;
-    std::atomic<qint64> frameStartNs{0};
+    // Guards session/sessionOk: the frame slots run on the render thread,
+    // closeSession()/createSession() on the GUI thread.
+    std::mutex sessionMutex;
+    std::atomic<qint64> frameStartNs{nowNs()};
     std::vector<int> tids;
     qint64 targetNs = 0;
     int audioTid = 0;
@@ -133,6 +137,7 @@ struct QmlApplication::PerfHint {
     }
 
     bool createSession() {
+        std::lock_guard<std::mutex> lock(sessionMutex);
         QJniObject activity = QNativeInterface::QAndroidApplication::context();
         if (!activity.isValid()) {
             return false;
@@ -170,6 +175,7 @@ struct QmlApplication::PerfHint {
     }
 
     void closeSession() {
+        std::lock_guard<std::mutex> lock(sessionMutex);
         if (session.isValid()) {
             session.callMethod<void>("close", "()V");
         }
@@ -258,9 +264,10 @@ void QmlApplication::applyPerformanceMode(bool on) {
     setWindowRefreshRate(on ? static_cast<float>(refreshHz) : 60.0f);
     if (on) {
         if (!m_pPerfHint) {
-            m_pPerfHint = std::make_unique<PerfHint>();
+            m_pPerfHint = std::make_shared<PerfHint>();
         }
-        auto* h = m_pPerfHint.get();
+        // Shared: the render-thread lambdas keep it alive while a frame is in flight
+        const std::shared_ptr<PerfHint> h = m_pPerfHint;
         h->targetNs = static_cast<qint64>(hintMs * 1e6);
         h->closeSession();
         if (hintMs > 0 && h->createSession()) {
@@ -283,7 +290,10 @@ void QmlApplication::applyPerformanceMode(bool on) {
                         }, Qt::DirectConnection);
                 h->endConnection = connect(
                         pWindow, &QQuickWindow::afterFrameEnd, this, [h]() {
-                            if (!h->sessionOk) {
+                            // Render thread: skip the frame if the GUI thread
+                            // is opening/closing the session
+                            std::unique_lock<std::mutex> lock(h->sessionMutex, std::try_to_lock);
+                            if (!lock.owns_lock() || !h->sessionOk) {
                                 return;
                             }
                             const qint64 start = h->frameStartNs.load(std::memory_order_relaxed);
@@ -314,7 +324,7 @@ void QmlApplication::applyPerformanceMode(bool on) {
                 << (h->sessionOk ? "active" : "not available") << "target" << hintMs
                 << "ms, threads" << h->tids.size() << ", analysis and best-quality stems paused, screen stays on";
     } else if (m_pPerfHint) {
-        auto* h = m_pPerfHint.get();
+        const std::shared_ptr<PerfHint> h = m_pPerfHint;
         if (h->pCheckTimer) {
             h->pCheckTimer->stop();
         }

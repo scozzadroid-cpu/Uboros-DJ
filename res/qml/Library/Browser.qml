@@ -250,6 +250,18 @@ Rectangle {
                         return root.isRowHidden(row) ? 0 : -1;
                     }
 
+                    // Expanding/collapsing a node shifts the view rows without
+                    // any signal from the model: recompute the hidden rows
+                    Connections {
+                        target: featureView
+                        function onExpanded() {
+                            Qt.callLater(featureView.forceLayout);
+                        }
+                        function onCollapsed() {
+                            Qt.callLater(featureView.forceLayout);
+                        }
+                    }
+
                     // Some sources find their children asynchronously after
                     // being activated (e.g. Rekordbox USB drives): show them
                     // as soon as they are known.

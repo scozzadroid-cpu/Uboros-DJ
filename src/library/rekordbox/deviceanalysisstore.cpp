@@ -242,8 +242,14 @@ QByteArray assembleSidecar(QJsonObject header, const QList<SidecarBlob>& rawBlob
         blobIndex.insert(raw.name, blob);
         blobs.append(compressed);
     }
+    if (blobIndex.size() != rawBlobs.size()) {
+        // An analysis file disappeared or is corrupt between gatherSidecar() and
+        // now (re-analysis): never replace a good sidecar with a partial one
+        qWarning() << "DeviceAnalysisStore: analysis blob missing or corrupt, sidecar not written";
+        return QByteArray();
+    }
     if (blobIndex.isEmpty() && !header.contains(QStringLiteral("beats"))) {
-        return QByteArray(); // nothing usable left (analysis files missing or corrupt)
+        return QByteArray();
     }
     header.insert(QStringLiteral("blobs"), blobIndex);
     const QByteArray headerJson = QJsonDocument(header).toJson(QJsonDocument::Compact);

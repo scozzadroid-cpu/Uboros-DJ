@@ -82,9 +82,6 @@ void GroupedTrackFeature::activate() {
 
 void GroupedTrackFeature::reloadGroups() {
     TreeItem* root = m_pSidebarModel->getRootItem();
-    if (root->childRows() > 0) {
-        m_pSidebarModel->removeRows(0, root->childRows());
-    }
     QSqlDatabase database = m_pLibrary->trackCollectionManager()
                                     ->internalCollection()
                                     ->database();
@@ -118,6 +115,25 @@ void GroupedTrackFeature::reloadGroups() {
         children.push_back(std::make_unique<TreeItem>(
                 QStringLiteral("%1 (%2)").arg(label).arg(query.value(1).toInt()),
                 value));
+    }
+    // Same groups and counts as now: leave the model alone, so that the
+    // selection of the user in the sidebar is not lost
+    const QList<TreeItem*>& current = root->children();
+    if (static_cast<size_t>(current.size()) == children.size()) {
+        bool same = true;
+        for (size_t i = 0; i < children.size(); ++i) {
+            if (current.at(static_cast<qsizetype>(i))->getLabel() != children[i]->getLabel() ||
+                    current.at(static_cast<qsizetype>(i))->getData() != children[i]->getData()) {
+                same = false;
+                break;
+            }
+        }
+        if (same) {
+            return;
+        }
+    }
+    if (root->childRows() > 0) {
+        m_pSidebarModel->removeRows(0, root->childRows());
     }
     if (!children.empty()) {
         m_pSidebarModel->insertTreeItemRows(std::move(children), 0);

@@ -51,7 +51,7 @@ class QmlApplication : public QObject {
     // Android performance hint session (PerformanceHintManager); the QJniObject
     // lives in the .cpp
     struct PerfHint;
-    std::unique_ptr<PerfHint> m_pPerfHint;
+    std::shared_ptr<PerfHint> m_pPerfHint;
 
     std::unique_ptr<QQmlApplicationEngine> m_pAppEngine;
     QmlAutoReload m_autoReload;
