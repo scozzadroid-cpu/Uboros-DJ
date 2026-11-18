@@ -98,6 +98,8 @@ Rectangle {
     }
 
     property int openedRow: -1
+    // A tap on an open node closes it: no automatic re-expansion until then
+    property double noAutoExpandUntil: 0
 
     Timer {
         id: openedCheck
@@ -289,6 +291,8 @@ Rectangle {
                                 return;
                             Qt.callLater(() => {
                                 const viewRow = featureView.rowAtIndex(parent);
+                                if (Date.now() < root.noAutoExpandUntil)
+                                    return;
                                 if (viewRow >= 0 && !featureView.isExpanded(viewRow))
                                     featureView.expand(viewRow);
                             });
@@ -339,20 +343,37 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                // Tap: open/close the node (a source without
+                                // children is just shown). Long press: select the
+                                // source and show its tracks on the right.
                                 onClicked: (event) => {
-                                    // Read the state before activating: the activation may
-                                    // populate the children (folders are listed lazily)
-                                    const wasExpanded = expanded;
                                     const viewRow = row;
                                     const index = currentModelIndex();
+                                    const isOpen = treeView.isExpanded(viewRow);
                                     treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
-                                    treeView.model.activate(index)
-                                    if (wasExpanded) {
-                                        treeView.collapse(viewRow)
+                                    if (isOpen) {
+                                        root.noAutoExpandUntil = Date.now() + 800;
+                                        treeView.collapse(viewRow);
                                     } else {
-                                        treeView.expand(viewRow)
+                                        // Lazy sources (folders, drives) only list
+                                        // their children once activated
+                                        if (!treeView.model.hasChildren(index) || !hasChildren)
+                                            treeView.model.activate(index);
+                                        if (treeView.model.hasChildren(index))
+                                            treeView.expand(viewRow);
+                                        else
+                                            Qt.callLater(() => {
+                                                const r = featureView.rowAtIndex(index);
+                                                if (r >= 0 && treeView.model.hasChildren(index) && !treeView.isExpanded(r))
+                                                    treeView.expand(r);
+                                            });
                                     }
                                     event.accepted = true
+                                }
+                                onPressAndHold: (event) => {
+                                    const index = currentModelIndex();
+                                    treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+                                    treeView.model.activate(index);
                                 }
                             }
 

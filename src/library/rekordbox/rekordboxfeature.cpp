@@ -1863,45 +1863,97 @@ void RekordboxFeature::onRekordboxDevicesFound() {
             m_pSidebarModel->removeRows(0, root->childRows());
         }
     } else {
-        for (int deviceIndex = 0; deviceIndex < root->childRows(); deviceIndex++) {
-            TreeItem* child = root->child(deviceIndex);
-            bool removeChild = true;
-
-            for (const auto& pDeviceFound : foundDevices) {
-                if (pDeviceFound->getLabel() == child->getLabel()) {
-                    removeChild = false;
-                    break;
+        // Drives imported with "Import USB drive" (label "... (USB)") live in
+        // their own group node, separate from the drives plugged in.
+        const QString importedGroupLabel = tr("Imported USB");
+        const auto isImportedLabel = [](const QString& label) {
+            return label.endsWith(QStringLiteral(" (USB)"));
+        };
+        const auto findGroupRow = [&]() {
+            for (int i = 0; i < root->childRows(); i++) {
+                if (!root->child(i)->getData().isValid()) {
+                    return i;
                 }
             }
+            return -1;
+        };
+        const auto labelFound = [&](const QString& label) {
+            for (const auto& pDeviceFound : foundDevices) {
+                if (pDeviceFound->getLabel() == label) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        const auto labelShown = [&](const QString& label) {
+            for (int i = 0; i < root->childRows(); i++) {
+                TreeItem* child = root->child(i);
+                if (child->getLabel() == label && child->getData().isValid()) {
+                    return true;
+                }
+                if (!child->getData().isValid()) {
+                    for (int j = 0; j < child->childRows(); j++) {
+                        if (child->child(j)->getLabel() == label) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        };
 
-            if (removeChild) {
-                // Device has since been unmounted, cleanup DB
+        // Drives that were unmounted since: remove them
+        for (int deviceIndex = root->childRows() - 1; deviceIndex >= 0; deviceIndex--) {
+            TreeItem* child = root->child(deviceIndex);
+            if (!child->getData().isValid()) {
+                const QModelIndex groupIndex = m_pSidebarModel->index(deviceIndex, 0);
+                for (int j = child->childRows() - 1; j >= 0; j--) {
+                    TreeItem* imported = child->child(j);
+                    if (!labelFound(imported->getLabel())) {
+                        clearDeviceTables(database, imported);
+                        m_pSidebarModel->removeRows(j, 1, groupIndex);
+                    }
+                }
+                if (child->childRows() == 0) {
+                    m_pSidebarModel->removeRows(deviceIndex, 1);
+                }
+            } else if (!labelFound(child->getLabel())) {
                 clearDeviceTables(database, child);
-
                 m_pSidebarModel->removeRows(deviceIndex, 1);
             }
         }
 
         std::vector<std::unique_ptr<TreeItem>> childrenToAdd;
+        std::vector<std::unique_ptr<TreeItem>> importedToAdd;
 
         for (auto&& pDeviceFound : foundDevices) {
-            bool addNewChild = true;
-            for (int deviceIndex = 0; deviceIndex < root->childRows(); deviceIndex++) {
-                TreeItem* child = root->child(deviceIndex);
-
-                if (pDeviceFound->getLabel() == child->getLabel()) {
-                    // This device already exists in the TreeModel, don't add or parse is again
-                    addNewChild = false;
-                }
+            if (labelShown(pDeviceFound->getLabel())) {
+                // Already in the TreeModel, don't add or parse it again
+                continue;
             }
-
-            if (addNewChild) {
+            if (isImportedLabel(pDeviceFound->getLabel())) {
+                importedToAdd.push_back(std::move(pDeviceFound));
+            } else {
                 childrenToAdd.push_back(std::move(pDeviceFound));
             }
         }
 
         if (!childrenToAdd.empty()) {
             m_pSidebarModel->insertTreeItemRows(std::move(childrenToAdd), 0);
+        }
+        if (!importedToAdd.empty()) {
+            int groupRow = findGroupRow();
+            if (groupRow < 0) {
+                std::vector<std::unique_ptr<TreeItem>> group;
+                group.push_back(std::make_unique<TreeItem>(importedGroupLabel, QVariant()));
+                m_pSidebarModel->insertTreeItemRows(std::move(group), root->childRows());
+                groupRow = findGroupRow();
+            }
+            if (groupRow >= 0) {
+                m_pSidebarModel->insertTreeItemRows(std::move(importedToAdd),
+                        0,
+                        m_pSidebarModel->index(groupRow, 0));
+            }
         }
     }
 
@@ -1912,8 +1964,21 @@ void RekordboxFeature::onRekordboxDevicesFound() {
     // Background scan: start reading any drive not loaded yet
     if (m_autoScan) {
         m_autoScan = false;
-        for (int i = 0; i < root->childRows() && !m_tracksFuture.isRunning(); i++) {
-            TreeItem* child = root->child(i);
+        QList<TreeItem*> allDevices;
+        for (int i = 0; i < root->childRows(); i++) {
+            TreeItem* top = root->child(i);
+            if (top->getData().isValid()) {
+                allDevices << top;
+            } else {
+                for (int j = 0; j < top->childRows(); j++) {
+                    allDevices << top->child(j);
+                }
+            }
+        }
+        for (TreeItem* child : std::as_const(allDevices)) {
+            if (m_tracksFuture.isRunning()) {
+                break;
+            }
             const QList<QVariant> data = child->getData().toList();
             if (data.size() < 2 || data[1].toString() != IS_RECORDBOX_DEVICE) {
                 continue;
