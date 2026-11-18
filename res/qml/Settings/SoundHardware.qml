@@ -493,8 +493,9 @@ Category {
                     id: delays
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    columns: 2
-                    rowSpacing: 0
+                    // Phone: label above its slider, room for the slider markers
+                    columns: root.compact ? 1 : 2
+                    rowSpacing: root.compact ? 4 : 0
                     Text {
                         Mixxx.SettingParameter {
                             label: "Main Output"
@@ -509,6 +510,7 @@ Category {
                     Skin.Slider {
                         id: mainDelaySlider
                         Layout.fillWidth: true
+                        Layout.preferredHeight: root.compact ? 48 : -1
                         markers: ["0ms", "100ms", "1s", "10s", null]
                         suffix: "ms"
                         slider.to: 1000
@@ -532,6 +534,7 @@ Category {
                     Skin.Slider {
                         id: boothDelaySlider
                         Layout.fillWidth: true
+                        Layout.preferredHeight: root.compact ? 48 : -1
                         markers: ["0ms", "100ms", "1s", "10s", null]
                         suffix: "ms"
                         enabled: boothEnabled.value
@@ -557,6 +560,7 @@ Category {
                     Skin.Slider {
                         id: headphoneDelaySlider
                         Layout.fillWidth: true
+                        Layout.preferredHeight: root.compact ? 48 : -1
                         markers: ["0ms", "100ms", "1s", "10s", null]
                         suffix: "ms"
                         enabled: headEnabled.value
