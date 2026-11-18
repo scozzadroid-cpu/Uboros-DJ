@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"  />
     <uses-permission android:name="android.permission.USB_PERMISSION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"  />
 
     <supports-screens
@@ -31,6 +34,10 @@
         <!-- Stem separation on the GPU (MNN OpenCL): the vendor OpenCL library
              is only visible to apps that declare it (targetSdk >= 31) -->
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <service
+            android:name="org.mixxx.KeepAliveService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
         <activity
             android:name="org.qtproject.qt.android.bindings.QtActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
