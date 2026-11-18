@@ -46,6 +46,20 @@ class AnalysisDao : public DAO {
             AnalysisType type) const;
 
     QList<AnalysisInfo> getAnalysesForTrackByType(TrackId trackId, AnalysisType type);
+
+    /// An analysis stored on disk, without its data: describing it is a cheap
+    /// query, reading and decompressing the file is not (see loadAnalysisData)
+    struct AnalysisFileRef {
+        QString description;
+        QString version;
+        int checksum = 0;
+        QString path;
+    };
+    /// Database query only (GUI thread): no file is read
+    QList<AnalysisFileRef> getAnalysisFileRefsForTrackByType(TrackId trackId, AnalysisType type);
+    /// Reads, verifies and decompresses the data of a file. Needs no database
+    /// connection, so it can run in any thread. Empty on any error.
+    static QByteArray loadAnalysisData(const QString& path, int checksum);
     QList<AnalysisInfo> getAnalysesForTrack(TrackId trackId);
     bool saveAnalysis(AnalysisInfo* analysis);
     bool deleteAnalysis(const int analysisId);

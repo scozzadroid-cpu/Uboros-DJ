@@ -85,7 +85,10 @@ struct SidecarBlob {
     QString name;
     QString version;
     QString description;
-    QByteArray data;
+    // The analysis file of Mixxx's cache: writeExport() reads and
+    // decompresses it, off the GUI thread
+    QString path;
+    int checksum = 0;
 };
 struct ExportJob {
     ExportResult result = ExportResult::NothingToExport; // final unless hasData is set

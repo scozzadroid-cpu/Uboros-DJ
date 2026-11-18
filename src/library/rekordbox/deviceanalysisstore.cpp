@@ -141,7 +141,9 @@ qint64 mtimeToStore(const QString& sidecarFile, const QString& relPath, const QF
 }
 
 bool hasCachedWaveform(TrackId trackId, AnalysisDao& analysisDao) {
-    return !analysisDao.getAnalysesForTrackByType(trackId, AnalysisDao::TYPE_WAVEFORM)
+    // Only asks the database: reading and decompressing the waveform here
+    // (GUI thread) froze the interface for ~100 ms per track
+    return !analysisDao.getAnalysisFileRefsForTrackByType(trackId, AnalysisDao::TYPE_WAVEFORM)
                     .isEmpty();
 }
 
@@ -202,12 +204,12 @@ bool gatherSidecar(const TrackPointer& pTrack,
 
     QList<SidecarBlob> rawBlobs;
     const auto addBlob = [&](const QString& name, AnalysisDao::AnalysisType type) {
-        const auto analyses = analysisDao.getAnalysesForTrackByType(pTrack->getId(), type);
-        if (analyses.isEmpty() || analyses.first().data.isEmpty()) {
+        const auto refs = analysisDao.getAnalysisFileRefsForTrackByType(pTrack->getId(), type);
+        if (refs.isEmpty()) {
             return;
         }
-        const auto& analysis = analyses.first();
-        rawBlobs.append({name, analysis.version, analysis.description, analysis.data});
+        const auto& ref = refs.first();
+        rawBlobs.append({name, ref.version, ref.description, ref.path, ref.checksum});
         hasData = true;
     };
     addBlob(QStringLiteral("waveform"), AnalysisDao::TYPE_WAVEFORM);
@@ -227,7 +229,11 @@ QByteArray assembleSidecar(QJsonObject header, const QList<SidecarBlob>& rawBlob
     QByteArray blobs;
     QJsonObject blobIndex;
     for (const SidecarBlob& raw : rawBlobs) {
-        const QByteArray compressed = qCompress(raw.data, 6);
+        const QByteArray data = AnalysisDao::loadAnalysisData(raw.path, raw.checksum);
+        if (data.isEmpty()) {
+            continue; // missing or corrupt file: same as no analysis
+        }
+        const QByteArray compressed = qCompress(data, 6);
         QJsonObject blob;
         blob.insert(QStringLiteral("version"), raw.version);
         blob.insert(QStringLiteral("description"), raw.description);
@@ -235,6 +241,9 @@ QByteArray assembleSidecar(QJsonObject header, const QList<SidecarBlob>& rawBlob
         blob.insert(QStringLiteral("length"), compressed.size());
         blobIndex.insert(raw.name, blob);
         blobs.append(compressed);
+    }
+    if (blobIndex.isEmpty() && !header.contains(QStringLiteral("beats"))) {
+        return QByteArray(); // nothing usable left (analysis files missing or corrupt)
     }
     header.insert(QStringLiteral("blobs"), blobIndex);
     const QByteArray headerJson = QJsonDocument(header).toJson(QJsonDocument::Compact);
@@ -458,6 +467,9 @@ ExportResult writeExport(const ExportJob& job) {
         return job.result;
     }
     const QByteArray content = assembleSidecar(job.header, job.blobs);
+    if (content.isEmpty()) {
+        return ExportResult::NothingToExport;
+    }
     {
         QFile existing(job.path);
         if (existing.open(QIODevice::ReadOnly) && existing.size() == content.size() &&

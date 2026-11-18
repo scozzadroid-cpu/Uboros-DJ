@@ -57,6 +57,48 @@ QList<AnalysisDao::AnalysisInfo> AnalysisDao::getAnalysesForTrackByType(
     return loadAnalysesFromQuery(trackId, &query);
 }
 
+QList<AnalysisDao::AnalysisFileRef> AnalysisDao::getAnalysisFileRefsForTrackByType(
+        TrackId trackId, AnalysisType type) {
+    QList<AnalysisFileRef> refs;
+    if (!m_database.isOpen() || !trackId.isValid()) {
+        return refs;
+    }
+    QSqlQuery query(m_database);
+    query.prepare(QString(
+            "SELECT id, description, version, data_checksum FROM %1 "
+            "WHERE track_id=:trackId AND type=:type")
+                          .arg(s_analysisTableName));
+    query.bindValue(":trackId", trackId.toVariant());
+    query.bindValue(":type", type);
+    if (!query.exec()) {
+        LOG_FAILED_QUERY(query) << "couldn't get analyses for track" << trackId;
+        return refs;
+    }
+    const QDir analysisPath(getAnalysisStoragePath());
+    while (query.next()) {
+        AnalysisFileRef ref;
+        ref.description = query.value(1).toString();
+        ref.version = query.value(2).toString();
+        ref.checksum = query.value(3).toInt();
+        ref.path = analysisPath.absoluteFilePath(QString::number(query.value(0).toInt()));
+        refs.append(ref);
+    }
+    return refs;
+}
+
+QByteArray AnalysisDao::loadAnalysisData(const QString& path, int checksum) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QByteArray();
+    }
+    const QByteArray compressedData = file.readAll();
+    if (checksum != static_cast<int>(qChecksum(QByteArrayView(compressedData)))) {
+        qDebug() << "WARNING: Corrupt analysis loaded from" << path;
+        return QByteArray();
+    }
+    return qUncompress(compressedData);
+}
+
 QList<AnalysisDao::AnalysisInfo> AnalysisDao::loadAnalysesFromQuery(TrackId trackId, QSqlQuery* query) {
     QList<AnalysisDao::AnalysisInfo> analyses;
     PerformanceTimer time;
