@@ -8,6 +8,7 @@
 #include <QQmlListProperty>
 #include <QQmlParserStatus>
 #include <QQuickItem>
+#include <QTimer>
 #include <QVariant>
 #include <memory>
 
@@ -50,7 +51,12 @@ class GroupedTrackFeature final : public LibraryFeature {
 
   private:
     void reloadGroups();
+    /// Reads the groups a moment after the library changed, so that the
+    /// sidebar knows whether the entry has anything in it without it being
+    /// opened first (an empty entry is hidden)
+    void scheduleReload();
 
+    QTimer m_reloadTimer;
     const Mode m_mode;
     LibraryTableModel* m_pTableModel;
     parented_ptr<TreeItemModel> m_pSidebarModel;

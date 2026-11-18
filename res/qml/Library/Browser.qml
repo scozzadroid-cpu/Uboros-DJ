@@ -36,6 +36,20 @@ Rectangle {
 
     readonly property bool controllerFocus: focusedWidget.value == Skin.FocusedWidgetControl.WidgetKind.Sidebar
 
+    // Top-level entries that only appear when there is something inside
+    // (a source with no playlists, no crates, no artists or no folders is
+    // just a dead button). The labels are the ones of SourceTree.qml.
+    readonly property var hideWhenEmpty: [qsTr("Playlists"), qsTr("Crates"), qsTr("Artists"), qsTr("Folders")]
+
+    function isRowHidden(row) {
+        if (row < 0 || row >= featureView.rows)
+            return false;
+        const index = featureView.index(row, 0);
+        if (!index || !index.valid || index.parent.valid)
+            return false;
+        return root.hideWhenEmpty.indexOf(root.model.data(index, Qt.DisplayRole)) >= 0 && !root.model.hasChildren(index);
+    }
+
     function currentViewRow() {
         const current = featureSelection.currentIndex;
         return current && current.valid ? featureView.rowAtIndex(current) : -1;
@@ -46,7 +60,20 @@ Rectangle {
         if (rowCount <= 0 || offset == 0)
             return;
         let row = root.currentViewRow();
-        row = row < 0 ? 0 : Math.max(0, Math.min(rowCount - 1, row + offset));
+        if (row < 0) {
+            row = 0;
+        } else {
+            // Step over the hidden (empty) entries
+            const step = offset > 0 ? 1 : -1;
+            for (let left = Math.abs(offset); left > 0; --left) {
+                let next = row + step;
+                while (next >= 0 && next < rowCount && root.isRowHidden(next))
+                    next += step;
+                if (next < 0 || next >= rowCount)
+                    break;
+                row = next;
+            }
+        }
         const index = featureView.index(row, 0);
         featureSelection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
         featureView.positionViewAtRow(row, TableView.Contain);
@@ -218,18 +245,35 @@ Rectangle {
 
                     selectionModel: featureSelection
 
+                    // Empty entries (see hideWhenEmpty) take no room
+                    rowHeightProvider: function (row) {
+                        return root.isRowHidden(row) ? 0 : -1;
+                    }
+
                     // Some sources find their children asynchronously after
                     // being activated (e.g. Rekordbox USB drives): show them
                     // as soon as they are known.
                     Connections {
                         target: root.model
+                        function onRowsRemoved() {
+                            Qt.callLater(featureView.forceLayout);
+                        }
+                        function onModelReset() {
+                            Qt.callLater(featureView.forceLayout);
+                        }
                         function onRowsInserted(parent, first, last) {
+                            // An entry may have got its first item
+                            Qt.callLater(featureView.forceLayout);
                             // Top-level sources, and the source just opened
                             // with the controller (e.g. a USB drive's playlists)
                             if (!parent.valid)
                                 return;
                             const isOpened = root.currentViewRow() >= 0 && featureView.rowAtIndex(parent) === root.currentViewRow();
                             if (parent.parent.valid && !isOpened)
+                                return;
+                            // Artists, Folders...: they read their groups on their own
+                            // when the library changes; stay closed until opened
+                            if (!parent.parent.valid && !isOpened && root.hideWhenEmpty.indexOf(root.model.data(parent, Qt.DisplayRole)) >= 0)
                                 return;
                             Qt.callLater(() => {
                                 const viewRow = featureView.rowAtIndex(parent);

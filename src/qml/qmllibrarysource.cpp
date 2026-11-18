@@ -47,6 +47,29 @@ GroupedTrackFeature::GroupedTrackFeature(
                                        : "mixxx.db.model.group_folder")),
           m_pSidebarModel(make_parented<TreeItemModel>(this)) {
     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
+    m_reloadTimer.setSingleShot(true);
+    m_reloadTimer.setInterval(1500);
+    connect(&m_reloadTimer, &QTimer::timeout, this, &GroupedTrackFeature::reloadGroups);
+    // Tracks added or removed (library scan, USB drive imported)
+    TrackCollectionManager* pManager = pLibrary->trackCollectionManager();
+    connect(pManager->internalCollection(),
+            &TrackCollection::tracksAdded,
+            this,
+            &GroupedTrackFeature::scheduleReload);
+    connect(pManager->internalCollection(),
+            &TrackCollection::tracksRemoved,
+            this,
+            &GroupedTrackFeature::scheduleReload);
+    connect(pManager,
+            &TrackCollectionManager::libraryScanFinished,
+            this,
+            &GroupedTrackFeature::scheduleReload);
+    // First reading once the library is up
+    scheduleReload();
+}
+
+void GroupedTrackFeature::scheduleReload() {
+    m_reloadTimer.start();
 }
 
 void GroupedTrackFeature::activate() {
