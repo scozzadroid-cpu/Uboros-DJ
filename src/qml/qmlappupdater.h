@@ -101,6 +101,9 @@ class QmlAppUpdater : public QObject {
     bool m_canInstall = true;
     QString m_blockedBy;
     QString m_lastRaw;
+    // The binder calls of status() are slow-polled while idle
+    qint64 m_lastStatusMs = 0;
+    bool m_forceStatus = true;
 };
 
 } // namespace qml

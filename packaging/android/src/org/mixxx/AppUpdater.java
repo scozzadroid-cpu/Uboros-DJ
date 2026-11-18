@@ -12,6 +12,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -43,6 +44,10 @@ public class AppUpdater {
     private static final int TIMEOUT_MS = 20000;
     private static final long MAX_MANIFEST_BYTES = 256 * 1024;
     private static final char SEP = '\u001f';
+    private static final long MAX_APK_BYTES = 1024L * 1024 * 1024;
+    private static final long FREE_MARGIN = 50L * 1024 * 1024;
+    private static final long INSTALL_TIMEOUT_MS = 2 * 60 * 1000;
+    private static final long CAN_INSTALL_TTL_MS = 2000;
 
     private static final Object LOCK = new Object();
     private static String sState = "idle";
@@ -65,6 +70,13 @@ public class AppUpdater {
     private static Thread sWorker = null;
     private static BroadcastReceiver sReceiver = null;
     private static Context sApp = null;
+    private static long sInstallDeadline = 0;
+    private static int sSessionId = -1;
+    // Binder results cached: status() is polled by the GUI thread
+    private static int sCachedCode = -1;
+    private static String sCachedName = null;
+    private static boolean sCanInstall = false;
+    private static long sCanInstallAt = 0;
 
     // ---------------------------------------------------------------- public
 
@@ -76,25 +88,35 @@ public class AppUpdater {
         synchronized (LOCK) {
             sApp = context.getApplicationContext();
         }
-        new Thread(() -> cleanup(false), "update-cleanup").start();
+        new Thread(() -> {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+            cleanup(false);
+        }, "update-cleanup").start();
+    }
+
+    /** The installed version cannot change while the process lives: cached. */
+    private static synchronized void loadInstalled(Context context) {
+        if (sCachedName != null) {
+            return;
+        }
+        try {
+            PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            sCachedCode = (int) pi.getLongVersionCode();
+            sCachedName = pi.versionName == null ? "" : pi.versionName;
+        } catch (Exception e) {
+            sCachedCode = 0;
+            sCachedName = "";
+        }
     }
 
     public static int installedVersionCode(Context context) {
-        try {
-            PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            return (int) pi.getLongVersionCode();
-        } catch (Exception e) {
-            return 0;
-        }
+        loadInstalled(context);
+        return sCachedCode;
     }
 
     public static String installedVersionName(Context context) {
-        try {
-            PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            return pi.versionName == null ? "" : pi.versionName;
-        } catch (Exception e) {
-            return "";
-        }
+        loadInstalled(context);
+        return sCachedName;
     }
 
     /**
@@ -106,7 +128,22 @@ public class AppUpdater {
     public static String status() {
         synchronized (LOCK) {
             double progress = sTotal > 0 ? Math.min(1.0, (double) sDone / (double) sTotal) : 0;
-            boolean canInstall = sApp != null && canInstallPackages(sApp);
+            long now = System.currentTimeMillis();
+            if ("installing".equals(sState) && now > sInstallDeadline) {
+                // The confirmation was ignored and no broadcast came: back to ready
+                sState = "ready";
+                final int sid = sSessionId;
+                sSessionId = -1;
+                if (sid >= 0 && sApp != null) {
+                    final Context app = sApp;
+                    new Thread(() -> abandonSession(app, sid), "update-abandon").start();
+                }
+            }
+            if (sApp != null && now - sCanInstallAt > CAN_INSTALL_TTL_MS) {
+                sCanInstall = canInstallPackages(sApp);
+                sCanInstallAt = now;
+            }
+            boolean canInstall = sApp != null && sCanInstall;
             StringBuilder b = new StringBuilder();
             b.append(sState).append(SEP)
                     .append(progress).append(SEP)
@@ -140,7 +177,10 @@ public class AppUpdater {
             sErrorCode = "";
             sErrorDetail = "";
             sCancel = false;
-            sWorker = new Thread(() -> runCheck(url, autoDownload), "update-check");
+            sWorker = new Thread(() -> {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                runCheck(url, autoDownload);
+            }, "update-check");
             sWorker.start();
         }
     }
@@ -175,6 +215,7 @@ public class AppUpdater {
         }
         final Context app = activity.getApplicationContext();
         final File apk;
+        final String expectedSha;
         synchronized (LOCK) {
             if (!"ready".equals(sState) && !"error".equals(sState)) {
                 return false;
@@ -193,8 +234,12 @@ public class AppUpdater {
             sState = "installing";
             sErrorCode = "";
             sErrorDetail = "";
+            sInstallDeadline = System.currentTimeMillis() + INSTALL_TIMEOUT_MS;
+            sSessionId = -1;
+            expectedSha = sApkSha;
         }
-        new Thread(() -> runInstall(app, apk), "update-install").start();
+        final String sha = expectedSha;
+        new Thread(() -> runInstall(app, apk, sha), "update-install").start();
         return true;
     }
 
@@ -203,6 +248,14 @@ public class AppUpdater {
     private static boolean isBusy() {
         return "checking".equals(sState) || "downloading".equals(sState)
                 || "installing".equals(sState);
+    }
+
+    private static void abandonSession(Context app, int id) {
+        try {
+            app.getPackageManager().getPackageInstaller().abandonSession(id);
+        } catch (Exception e) {
+            Log.w(TAG, "abandonSession " + id + ": " + e);
+        }
     }
 
     private static void setError(String code, String detail) {
@@ -365,6 +418,18 @@ public class AppUpdater {
             String en = notes == null ? "" : notes.optString("en", "");
             String it = notes == null ? "" : notes.optString("it", "");
             int installed = installedVersionCode(c);
+            // An APK downloaded in an earlier session counts only if its sha256 matches
+            boolean cached = false;
+            if (newCode > installed && sha.matches("[0-9a-f]{64}") && size > 0 && size <= MAX_APK_BYTES) {
+                File prev = apkFile(c, newCode);
+                if (prev.isFile() && prev.length() == size) {
+                    if (sha256(prev).equals(sha)) {
+                        cached = true;
+                    } else {
+                        prev.delete();
+                    }
+                }
+            }
             synchronized (LOCK) {
                 sLastCheck = System.currentTimeMillis();
                 if (newCode <= installed) {
@@ -377,7 +442,7 @@ public class AppUpdater {
                 if (minCode > installed) {
                     Log.w(TAG, "minVersionCode " + minCode + " > installed " + installed);
                 }
-                if (!sha.matches("[0-9a-f]{64}") || size <= 0) {
+                if (!sha.matches("[0-9a-f]{64}") || size <= 0 || size > MAX_APK_BYTES) {
                     setError("manifest", "sha256/size");
                     return;
                 }
@@ -392,8 +457,7 @@ public class AppUpdater {
                 sTotal = size;
                 sState = "available";
                 // An APK already downloaded (earlier session) and valid
-                File done = apkFile(c, newCode);
-                if (done.isFile() && done.length() == size) {
+                if (cached) {
                     sDone = size;
                     sState = "ready";
                     return;
@@ -405,13 +469,25 @@ public class AppUpdater {
                 }
             }
         } catch (Exception e) {
-            synchronized (LOCK) {
-                sLastCheck = System.currentTimeMillis();
-            }
             String code = e instanceof java.net.UnknownHostException
                     || e instanceof java.net.SocketTimeoutException
                     || "offline".equals(e.getMessage()) ? "network" : "check";
-            setError(code, e.getClass().getSimpleName() + ": " + e.getMessage());
+            String detail = e.getClass().getSimpleName() + ": " + e.getMessage();
+            synchronized (LOCK) {
+                sLastCheck = System.currentTimeMillis();
+                // A failed check must not hide an update that is already known
+                // or downloaded: the error stays informational
+                if (sAvailableCode > 0 && !sApkUrl.isEmpty()) {
+                    File have = apkFile(c, sAvailableCode);
+                    boolean ready = sApkSize > 0 && have.isFile() && have.length() == sApkSize;
+                    sState = ready ? "ready" : "available";
+                    sErrorCode = code;
+                    sErrorDetail = detail;
+                    Log.w(TAG, "check failed (state kept " + sState + ") " + code + " " + detail);
+                    return;
+                }
+            }
+            setError(code, detail);
         }
     }
 
@@ -432,8 +508,10 @@ public class AppUpdater {
         final String sha = sApkSha;
         final long size = sApkSize;
         final boolean allowHttp = sAllowHttp;
-        sWorker = new Thread(() -> runDownload(code, url, sha, size, allowMetered, allowHttp),
-                "update-download");
+        sWorker = new Thread(() -> {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+            runDownload(code, url, sha, size, allowMetered, allowHttp);
+        }, "update-download");
         sWorker.start();
     }
 
@@ -449,6 +527,14 @@ public class AppUpdater {
                 have = 0;
             }
             boolean restarted = false;
+            int stalls = 0;
+            if (size <= 0 || size > MAX_APK_BYTES) {
+                throw new java.io.IOException("implausible size " + size);
+            }
+            long free = updatesDir(c).getUsableSpace();
+            if (free < size - have + FREE_MARGIN) {
+                throw new java.io.IOException("not enough free space");
+            }
             while (have < size) {
                 if (sCancel) {
                     throw new InterruptedException("cancelled");
@@ -477,11 +563,15 @@ public class AppUpdater {
                     conn.disconnect();
                     part.delete();
                     have = 0;
+                    if (++stalls >= 3) {
+                        throw new java.io.IOException("HTTP 416 repeated");
+                    }
                     continue;
                 } else {
                     conn.disconnect();
                     throw new java.io.IOException("HTTP " + status);
                 }
+                boolean progressed = false;
                 try (InputStream in = conn.getInputStream();
                         OutputStream out = new FileOutputStream(part, append)) {
                     byte[] buf = new byte[64 * 1024];
@@ -493,6 +583,12 @@ public class AppUpdater {
                         }
                         out.write(buf, 0, n);
                         have += n;
+                        progressed = true;
+                        if (have > size) {
+                            // More data than declared: stop before filling the disk
+                            part.delete();
+                            throw new SecurityException("size");
+                        }
                         long now = System.nanoTime();
                         if (now - lastPublish > 250_000_000L) {
                             lastPublish = now;
@@ -513,8 +609,15 @@ public class AppUpdater {
                     sDone = have;
                 }
                 if (have < size) {
-                    // Connection closed early: ask for the rest
+                    // Connection closed early: ask for the rest (bounded)
                     Log.i(TAG, "short read at " + have + "/" + size);
+                    if (progressed) {
+                        stalls = 0;
+                    } else if (++stalls >= 3) {
+                        throw new java.io.IOException("no progress at " + have + "/" + size);
+                    } else {
+                        Thread.sleep(1000);
+                    }
                 }
             }
             // Verify size and sha256 (reads the whole file once)
@@ -591,7 +694,9 @@ public class AppUpdater {
         }
     }
 
-    private static void runInstall(final Context app, File apk) {
+    private static void runInstall(final Context app, File apk, String expectedSha) {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+        int id = -1;
         try {
             registerReceiver(app);
             PackageInstaller pi = app.getPackageManager().getPackageInstaller();
@@ -602,7 +707,11 @@ public class AppUpdater {
             if (Build.VERSION.SDK_INT >= 31) {
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
             }
-            int id = pi.createSession(params);
+            id = pi.createSession(params);
+            synchronized (LOCK) {
+                sSessionId = id;
+            }
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
             try (PackageInstaller.Session session = pi.openSession(id)) {
                 try (InputStream in = new FileInputStream(apk);
                         OutputStream out = session.openWrite("base.apk", 0, apk.length())) {
@@ -610,15 +719,35 @@ public class AppUpdater {
                     int n;
                     while ((n = in.read(buf)) > 0) {
                         out.write(buf, 0, n);
+                        md.update(buf, 0, n);
                     }
                     session.fsync(out);
+                }
+                // The file is checked against the manifest while it is copied
+                StringBuilder hex = new StringBuilder();
+                for (byte b : md.digest()) {
+                    hex.append(String.format("%02x", b));
+                }
+                if (!hex.toString().equalsIgnoreCase(expectedSha)) {
+                    session.abandon();
+                    apk.delete();
+                    Log.w(TAG, "sha256 mismatch at install: " + hex);
+                    throw new SecurityException("sha256");
                 }
                 Intent intent = new Intent(ACTION_STATUS).setPackage(app.getPackageName());
                 PendingIntent pending = PendingIntent.getBroadcast(app, id, intent,
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                synchronized (LOCK) {
+                    sInstallDeadline = System.currentTimeMillis() + INSTALL_TIMEOUT_MS;
+                }
                 session.commit(pending.getIntentSender());
             }
+        } catch (SecurityException e) {
+            setError("hash", e.getMessage());
         } catch (Exception e) {
+            if (id >= 0) {
+                abandonSession(app, id);
+            }
             setError("install", e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
@@ -634,6 +763,9 @@ public class AppUpdater {
                 String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
                 Log.i(TAG, "install status " + status + " " + msg);
                 if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                    synchronized (LOCK) {
+                        sInstallDeadline = System.currentTimeMillis() + INSTALL_TIMEOUT_MS;
+                    }
                     Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class);
                     if (confirm != null) {
                         confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

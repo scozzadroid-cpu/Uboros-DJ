@@ -531,7 +531,7 @@ ColumnLayout {
     Skin.DashboardToggle {
         Layout.fillWidth: true
         on: Mixxx.AppUpdater.autoUpdate
-        subtitle: root.updIt ? "Controlla il sito ogni 24 ore e scarica la nuova versione da sola solo su Wi-Fi. Non installa mai da sola: chiede sempre conferma (l'installazione ferma l'audio e chiude l'app)" : qsTr("Checks the website every 24 hours and downloads the new version by itself on Wi-Fi only. It never installs by itself: it always asks (installing stops the audio and closes the app)")
+        subtitle: root.updIt ? "Controlla il sito all'avvio (dopo circa un minuto) e poi ogni 24 ore di uso, e scarica la nuova versione da sola solo su una rete non a consumo (Wi-Fi o Ethernet), mai mentre un deck suona o con la modalità prestazioni accesa. Non installa mai da sola: chiede sempre conferma (l'installazione ferma l'audio e chiude l'app)" : qsTr("Checks the website at startup (after about a minute) and then every 24 hours of use, and downloads the new version by itself only on an unmetered network (Wi-Fi or Ethernet), never while a deck is playing or performance mode is on. It never installs by itself: it always asks (installing stops the audio and closes the app)")
         title: root.updIt ? "Aggiornamenti automatici" : qsTr("Automatic updates")
         visible: Mixxx.AppUpdater.supported
 

@@ -1,5 +1,6 @@
 #include "qml/qmlappupdater.h"
 
+#include <QDateTime>
 #include <QLocale>
 
 #include "control/controlobject.h"
@@ -24,6 +25,9 @@ const QString kUrlKey = QStringLiteral("Url");
 // Default manifest: HTTPS only. [Update],Url overrides it (tests; http allowed then)
 const QString kDefaultUrl = QStringLiteral("https://uroboros-web-nine.vercel.app/update.json");
 constexpr int kFirstCheckMs = 60 * 1000;
+constexpr int kFastPollMs = 500;
+constexpr int kIdleStatusMs = 5000;
+constexpr int kBlockedRetryMs = 5 * 60 * 1000;
 constexpr int kDailyMs = 24 * 60 * 60 * 1000;
 constexpr char16_t kSep = 0x1f;
 
@@ -48,7 +52,7 @@ QmlAppUpdater::QmlAppUpdater(QObject* parent)
                 ctx.object());
     }
 #endif
-    m_pollTimer.setInterval(500);
+    m_pollTimer.setInterval(kFastPollMs);
     connect(&m_pollTimer, &QTimer::timeout, this, &QmlAppUpdater::poll);
     m_pollTimer.start();
     // Not in the first seconds: the start of the app has other things to do
@@ -98,9 +102,15 @@ QString QmlAppUpdater::installBlockedBy() const {
 }
 
 void QmlAppUpdater::autoCheck() {
-    if (autoUpdate()) {
-        callCheck(true);
+    if (!autoUpdate()) {
+        return;
     }
+    if (!m_blockedBy.isEmpty()) {
+        // Live use (deck playing / performance mode): no download now, retry later
+        QTimer::singleShot(kBlockedRetryMs, this, &QmlAppUpdater::autoCheck);
+        return;
+    }
+    callCheck(true);
 }
 
 void QmlAppUpdater::checkNow() {
@@ -125,6 +135,7 @@ void QmlAppUpdater::callCheck(bool automatic) {
             jUrl.object<jstring>(),
             static_cast<jboolean>(fromConfig),
             static_cast<jboolean>(automatic));
+    m_forceStatus = true;
     poll();
 #else
     Q_UNUSED(automatic);
@@ -134,6 +145,7 @@ void QmlAppUpdater::callCheck(bool automatic) {
 void QmlAppUpdater::download() {
 #ifdef __SELF_UPDATE__
     QJniObject::callStaticMethod<void>("org/mixxx/AppUpdater", "download", "(Z)V", jboolean(true));
+    m_forceStatus = true;
     poll();
 #endif
 }
@@ -147,6 +159,7 @@ void QmlAppUpdater::cancel() {
 void QmlAppUpdater::install() {
 #ifdef __SELF_UPDATE__
     // The installation stops the audio and closes the app
+    poll(); // fresh blockedBy
     if (!m_blockedBy.isEmpty()) {
         kLogger.warning() << "install refused:" << m_blockedBy;
         return;
@@ -159,6 +172,7 @@ void QmlAppUpdater::install() {
             "install",
             "(Landroid/app/Activity;)Z",
             activity.object());
+    m_forceStatus = true;
     poll();
 #endif
 }
@@ -188,6 +202,19 @@ void QmlAppUpdater::poll() {
     bool dirty = blocked != m_blockedBy;
     m_blockedBy = blocked;
 
+    // Binder calls only when something is going on (or every few seconds idle)
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const bool active = m_state == QLatin1String("checking") ||
+            m_state == QLatin1String("downloading") ||
+            m_state == QLatin1String("installing");
+    if (!m_forceStatus && !active && nowMs - m_lastStatusMs < kIdleStatusMs) {
+        if (dirty) {
+            emit changed();
+        }
+        return;
+    }
+    m_forceStatus = false;
+    m_lastStatusMs = nowMs;
     QJniObject res = QJniObject::callStaticObjectMethod("org/mixxx/AppUpdater",
             "status",
             "()Ljava/lang/String;");
