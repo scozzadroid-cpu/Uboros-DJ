@@ -24,8 +24,13 @@ Rectangle {
     color: Theme.backgroundColor
 
     Flickable {
-        anchors.fill: parent
+        // Tablets / big screens: a centered column, not stretched edge to edge
+        readonly property real contentMaxWidth: 760
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 16
+        anchors.top: parent.top
+        width: Math.min(parent.width - 32, contentMaxWidth)
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         contentHeight: column.implicitHeight
