@@ -38,6 +38,8 @@ class allshader::WaveformRenderBeat final
 
   private:
     QColor m_color;
+    QColor m_downbeatColor{0xff, 0x3b, 0x30}; // opaque red, bar starts
+    rendergraph::GeometryNode* m_pDownbeatNode{};
     bool m_isSlipRenderer;
 
     bool preprocessInner();

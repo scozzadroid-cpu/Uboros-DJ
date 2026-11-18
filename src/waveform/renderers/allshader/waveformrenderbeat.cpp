@@ -21,6 +21,12 @@ WaveformRenderBeat::WaveformRenderBeat(WaveformWidgetRenderer* waveformWidget,
           m_isSlipRenderer(type == ::WaveformRendererAbstract::Slip) {
     initForRectangles<UniColorMaterial>(0);
     setUsePreprocess(true);
+
+    // Child node drawn after (above) the normal beat lines: bar starts (red).
+    auto pNode = std::make_unique<GeometryNode>();
+    m_pDownbeatNode = pNode.get();
+    m_pDownbeatNode->initForRectangles<UniColorMaterial>(0);
+    appendChildNode(std::move(pNode));
 }
 
 void WaveformRenderBeat::setup(const QDomNode& node, const SkinContext& skinContext) {
@@ -38,6 +44,8 @@ void WaveformRenderBeat::preprocess() {
     if (!preprocessInner()) {
         geometry().allocate(0);
         markDirtyGeometry();
+        m_pDownbeatNode->geometry().allocate(0);
+        m_pDownbeatNode->markDirtyGeometry();
     }
 }
 
@@ -98,21 +106,36 @@ bool WaveformRenderBeat::preprocessInner() {
     // Note that we could also use
     //   int numBearsInRange = trackBeats->numBeatsInRange(startPosition, endPosition);
     // for this, but there have been reports of that method failing with a DEBUG_ASSERT.
+    // Bar start = every 4th beat counted from the first beat of the grid
+    // (constant grids are anchored on a downbeat; for rekordbox imports the
+    // anchor is the first PQTZ beat_number==1). Index is relative to the first
+    // marker, computed once and then incremented.
+    constexpr int kBeatsPerBar = 4;
+    const auto firstIt = trackBeats->iteratorFrom(startPosition);
+    int beatIndex = firstIt - trackBeats->cfirstmarker();
+
     int numBeatsInRange = 0;
-    for (auto it = trackBeats->iteratorFrom(startPosition);
-            it != trackBeats->cend() && *it <= endPosition;
-            ++it) {
-        numBeatsInRange++;
+    int numDownbeats = 0;
+    {
+        int idx = beatIndex;
+        for (auto it = firstIt; it != trackBeats->cend() && *it <= endPosition; ++it, ++idx) {
+            if (((idx % kBeatsPerBar) + kBeatsPerBar) % kBeatsPerBar == 0) {
+                numDownbeats++;
+            } else {
+                numBeatsInRange++;
+            }
+        }
     }
 
-    const int reserved = numBeatsInRange * numVerticesPerLine;
-    geometry().allocate(reserved);
+    geometry().allocate(numBeatsInRange * numVerticesPerLine);
+    m_pDownbeatNode->geometry().allocate(numDownbeats * numVerticesPerLine);
 
     VertexUpdater vertexUpdater{geometry().vertexDataAs<Geometry::Point2D>()};
+    VertexUpdater downbeatUpdater{
+            m_pDownbeatNode->geometry().vertexDataAs<Geometry::Point2D>()};
 
-    for (auto it = trackBeats->iteratorFrom(startPosition);
-            it != trackBeats->cend() && *it <= endPosition;
-            ++it) {
+    const float height = m_isSlipRenderer ? rendererBreadth / 2 : rendererBreadth;
+    for (auto it = firstIt; it != trackBeats->cend() && *it <= endPosition; ++it, ++beatIndex) {
         double beatPosition = it->toEngineSamplePos();
         double xBeatPoint =
                 m_waveformRenderer->transformSamplePositionInRendererWorld(
@@ -121,14 +144,20 @@ bool WaveformRenderBeat::preprocessInner() {
         xBeatPoint = qRound(xBeatPoint * devicePixelRatio) / devicePixelRatio;
 
         const float x1 = static_cast<float>(xBeatPoint);
-        const float x2 = x1 + 1.f;
-
-        vertexUpdater.addRectangle({x1, 0.f},
-                {x2, m_isSlipRenderer ? rendererBreadth / 2 : rendererBreadth});
+        if (((beatIndex % kBeatsPerBar) + kBeatsPerBar) % kBeatsPerBar == 0) {
+            // thick (3 logical px), full height, opaque red
+            downbeatUpdater.addRectangle({x1 - 1.f, 0.f}, {x1 + 2.f, height});
+        } else {
+            vertexUpdater.addRectangle({x1, 0.f}, {x1 + 1.f, height});
+        }
     }
     markDirtyGeometry();
+    m_pDownbeatNode->markDirtyGeometry();
+    m_pDownbeatNode->material().setUniform(1, m_downbeatColor);
+    m_pDownbeatNode->markDirtyMaterial();
 
-    DEBUG_ASSERT(reserved == vertexUpdater.index());
+    DEBUG_ASSERT(numBeatsInRange * numVerticesPerLine == vertexUpdater.index());
+    DEBUG_ASSERT(numDownbeats * numVerticesPerLine == downbeatUpdater.index());
 
     material().setUniform(1, m_color);
     markDirtyMaterial();

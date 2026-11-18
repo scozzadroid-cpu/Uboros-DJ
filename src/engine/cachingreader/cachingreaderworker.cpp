@@ -289,8 +289,8 @@ void CachingReaderWorker::loadTrack(const TrackPointer& pTrack) {
         const auto update = ReaderStatusUpdate::trackUnloaded();
         m_pReaderStatusFIFO->writeBlocking(&update, 1);
         emit trackLoadFailed(pTrack,
-                tr("The file '%1' could not be found.")
-                        .arg(QDir::toNativeSeparators(pTrack->getLocation())));
+                tr("File not found: %1")
+                        .arg(pTrack->getFileInfo().fileName()));
         return;
     }
 

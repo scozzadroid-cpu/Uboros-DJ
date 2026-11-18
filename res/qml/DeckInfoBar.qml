@@ -159,7 +159,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
-        text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : (failure !== "" ? qsTr("Couldn't load track: %1").arg(failure) : qsTr("Load a track"))
+        text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : (failure !== "" ? (failure.indexOf("File not found") === 0 ? failure : qsTr("Couldn't load track: %1").arg(failure)) : qsTr("Load a track"))
         font.family: Theme.fontFamily
         font.pixelSize: Theme.textFontPixelSize
         font.italic: failure === ""
