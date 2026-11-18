@@ -389,6 +389,10 @@ endif()
 include(CMakeDependentOption)
 
 option(QT6 "Build with Qt6" ON)
+# Over-the-air self update of the Android app (reads update.json from the
+# website, downloads and installs the APK). Google Play forbids updating the
+# app outside Play: turn it OFF for a Play build (see PLAY_STORE.md).
+option(ENABLE_SELF_UPDATE "Android: update the app from the website" ON)
 cmake_dependent_option(
   QML
   "Build with QML"
@@ -2380,9 +2384,20 @@ if(QT6)
       EXCLUDE_BY_TYPE qmltooling
       EXCLUDE Qt6::QPSQLDriverPlugin
     )
+    # Version of the APK: the manifest (packaging/android/AndroidManifest.xml)
+    # is the single source and it is what ends up in the APK; the properties
+    # are read from it so that they agree. versionCode must only ever grow:
+    # an APK with a lower one cannot be installed over the installed app.
+    file(READ "${CMAKE_SOURCE_DIR}/packaging/android/AndroidManifest.xml" MIXXX_ANDROID_MANIFEST)
+    string(REGEX MATCH "android:versionCode=\"([0-9]+)\"" _ "${MIXXX_ANDROID_MANIFEST}")
+    set(MIXXX_ANDROID_VERSION_CODE "${CMAKE_MATCH_1}")
+    string(REGEX MATCH "android:versionName=\"([^\"]+)\"" _ "${MIXXX_ANDROID_MANIFEST}")
+    set(MIXXX_ANDROID_VERSION_NAME "${CMAKE_MATCH_1}")
     set_target_properties(
       mixxx
-      PROPERTIES QT_ANDROID_VERSION_NAME "${MIXXX_VERSION}"
+      PROPERTIES
+        QT_ANDROID_VERSION_NAME "${MIXXX_ANDROID_VERSION_NAME}"
+        QT_ANDROID_VERSION_CODE "${MIXXX_ANDROID_VERSION_CODE}"
     )
     set_target_properties(
       mixxx
@@ -3887,6 +3902,9 @@ if(QML)
     endforeach()
   endif()
   set_target_properties(mixxx-qml-lib PROPERTIES AUTOMOC ON)
+  if(ANDROID AND ENABLE_SELF_UPDATE)
+    target_compile_definitions(mixxx-qml-lib PUBLIC __SELF_UPDATE__)
+  endif()
   qt_add_qml_module(mixxx-qml-lib
     URI Mixxx
     VERSION 1.0
@@ -3953,6 +3971,7 @@ if(QML)
       src/qml/qmleffectslotproxy.cpp
       src/qml/qmleffectsmanagerproxy.cpp
       src/qml/qmlanalysisproxy.cpp
+      src/qml/qmlappupdater.cpp
       src/qml/qmlautomix.cpp
       src/qml/qmlrekordboxexport.cpp
       src/qml/qmllibraryproxy.cpp
