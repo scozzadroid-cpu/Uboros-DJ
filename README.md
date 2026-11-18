@@ -5,9 +5,13 @@
 A touch-first DJ app for Android phones, built on an open-source DJ engine and its QML interface (see [NOTICE.md](NOTICE.md)),
 designed around a 2-channel USB DJ controller and USB drives prepared with common DJ software, with a club-player-style deck display.
 
-> **Status: early / personal project.** This repository currently holds the documentation only.
-> The source code is not published yet; it will be released under the GPL (see [License](#license)) once it has been cleaned up.
+> **Status: early / personal project.** Free and open source (GPL), no subscriptions, no account.
 > Everything described below runs on the author's phone (Xiaomi Mi 11 Ultra, Android 14+ target) but has not been tested widely.
+
+## Download
+
+Preview builds (unsigned) are on the [Releases page](../../releases): Android arm64 APK, Windows x64 MSI, macOS (Apple Silicon) DMG, Linux DEB.
+Website: https://uroboros-web-nine.vercel.app
 
 ## Screenshots
 
@@ -34,6 +38,10 @@ About 140 commits on top of the upstream `main` branch (Nov 2026), roughly 16,00
 - **Stems on the phone**: 3-stem playback (drums, bass + melody, vocals), on-device separation (htdemucs / Spleeter, MNN + OpenCL), cached on disk, driven by the filter knob.
 - **Performance work** for phones: 60 Hz render, GPU-drawn waveforms, one analysis thread, background work at batch priority, SQLite WAL, thumbnail covers, fewer allocations in the audio path.
 - **Library intelligence**: harmonic-key and BPM-proximity highlighting, automatic analysis of tracks without BPM, suspicious BPM marked in yellow, half/double-tempo reconciliation with the file tag.
+- **Controllers**: Pioneer DDJ-FLX4 and DDJ-FLX6, Rane Four, Reloop Beatmix 2/4 MK2 and the other Mixxx mappings.
+- **Tablets**: four-deck layout on large screens; settings work in portrait.
+- **Rekordbox XML export**: library, crates and playlists with cues, loops and beat grids.
+- **Desktop builds**: GitHub Actions workflow for Windows (MSI), macOS (DMG) and Ubuntu (DEB).
 - **Safety nets**: loaded tracks saved when the app goes to the background, OLED burn-in protection, screen off when idle.
 
 ## Roadmap

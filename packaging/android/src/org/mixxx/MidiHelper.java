@@ -22,6 +22,43 @@ import java.util.concurrent.TimeUnit;
 /// from any thread attached to the JVM, except the Android main thread for
 /// openDevice() which blocks until the device has been opened.
 public class MidiHelper {
+    /** Why the previous processes of this app ended (API 30+), one per line. */
+    public static String getExitReasons(Context context) {
+        if (Build.VERSION.SDK_INT < 30) {
+            return "";
+        }
+        try {
+            android.app.ActivityManager am =
+                    (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            StringBuilder sb = new StringBuilder();
+            for (android.app.ApplicationExitInfo info :
+                    am.getHistoricalProcessExitReasons(null, 0, 4)) {
+                String reason;
+                switch (info.getReason()) {
+                    case android.app.ApplicationExitInfo.REASON_SIGNALED: reason = "SIGNALED"; break;
+                    case android.app.ApplicationExitInfo.REASON_LOW_MEMORY: reason = "LOW_MEMORY (lmkd)"; break;
+                    case android.app.ApplicationExitInfo.REASON_CRASH: reason = "CRASH (Java)"; break;
+                    case android.app.ApplicationExitInfo.REASON_CRASH_NATIVE: reason = "CRASH_NATIVE"; break;
+                    case android.app.ApplicationExitInfo.REASON_ANR: reason = "ANR"; break;
+                    case android.app.ApplicationExitInfo.REASON_EXIT_SELF: reason = "EXIT_SELF"; break;
+                    case android.app.ApplicationExitInfo.REASON_USER_REQUESTED: reason = "USER_REQUESTED"; break;
+                    case android.app.ApplicationExitInfo.REASON_USER_STOPPED: reason = "USER_STOPPED"; break;
+                    case android.app.ApplicationExitInfo.REASON_PACKAGE_UPDATED: reason = "PACKAGE_UPDATED"; break;
+                    case android.app.ApplicationExitInfo.REASON_OTHER: reason = "OTHER"; break;
+                    default: reason = "reason " + info.getReason(); break;
+                }
+                sb.append(new java.util.Date(info.getTimestamp())).append(" pid ")
+                        .append(info.getPid()).append(" ").append(reason)
+                        .append(" status ").append(info.getStatus())
+                        .append(" rss ").append(info.getRss() / 1024 / 1024).append("MB")
+                        .append(" ").append(info.getDescription()).append("\n");
+            }
+            return sb.toString();
+        } catch (Throwable t) {
+            return "exit reasons unavailable: " + t;
+        }
+    }
+
     private static final String TAG = "MixxxMidiHelper";
 
     private static HandlerThread sHandlerThread = null;

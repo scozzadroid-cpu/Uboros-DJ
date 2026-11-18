@@ -4,6 +4,7 @@
 #include "preferences/colorpalettesettings.h"
 #include "preferences/constants.h"
 
+#include <QCoreApplication>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>

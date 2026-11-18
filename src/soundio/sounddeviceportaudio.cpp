@@ -1,4 +1,11 @@
+#include "util/threadpriority.h"
 #include "soundio/sounddeviceportaudio.h"
+
+#ifdef __ANDROID__
+#include <QJniObject>
+#include <QCoreApplication>
+#include <string>
+#endif
 
 #include <float.h>
 
@@ -257,8 +264,14 @@ SoundDeviceStatus SoundDevicePortAudio::open(bool isClkRefDevice, int syncBuffer
         obeoStreamInfo.androidInputPreset = PaOboe_InputPreset::Generic,
         obeoStreamInfo.performanceMode = PaOboe_PerformanceMode::LowLatency,
         obeoStreamInfo.sharingMode = PaOboe_SharingMode::Exclusive,
-        obeoStreamInfo.contentType = PaOboe_ContentType::Music,
-        obeoStreamInfo.packageName = ANDROID_PACKAGE_NAME;
+        obeoStreamInfo.contentType = PaOboe_ContentType::Music;
+        // Runtime package name: applicationId (Play build) differs from the Java package
+        static const std::string sPackageName =
+                QJniObject(QNativeInterface::QAndroidApplication::context())
+                        .callObjectMethod("getPackageName", "()Ljava/lang/String;")
+                        .toString()
+                        .toStdString();
+        obeoStreamInfo.packageName = sPackageName.c_str();
 
         m_outputParams.hostApiSpecificStreamInfo = (void*)&obeoStreamInfo;
     } else {
@@ -434,6 +447,14 @@ SoundDeviceStatus SoundDevicePortAudio::open(bool isClkRefDevice, int syncBuffer
 
 bool SoundDevicePortAudio::isOpen() const {
     return m_pStream.load() != nullptr;
+}
+
+bool SoundDevicePortAudio::isStreamAlive() const {
+    PaStream* pStream = m_pStream.load();
+    if (!pStream) {
+        return true;
+    }
+    return Pa_IsStreamActive(pStream) == 1;
 }
 
 void paFinishedCallback(void* soundDevice) {
@@ -983,6 +1004,11 @@ int SoundDevicePortAudio::callbackProcessClkRef(
         // already set up correctly because of the audio server, or it's still set to
         // the SCHED_OTHER policy in which case the call also wouldn't do anything.
         QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
+#endif
+#ifdef __ANDROID__
+        // Playback has the top priority: on top of what AAudio gives to the
+        // callback thread, ask for the highest nice level allowed to apps.
+        mixxx::setCurrentThreadNice(-19);
 #endif
         m_bSetThreadPriority = true;
 

@@ -1,4 +1,8 @@
 #include <QApplication>
+#ifdef __ANDROID__
+#include <android/log.h>
+#include <signal.h>
+#endif
 #include <QDir>
 #include <QPixmapCache>
 #include <QString>
@@ -179,10 +183,33 @@ void applyStyleOverride(CmdlineArgs* pArgs) {
     }
 }
 
+#ifdef __ANDROID__
+// 2026-11-17: the app died once with "SIGNALED status 2" (SIGINT, no tombstone)
+// when the controller hub was unplugged. Nothing in Mixxx sends it, so log the
+// sender (pid/uid/code, visible in logcat tag "mixxx-sigint") and ignore it.
+void sigintHandler(int, siginfo_t* info, void*) {
+    __android_log_print(ANDROID_LOG_ERROR,
+            "mixxx-sigint",
+            "SIGINT ignored: from pid %d uid %d code %d",
+            info ? static_cast<int>(info->si_pid) : -1,
+            info ? static_cast<int>(info->si_uid) : -1,
+            info ? info->si_code : -1);
+}
+#endif
+
 } // anonymous namespace
 
 int main(int argc, char * argv[]) {
     Console console;
+#ifdef __ANDROID__
+    {
+        struct sigaction sa = {};
+        sa.sa_sigaction = sigintHandler;
+        sa.sa_flags = SA_SIGINFO | SA_RESTART;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGINT, &sa, nullptr);
+    }
+#endif
 
     // These need to be set early on (not sure how early) in order to trigger
     // logic in the OS X appstore support patch from QTBUG-16549.

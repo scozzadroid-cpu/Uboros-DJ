@@ -2,6 +2,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -246,6 +247,32 @@ QString deviceRootForFile(const QString& location) {
         }
     }
     return QString();
+}
+
+QString sidecarStamp(const TrackPointer& pTrack) {
+    if (!pTrack) {
+        return QString();
+    }
+    const QString location = pTrack->getLocation();
+    const QString root = deviceRootForFile(location);
+    if (root.isEmpty()) {
+        return QString();
+    }
+    const QFileInfo info(sidecarPath(root, relativePath(root, location)));
+    if (!info.exists()) {
+        return QString();
+    }
+    return QStringLiteral("%1|%2").arg(info.size()).arg(info.lastModified().toSecsSinceEpoch());
+}
+
+void prefetchSidecars(const QString& root) {
+    QDirIterator it(root + QChar('/') + kStoreDir, QDir::Files);
+    while (it.hasNext()) {
+        QFile file(it.next());
+        if (file.open(QIODevice::ReadOnly)) {
+            file.readAll();
+        }
+    }
 }
 
 bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao) {

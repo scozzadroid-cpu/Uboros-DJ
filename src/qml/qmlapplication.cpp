@@ -352,6 +352,10 @@ QmlApplication::QmlApplication(
                 "(Landroid/app/Activity;Z)V",
                 activity.object(),
                 static_cast<jboolean>(dndEnabled));
+        QJniObject::callStaticMethod<void>("org/mixxx/PlaybackGuard",
+                "start",
+                "(Landroid/app/Activity;)V",
+                activity.object());
     }
 #endif
 
@@ -411,6 +415,10 @@ QmlApplication::~QmlApplication() {
 #ifdef __ANDROID__
     QJniObject context = QNativeInterface::QAndroidApplication::context();
     if (context.isValid()) {
+        QJniObject::callStaticMethod<void>("org/mixxx/PlaybackGuard",
+                "stop",
+                "(Landroid/content/Context;)V",
+                context.object());
         QJniObject::callStaticMethod<void>("org/mixxx/DoNotDisturb",
                 "stop",
                 "(Landroid/content/Context;)V",

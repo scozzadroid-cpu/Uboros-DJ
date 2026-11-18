@@ -161,8 +161,10 @@ Mixxx.LibrarySourceTree {
 
     defaultColumns: [
         Mixxx.TrackListColumn {
-            // Smaller cover column on phones, the table needs the room
-            preferredWidth: Qt.platform.os === "android" ? 40 : 110
+            // No cover column on phones (width 0: TableView creates no cells
+            // for it): covers are shown on the decks, and loading one per row
+            // made scrolling stutter
+            preferredWidth: Qt.platform.os === "android" ? 0 : 110
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
 
@@ -313,6 +315,24 @@ Mixxx.LibrarySourceTree {
     ]
     Mixxx.LibraryAllTrackSource {
         label: qsTr("All...")
+        columns: root.defaultColumns
+    }
+    // Ways to split the library: playlists and crates (Mixxx), artists and
+    // folders (groups of the library tracks)
+    Mixxx.LibraryPlaylistSource {
+        label: qsTr("Playlists")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryCrateSource {
+        label: qsTr("Crates")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryArtistSource {
+        label: qsTr("Artists")
+        columns: root.defaultColumns
+    }
+    Mixxx.LibraryFolderSource {
+        label: qsTr("Folders")
         columns: root.defaultColumns
     }
     // USB drives exported with Rekordbox. The devices are searched when the

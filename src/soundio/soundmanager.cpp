@@ -1,4 +1,7 @@
 #include "soundio/soundmanager.h"
+#include "soundio/audiocallbackstats.h"
+
+#include <QTimer>
 
 #include <portaudio.h>
 
@@ -59,6 +62,7 @@ SoundManager::SoundManager(UserSettingsPointer pConfig,
           m_pConfig(pConfig),
           m_paInitialized(false),
           m_config(this),
+          m_userConfig(this),
           m_pErrorDevice(nullptr),
           m_underflowHappened(0),
           m_underflowUpdateCount(0),
@@ -87,6 +91,15 @@ SoundManager::SoundManager(UserSettingsPointer pConfig,
         m_config.loadDefaults(this, SoundManagerConfig::ALL);
     }
     checkConfig();
+    m_userConfig = m_config;
+#ifdef __ANDROID__
+    {
+        auto* pHealthTimer = new QTimer(this);
+        pHealthTimer->setInterval(2000);
+        connect(pHealthTimer, &QTimer::timeout, this, &SoundManager::checkAudioHealth);
+        pHealthTimer->start();
+    }
+#endif
     // Logs aggregated callback timing every 5 s, only when audio dropped out
     mixxx::AudioCallbackStats::startReporting(this);
     // Don't write config to disk, yet -- it may be reset to defaults in case
@@ -753,8 +766,104 @@ SoundDeviceStatus SoundManager::setConfig(const SoundManagerConfig& config, bool
     status = setupDevices();
     if (status == SoundDeviceStatus::Ok && persist) {
         m_config.writeToDisk();
+        m_userConfig = m_config;
+        m_inFallback = false;
     }
     return status;
+}
+
+void SoundManager::checkAudioHealth() {
+    bool anyOpen = false;
+    bool dead = false;
+    for (const auto& pDevice : std::as_const(m_devices)) {
+        if (pDevice->isOpen()) {
+            anyOpen = true;
+            if (!pDevice->isStreamAlive()) {
+                dead = true;
+            }
+        }
+    }
+    // The stream may claim to be active while nothing is delivered (the
+    // system stopped the track): compare the callbacks with the expected rate
+    const auto nowCb = std::chrono::steady_clock::now();
+    const quint32 callbacks = mixxx::AudioCallbackStats::callbacksTotal();
+    const qint64 budgetNs = mixxx::AudioCallbackStats::budgetNs();
+    if (anyOpen && !dead && budgetNs > 0 && m_lastCbCheck.time_since_epoch().count() != 0) {
+        const qint64 elapsedNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                nowCb - m_lastCbCheck)
+                                         .count();
+        const double expected = static_cast<double>(elapsedNs) / budgetNs;
+        const double seen = static_cast<double>(callbacks - m_lastCbTotal);
+        if (expected >= 20 && (seen < expected * 0.3 || seen > expected * 4)) {
+            if (++m_stalledChecks >= 2) {
+                qWarning() << "Audio: callbacks" << seen << "in" << expected
+                           << "expected periods - stream stalled";
+                dead = true;
+            }
+        } else {
+            m_stalledChecks = 0;
+        }
+    } else {
+        m_stalledChecks = 0;
+    }
+    m_lastCbCheck = nowCb;
+    m_lastCbTotal = callbacks;
+    const bool lost = dead || (m_wasOutputOpen && !anyOpen);
+    if (anyOpen && !dead) {
+        m_wasOutputOpen = true;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (!lost && !m_inFallback) {
+        return;
+    }
+    // At most one attempt every 3 s
+    if (m_lastRecovery.time_since_epoch().count() != 0 &&
+            now - m_lastRecovery < std::chrono::seconds(3)) {
+        return;
+    }
+    m_lastRecovery = now;
+
+    // Fresh device list: the unplugged device disappears, a replugged one shows up
+    qWarning() << "Audio" << (lost ? "output lost" : "fallback active")
+               << "- rescanning the devices";
+    clearDeviceList(false);
+    queryDevices();
+
+    // Is the user's own device available?
+    const QSet<SoundDeviceId> wanted = m_userConfig.getDevices();
+    bool userDeviceBack = !wanted.isEmpty();
+    for (const SoundDeviceId& id : wanted) {
+        bool found = false;
+        for (const auto& pDevice : std::as_const(m_devices)) {
+            if (pDevice->getDeviceId() == id) {
+                found = true;
+                break;
+            }
+        }
+        userDeviceBack = userDeviceBack && found;
+    }
+
+    if (userDeviceBack) {
+        if (m_inFallback || lost) {
+            qWarning() << "Audio: back on the configured device";
+            const SoundDeviceStatus status = setConfig(m_userConfig, false);
+            m_inFallback = status != SoundDeviceStatus::Ok;
+            m_wasOutputOpen = status == SoundDeviceStatus::Ok;
+        }
+        return;
+    }
+    if (m_inFallback && !lost) {
+        return; // still on the fallback, nothing changed
+    }
+    // The configured device is gone: play on the default (built-in) output
+    // until it is back, without touching the saved configuration
+    SoundManagerConfig fallback = m_userConfig;
+    fallback.loadDefaults(this, SoundManagerConfig::DEVICES);
+    qWarning() << "Audio: configured device missing, using the default output";
+    const SoundDeviceStatus status = setConfig(fallback, false);
+    m_inFallback = true;
+    m_wasOutputOpen = status == SoundDeviceStatus::Ok;
 }
 
 void SoundManager::checkConfig() {

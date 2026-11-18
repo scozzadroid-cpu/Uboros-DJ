@@ -15,7 +15,9 @@ const QString AnalysisDao::s_analysisTableName = "track_analysis";
 // compression level (-1) takes the size down to about 600KB. The difference
 // between the default and 9 (the max) was only about 1-2KB for a lot of extra
 // CPU time so I think we should stick with the default. rryan 4/3/2012
-constexpr int kCompressionLevel = -1;
+// Level 1: waveforms are stored on the GUI thread while importing a drive
+// (zlib level 6 took 80% of the time of the preparation of a USB drive)
+constexpr int kCompressionLevel = 1;
 
 AnalysisDao::AnalysisDao(UserSettingsPointer pConfig)
         : m_pConfig(pConfig) {

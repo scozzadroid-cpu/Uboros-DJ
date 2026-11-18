@@ -21,11 +21,29 @@ Rectangle {
     signal openSettings
     signal continueWithoutController
 
-    color: Theme.backgroundColor
+    gradient: Gradient {
+        GradientStop {
+            position: 0.0
+            color: "#1a1233"
+        }
+        GradientStop {
+            position: 0.35
+            color: Theme.backgroundColor
+        }
+        GradientStop {
+            position: 1.0
+            color: "#0b0c0f"
+        }
+    }
 
     Flickable {
-        anchors.fill: parent
+        // Tablets / big screens: a centered column, not stretched edge to edge
+        readonly property real contentMaxWidth: 760
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 16
+        anchors.top: parent.top
+        width: Math.min(parent.width - 32, contentMaxWidth)
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         contentHeight: column.implicitHeight
@@ -40,13 +58,32 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: 8
+                spacing: 12
 
-                Text {
+                Image {
+                    Layout.preferredHeight: 52
+                    Layout.preferredWidth: 52
+                    fillMode: Image.PreserveAspectFit
+                    mipmap: true
+                    source: "images/logo.png"
+                }
+                ColumnLayout {
                     Layout.fillWidth: true
-                    color: Theme.white
-                    font.bold: true
-                    font.pixelSize: 26
-                    text: "Ubøros DJ"
+                    spacing: 0
+
+                    Text {
+                        color: Theme.white
+                        font.bold: true
+                        font.letterSpacing: 1
+                        font.pixelSize: 26
+                        text: "Ubøros DJ"
+                    }
+                    Text {
+                        color: Theme.accentColor
+                        font.letterSpacing: 1.5
+                        font.pixelSize: 11
+                        text: qsTr("FREE · OPEN SOURCE")
+                    }
                 }
                 Skin.Button {
                     activeColor: Theme.white
@@ -63,18 +100,30 @@ Rectangle {
             // Controller status card
             Rectangle {
                 Layout.fillWidth: true
-                border.color: Theme.deckLineColor
+                border.color: root.deviceCount > 0 ? Qt.alpha(Theme.green, 0.6) : Theme.deckLineColor
                 border.width: 1
                 color: Theme.darkGray2
                 implicitHeight: statusColumn.implicitHeight + 28
-                radius: 12
+                radius: 14
+
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 14
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.topMargin: 14
+                    color: root.deviceCount > 0 ? Theme.green : Theme.red
+                    radius: 2
+                    width: 4
+                }
 
                 ColumnLayout {
                     id: statusColumn
 
                     anchors.left: parent.left
-                    anchors.margins: 14
+                    anchors.leftMargin: 20
                     anchors.right: parent.right
+                    anchors.rightMargin: 14
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 8
 
@@ -136,7 +185,7 @@ Rectangle {
 
             Text {
                 Layout.topMargin: 6
-                color: Theme.midGray
+                color: Theme.accentColor
                 font.bold: true
                 font.capitalization: Font.AllUppercase
                 font.letterSpacing: 1.2

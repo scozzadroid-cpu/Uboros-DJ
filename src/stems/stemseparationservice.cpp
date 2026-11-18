@@ -491,7 +491,7 @@ bool StemSeparationService::ensureNet(StemCache::Level level) {
         // 4 threads: ~12x real time on a Snapdragon 8 Gen 1, still above
         // real time on phones a few times slower (the thread runs below
         // the audio, see workerLoop())
-        if (!pNet->init(model.toStdString(), 4)) {
+        if (!pNet->init(model.toStdString(), 3)) {
             kLogger.warning() << "Cannot load the light stem model:"
                               << QString::fromStdString(pNet->error());
             m_lightNetFailed = true;
@@ -698,7 +698,7 @@ void StemSeparationService::workerLoop() {
     // runtime inherits it. Not the lowest level: the stems of a playing deck
     // must keep up with the play position.
     mixxx::demoteCurrentThreadToBackground(
-            mixxx::kThreadNiceBackground, "StemSeparation");
+            mixxx::kThreadNiceLowest, "StemSeparation");
     while (true) {
         std::shared_ptr<Job> pJob;
         int segment = -1;

@@ -3954,6 +3954,7 @@ if(QML)
       src/qml/qmleffectsmanagerproxy.cpp
       src/qml/qmlanalysisproxy.cpp
       src/qml/qmlautomix.cpp
+      src/qml/qmlrekordboxexport.cpp
       src/qml/qmllibraryproxy.cpp
       src/qml/qmllibrarysource.cpp
       src/qml/qmllibrarysourcetree.cpp

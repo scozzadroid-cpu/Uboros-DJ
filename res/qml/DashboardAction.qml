@@ -15,8 +15,20 @@ AbstractButton {
     background: Rectangle {
         border.color: Theme.deckLineColor
         border.width: 1
-        color: root.pressed ? Theme.accent : Theme.darkGray3
-        radius: 12
+        color: root.pressed ? Theme.accentColor : Theme.darkGray3
+        radius: 14
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 16
+            anchors.left: parent.left
+            anchors.leftMargin: 1
+            anchors.top: parent.top
+            anchors.topMargin: 16
+            color: Theme.accentColor
+            radius: 2
+            width: 3
+        }
     }
     contentItem: RowLayout {
         spacing: 12
@@ -47,8 +59,8 @@ AbstractButton {
         }
         Text {
             Layout.rightMargin: 14
-            color: Theme.midGray
-            font.pixelSize: 24
+            color: Theme.accentColor
+            font.pixelSize: 26
             text: "›"
         }
     }

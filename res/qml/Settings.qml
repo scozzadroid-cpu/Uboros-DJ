@@ -15,6 +15,8 @@ Popup {
     // Popup is not an Item, use the size of the window content it is shown in
     readonly property bool compact: parent ? parent.height < 700 || parent.width < 1000 : false
     readonly property bool narrow: parent ? parent.width < 600 : false
+    // Portrait: categories on top, content below (side by side does not fit)
+    readonly property bool portrait: parent ? parent.height > parent.width : false
 
     property int activeCategoryIndex: 0
     // Only the categories that are implemented in QML. The others are still
@@ -34,13 +36,17 @@ Popup {
         height: parent.height - 40
         width: parent.width - 40
 
-        RowLayout {
+        GridLayout {
             anchors.fill: parent
-            spacing: 0
+            columnSpacing: 0
+            columns: root.portrait ? 1 : 2
+            rowSpacing: 0
 
             Rectangle {
-                Layout.fillHeight: true
-                Layout.preferredWidth: root.narrow ? 120 : root.compact ? 190 : 280
+                Layout.fillHeight: !root.portrait
+                Layout.fillWidth: root.portrait
+                Layout.preferredHeight: root.portrait ? 120 : -1
+                Layout.preferredWidth: root.portrait ? -1 : root.narrow ? 120 : root.compact ? 190 : 280
                 border.color: Theme.darkGray3
                 border.width: 6
                 color: Theme.darkGray
@@ -266,7 +272,7 @@ Popup {
                     id: managerItem
                     Layout.fillHeight: true
                     Layout.fillWidth: true
-                    Layout.leftMargin: 20
+                    Layout.leftMargin: root.portrait ? 4 : 20
 
                     Repeater {
                         id: categoriesLoader

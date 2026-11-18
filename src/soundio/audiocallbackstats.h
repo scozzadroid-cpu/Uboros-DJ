@@ -27,6 +27,7 @@ namespace detail {
 inline std::atomic<quint32> s_callbacks{0};
 inline std::atomic<quint32> s_overBudget{0};
 inline std::atomic<quint32> s_overBudgetTotal{0}; // never reset
+inline std::atomic<quint32> s_callbacksTotal{0}; // never reset
 inline std::atomic<quint32> s_underflows{0};
 inline std::atomic<quint32> s_underflowCodes{0}; // bit n = code n was seen
 inline std::atomic<qint64> s_sumDurationNs{0};
@@ -52,6 +53,7 @@ inline void recordCallback(qint64 durationNs,
         qint32 framesPerBuffer) {
     using namespace detail;
     s_callbacks.fetch_add(1, std::memory_order_relaxed);
+    s_callbacksTotal.fetch_add(1, std::memory_order_relaxed);
     s_sumDurationNs.fetch_add(durationNs, std::memory_order_relaxed);
     storeMax(&s_maxDurationNs, durationNs);
     storeMax(&s_maxGapNs, gapNs);
@@ -73,6 +75,15 @@ inline void recordUnderflow(int code) {
     if (code >= 0 && code < 32) {
         s_underflowCodes.fetch_or(1u << code, std::memory_order_relaxed);
     }
+}
+
+/// Callbacks since the start and the nominal callback period (0 if unknown):
+/// a watchdog compares two readings to notice an audio stream that stalled
+inline quint32 callbacksTotal() {
+    return detail::s_callbacksTotal.load(std::memory_order_relaxed);
+}
+inline qint64 budgetNs() {
+    return detail::s_budgetNs.load(std::memory_order_relaxed);
 }
 
 /// Callbacks over budget since the start (for consumers that compare two
