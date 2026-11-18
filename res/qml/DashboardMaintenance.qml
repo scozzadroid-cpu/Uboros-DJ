@@ -36,6 +36,52 @@ ColumnLayout {
         return false;
     }
 
+    // Italian system language -> Italian texts (like the Tutorial; English otherwise)
+    readonly property bool updIt: Qt.locale().name.startsWith("it")
+
+    function updStatusText() {
+        const st = Mixxx.AppUpdater.state;
+        const it = root.updIt;
+        if (st === "checking")
+            return it ? "Controllo in corso…" : qsTr("Checking…");
+        if (st === "available")
+            return (it ? "Disponibile: " : qsTr("Available: ")) + Mixxx.AppUpdater.availableVersion + " (" + Mixxx.AppUpdater.sizeMb.toFixed(0) + " MB)";
+        if (st === "downloading")
+            return (it ? "Download: " : qsTr("Downloading: ")) + Math.round(Mixxx.AppUpdater.progress * 100) + "%";
+        if (st === "ready")
+            return (it ? "Pronto da installare: " : qsTr("Ready to install: ")) + Mixxx.AppUpdater.availableVersion;
+        if (st === "installing")
+            return it ? "Installazione in corso…" : qsTr("Installing…");
+        const t = Mixxx.AppUpdater.lastCheck;
+        const when = t > 0 ? new Date(t).toLocaleString(Qt.locale(), Locale.ShortFormat) : (it ? "mai" : qsTr("never"));
+        const upToDate = Mixxx.AppUpdater.lastCheck > 0 && st === "idle";
+        return (upToDate ? (it ? "Sei aggiornato. " : qsTr("You are up to date. ")) : "") + (it ? "Ultima verifica: " : qsTr("Last check: ")) + when;
+    }
+    function updErrorText() {
+        if (Mixxx.AppUpdater.errorCode === "")
+            return "";
+        const it = root.updIt;
+        switch (Mixxx.AppUpdater.errorCode) {
+        case "network":
+            return it ? "Nessuna connessione: riprova più tardi" : qsTr("No connection: try again later");
+        case "check":
+            return it ? "Impossibile leggere le informazioni di aggiornamento dal sito" : qsTr("Could not read the update information from the website");
+        case "manifest":
+            return it ? "Le informazioni di aggiornamento del sito non sono valide" : qsTr("The update information of the website is not valid");
+        case "download":
+            return it ? "Download interrotto: tocca \"Scarica\" per riprendere" : qsTr("Download interrupted: tap \"Download\" to resume");
+        case "hash":
+            return it ? "Il file scaricato non corrisponde (corrotto o alterato): scartato" : qsTr("The downloaded file does not match (corrupt or altered): discarded");
+        case "missing":
+            return it ? "File dell'aggiornamento non trovato: scaricalo di nuovo" : qsTr("Update file not found: download it again");
+        case "permission":
+            return it ? "Serve il permesso \"Installa app sconosciute\": nella pagina che si apre attiva \"Consenti da questa fonte\", torna qui e tocca di nuovo Installa" : qsTr("The \"Install unknown apps\" permission is needed: on the page that opens turn on \"Allow from this source\", come back and tap Install again");
+        case "install":
+            return (it ? "Installazione non riuscita: " : qsTr("Installation failed: ")) + Mixxx.AppUpdater.errorDetail;
+        }
+        return Mixxx.AppUpdater.errorCode;
+    }
+
     spacing: 10
 
     Component.onCompleted: refresh()
@@ -243,6 +289,22 @@ ColumnLayout {
     SectionTitle {
         text: qsTr("Waveforms")
     }
+    Mixxx.ControlProxy {
+        id: perfMode
+
+        group: "[Skin]"
+        key: "performance_mode"
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        on: perfMode.value > 0
+        readonly property bool italian: Qt.locale().name.startsWith("it")
+
+        subtitle: italian ? "Waveform ridisegnate a ogni frame anche a deck fermo (niente scatto al play), niente analisi in background né rifinitura stem, schermo sempre acceso. Più batteria; sempre spenta all'avvio. Anche il bottone \"PERF\" della toolbar" : qsTr("Waveforms redrawn at every frame also while stopped (no hitch when you press play), no background analysis or stem refinement, screen always on. Uses more battery; always off at start. Also the \"PERF\" button of the toolbar")
+        title: italian ? "Modalità prestazioni" : qsTr("Performance mode")
+
+        onSwitched: value => perfMode.value = value ? 1 : 0
+    }
     Skin.DashboardToggle {
         Layout.fillWidth: true
         enabled: Mixxx.Config.waveformGpuSupported
@@ -422,5 +484,90 @@ ColumnLayout {
         option: "keyWithoutDrums"
         subtitle: qsTr("Detect the key of stem files without the drums stem")
         title: qsTr("Key without the drums stem")
+    }
+
+    // ----------------------------------------------------------------- Updates
+    // Over-the-air update from the website (Android builds with ENABLE_SELF_UPDATE)
+    SectionTitle {
+        text: root.updIt ? "Aggiornamenti" : qsTr("Updates")
+        visible: Mixxx.AppUpdater.supported
+    }
+    Card {
+        visible: Mixxx.AppUpdater.supported
+
+        InfoLine {
+            color: Theme.white
+            font.bold: true
+            font.pixelSize: 16
+            text: (root.updIt ? "Versione installata: " : qsTr("Installed version: ")) + Mixxx.AppUpdater.installedVersion
+        }
+        InfoLine {
+            text: root.updStatusText()
+        }
+        ProgressBar {
+            Layout.fillWidth: true
+            from: 0
+            implicitHeight: 8
+            to: 1
+            value: Mixxx.AppUpdater.progress
+            visible: Mixxx.AppUpdater.state === "downloading"
+
+            background: Rectangle {
+                color: Theme.darkGray3
+                radius: 4
+            }
+            contentItem: Rectangle {
+                color: Theme.accentColor
+                radius: 4
+                width: parent.visualPosition * parent.width
+            }
+        }
+        InfoLine {
+            color: Theme.yellow
+            text: root.updErrorText()
+            visible: text.length > 0
+        }
+    }
+    Skin.DashboardToggle {
+        Layout.fillWidth: true
+        on: Mixxx.AppUpdater.autoUpdate
+        subtitle: root.updIt ? "Controlla il sito ogni 24 ore e scarica la nuova versione da sola solo su Wi-Fi. Non installa mai da sola: chiede sempre conferma (l'installazione ferma l'audio e chiude l'app)" : qsTr("Checks the website every 24 hours and downloads the new version by itself on Wi-Fi only. It never installs by itself: it always asks (installing stops the audio and closes the app)")
+        title: root.updIt ? "Aggiornamenti automatici" : qsTr("Automatic updates")
+        visible: Mixxx.AppUpdater.supported
+
+        onSwitched: value => Mixxx.AppUpdater.autoUpdate = value
+    }
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        enabled: Mixxx.AppUpdater.state !== "checking" && Mixxx.AppUpdater.state !== "downloading" && Mixxx.AppUpdater.state !== "installing"
+        subtitle: root.updIt ? "Chiede al sito se c'è una versione nuova" : qsTr("Asks the website if there is a new version")
+        title: root.updIt ? "Controlla ora" : qsTr("Check now")
+        visible: Mixxx.AppUpdater.supported
+
+        onClicked: Mixxx.AppUpdater.checkNow()
+    }
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        subtitle: Mixxx.AppUpdater.meteredBlocked ? (root.updIt ? "Sei su una rete a consumo: il download automatico aspetta il Wi-Fi. Tocca per scaricare comunque" : qsTr("You are on a metered network: the automatic download waits for Wi-Fi. Tap to download anyway")) : ""
+        title: root.updIt ? "Scarica l'aggiornamento" : qsTr("Download the update")
+        visible: Mixxx.AppUpdater.supported && Mixxx.AppUpdater.state === "available"
+
+        onClicked: Mixxx.AppUpdater.download()
+    }
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        title: root.updIt ? "Annulla il download" : qsTr("Cancel the download")
+        visible: Mixxx.AppUpdater.supported && Mixxx.AppUpdater.state === "downloading"
+
+        onClicked: Mixxx.AppUpdater.cancel()
+    }
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        enabled: Mixxx.AppUpdater.installBlockedBy === ""
+        subtitle: Mixxx.AppUpdater.installBlockedBy === "playing" ? (root.updIt ? "Un deck sta suonando: ferma la musica per installare" : qsTr("A deck is playing: stop the music to install")) : Mixxx.AppUpdater.installBlockedBy === "performance" ? (root.updIt ? "Modalità prestazioni accesa: spegnila per installare" : qsTr("Performance mode is on: turn it off to install")) : (root.updIt ? "Ferma l'audio e chiude l'app" : qsTr("Stops the audio and closes the app"))
+        title: root.updIt ? "Installa l'aggiornamento" : qsTr("Install the update")
+        visible: Mixxx.AppUpdater.supported && Mixxx.AppUpdater.state === "ready"
+
+        onClicked: Mixxx.AppUpdater.install()
     }
 }

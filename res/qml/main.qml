@@ -162,7 +162,8 @@ ApplicationWindow {
 
         interval: Math.max(1, Mixxx.Config.screenOffMinutes) * 60 * 1000
         repeat: false
-        running: Mixxx.Config.screenOffMinutes > 0 && !root.screenAsleep
+        // Performance mode: the screen never goes off for inactivity
+        running: Mixxx.Config.screenOffMinutes > 0 && !root.screenAsleep && !(perfModeControl.value > 0)
 
         onTriggered: Mixxx.Config.screenAsleep = true
     }
@@ -233,12 +234,16 @@ ApplicationWindow {
                     activeColor: Theme.white
                     checkable: true
                     text: "Effects"
+                    // Kept in the program but not shown for now: reserved for later
+                    visible: false
                 }
                 Skin.Button {
                     id: showSamplersButton
                     activeColor: Theme.white
                     checkable: true
                     text: "Sampler"
+                    // Kept in the program but not shown for now: reserved for later
+                    visible: false
                 }
                 Skin.Button {
                     id: showMixerButton
@@ -290,6 +295,65 @@ ApplicationWindow {
                         key: "live_stems"
                     }
                 }
+                // Live Stems starts off: the switch next to the button shows
+                // that it has to be turned on (knob left, grey = off)
+                Item {
+                    id: liveStemsSwitch
+
+                    readonly property bool on: liveStemsControl.value > 0
+
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredHeight: 18
+                    Layout.preferredWidth: 34
+
+                    Rectangle {
+                        anchors.fill: parent
+                        border.color: liveStemsSwitch.on ? Qt.lighter("#c77dff", 1.3) : Theme.buttonBorderColor
+                        border.width: 1
+                        color: liveStemsSwitch.on ? Qt.darker("#c77dff", 1.7) : Theme.buttonBackgroundColor
+                        radius: height / 2
+
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: liveStemsSwitch.on ? "#c77dff" : Theme.textMutedColor
+                            height: parent.height - 6
+                            radius: height / 2
+                            width: height
+                            x: liveStemsSwitch.on ? parent.width - width - 3 : 3
+
+                            Behavior on x {
+                                NumberAnimation {
+                                    duration: 120
+                                }
+                            }
+                        }
+                    }
+                    MouseArea {
+                        // A bigger touch area than the switch itself
+                        anchors.fill: parent
+                        anchors.margins: -6
+
+                        onClicked: liveStemsControl.value = liveStemsSwitch.on ? 0 : 1
+                    }
+                }
+                Skin.Button {
+                    id: perfModeButton
+                    // Performance mode: waveforms always at full rate, clocks
+                    // kept warm, no background analysis. Always off at start
+                    activeColor: Theme.white
+                    checkable: true
+                    checked: perfModeControl.value > 0
+                    text: "PERF"
+
+                    onClicked: perfModeControl.value = perfModeControl.value > 0 ? 0 : 1
+
+                    Mixxx.ControlProxy {
+                        id: perfModeControl
+
+                        group: "[Skin]"
+                        key: "performance_mode"
+                    }
+                }
                 Text {
                     // What Auto Mix is doing: next track, countdown, mixing
                     Layout.fillWidth: true
@@ -307,6 +371,8 @@ ApplicationWindow {
                     visible: !Mixxx.AutoMix.active
                 }
                 Skin.BeatFxIndicator {
+                    id: beatFxIndicator
+
                     Layout.rightMargin: 6
                 }
                 Skin.Button {
@@ -350,6 +416,7 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: showPreferencesButton
+                    Layout.rightMargin: 8
                     activeColor: Theme.white
                     checked: settingsPopup.opened
                     icon.height: 16
@@ -499,8 +566,92 @@ ApplicationWindow {
         width: Math.min(parent.width - 16, 900)
         z: 100
     }
+    Skin.UpdateBanner {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        width: Math.min(parent.width - 16, 900)
+        z: 99
+    }
+    // Tutorial: the interface is prepared per step and put back at the end
+    property var tutorialSaved: null
+    property string tutorialPendingView: ""
+    // Phase 1 (now): the library flag. Phase 2 (200 ms later, after the
+    // control proxy echoed it back): the buttons, so its echo cannot undo them.
+    function tutorialView(view) {
+        if (!tutorialSaved) {
+            tutorialSaved = {
+                library: showLibraryControl.value,
+                mixer: showMixer,
+                maximize: maximizeLibrary,
+                effects: showEffects,
+                samplers: showSamplers
+            };
+        }
+        if (dashboardMode)
+            return;
+        tutorialPendingView = view;
+        const b = tutorialSaved;
+        if (view === "library" || view === "mixer")
+            showLibraryControl.value = 1;
+        else if (view === "waves" || view === "effects")
+            showLibraryControl.value = compact ? 0 : 1;
+        else
+            showLibraryControl.value = b.library;
+        tutorialApplyTimer.restart();
+    }
+    function tutorialApply2() {
+        if (!tutorialSaved || dashboardMode)
+            return;
+        const b = tutorialSaved;
+        const view = tutorialPendingView === "restore" ? "none" : tutorialPendingView;
+        if (tutorialPendingView === "restore")
+            tutorialSaved = null;
+        maximizeLibrary = (view === "none") ? b.maximize : false;
+        showMixer = (view === "mixer" && compact) ? true : ((view === "none") ? b.mixer : false);
+        showEffects = (view === "effects") ? true : b.effects;
+        showSamplers = b.samplers;
+    }
+    Timer {
+        id: tutorialApplyTimer
+
+        interval: 200
+        onTriggered: root.tutorialApply2()
+    }
+    function tutorialRestore() {
+        if (!tutorialSaved)
+            return;
+        if (dashboardMode) {
+            tutorialSaved = null;
+            return;
+        }
+        tutorialPendingView = "restore";
+        showLibraryControl.value = tutorialSaved.library;
+        tutorialApplyTimer.restart();
+    }
     Skin.Tutorial {
         id: tutorial
+
+        onPrepareView: view => root.tutorialView(view)
+        onRestoreView: root.tutorialRestore()
+        targets: ({
+                toolbar: toolbar,
+                show4DecksButton: show4DecksButton,
+                maximizeLibraryButton: maximizeLibraryButton,
+                showMixerButton: showMixerButton,
+                waveformViewButton: waveformViewButton,
+                autoMixButton: autoMixButton,
+                liveStemsButton: liveStemsButton,
+                liveStemsSwitch: liveStemsSwitch,
+                beatFxIndicator: beatFxIndicator,
+                perfModeButton: perfModeButton,
+                showDashboardButton: showDashboardButton,
+                showPreferencesButton: showPreferencesButton,
+                deck1waveform: deck1waveform,
+                decks12: decks12,
+                crossfader: crossfader,
+                library: library
+            })
     }
     // First run: after the startup check, once, unless it was skipped/finished
     Timer {

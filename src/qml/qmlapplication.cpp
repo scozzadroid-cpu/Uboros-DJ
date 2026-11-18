@@ -8,11 +8,22 @@
 #include <QQuickWindow>
 #ifdef __ANDROID__
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QJniEnvironment>
 #include <QJniObject>
+#include <QPointer>
 #include <QTimer>
+#include <chrono>
+#include <memory>
+#ifdef __ANDROID__
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
 #endif
 
 #include "control/controlobject.h"
+#include "control/controlproxy.h"
 #include "control/controlpushbutton.h"
 #include "controllers/controllermanager.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
@@ -27,6 +38,8 @@
 #include "qml/asyncimageprovider.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "soundio/soundmanager.h"
+#include "qml/qmlwaveformdisplay.h"
+#include "util/threadpriority.h"
 #include "util/versionstore.h"
 #include "waveform/visualsmanager.h"
 #include "waveform/waveformwidgetfactory.h"
@@ -49,6 +62,402 @@ auto lambda_to_singleton_type_factory_ptr(F&& f) {
 
 namespace mixxx {
 namespace qml {
+
+#ifdef __ANDROID__
+namespace {
+// Preferred refresh rate of the main window (WindowManager.LayoutParams)
+void setWindowRefreshRate(float hz) {
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([hz]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) {
+            return;
+        }
+        QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+        if (!window.isValid()) {
+            return;
+        }
+        QJniObject params = window.callObjectMethod(
+                "getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+        if (!params.isValid()) {
+            return;
+        }
+        params.setField<jfloat>("preferredRefreshRate", hz);
+        window.callMethod<void>("setAttributes",
+                "(Landroid/view/WindowManager$LayoutParams;)V",
+                params.object());
+    });
+}
+} // namespace
+#endif
+
+namespace {
+qint64 nowNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+}
+} // namespace
+
+struct QmlApplication::PerfHint {
+#ifdef __ANDROID__
+    QJniObject session;
+    QMetaObject::Connection beginConnection;
+    QMetaObject::Connection endConnection;
+    QTimer* pCheckTimer = nullptr;
+    std::atomic<qint64> frameStartNs{0};
+    std::vector<int> tids;
+    qint64 targetNs = 0;
+    int audioTid = 0;
+    bool sessionOk = false;
+    QPointer<QQuickWindow> window;
+
+    static std::vector<int> collectTids() {
+        std::vector<int> tids;
+        tids.push_back(static_cast<int>(gettid())); // Qt GUI thread
+        const int audio = mixxx::g_audioCallbackTid.load(std::memory_order_relaxed);
+        if (audio > 0) {
+            tids.push_back(audio);
+        }
+        // Qt Quick render thread, when the threaded render loop is used
+        if (QDir dir(QStringLiteral("/proc/self/task")); dir.exists()) {
+            const auto entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString& tid : entries) {
+                QFile comm(dir.filePath(tid + QStringLiteral("/comm")));
+                if (comm.open(QIODevice::ReadOnly) &&
+                        comm.readAll().startsWith("QSGRenderThread")) {
+                    tids.push_back(tid.toInt());
+                }
+            }
+        }
+        return tids;
+    }
+
+    bool createSession() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) {
+            return false;
+        }
+        QJniObject name = QJniObject::fromString(QStringLiteral("performance_hint"));
+        QJniObject manager = activity.callObjectMethod("getSystemService",
+                "(Ljava/lang/String;)Ljava/lang/Object;",
+                name.object<jstring>());
+        if (!manager.isValid()) {
+            qWarning() << "Performance hint: no PerformanceHintManager on this device";
+            return false;
+        }
+        {
+            const jlong rate = manager.callMethod<jlong>("getPreferredUpdateRateNanos", "()J");
+            qInfo() << "Performance hint: preferred update rate" << rate / 1e6 << "ms";
+        }
+        tids = collectTids();
+        audioTid = mixxx::g_audioCallbackTid.load(std::memory_order_relaxed);
+        QJniEnvironment env;
+        jintArray array = env->NewIntArray(static_cast<jsize>(tids.size()));
+        env->SetIntArrayRegion(array, 0, static_cast<jsize>(tids.size()), tids.data());
+        session = manager.callObjectMethod("createHintSession",
+                "([IJ)Landroid/os/PerformanceHintManager$Session;",
+                array,
+                static_cast<jlong>(targetNs));
+        env->DeleteLocalRef(array);
+        if (env.checkAndClearExceptions()) {
+            qWarning() << "Performance hint: createHintSession threw an exception, tids" << tids;
+        }
+        sessionOk = session.isValid();
+        if (!sessionOk) {
+            qWarning() << "Performance hint: createHintSession returned null, tids" << tids;
+        }
+        return sessionOk;
+    }
+
+    void closeSession() {
+        if (session.isValid()) {
+            session.callMethod<void>("close", "()V");
+        }
+        session = QJniObject();
+        sessionOk = false;
+    }
+#endif
+};
+
+namespace {
+// Measurement tool (tests/perf/play_hitch.sh): with [Config],perf_trace = 1 the
+// frames drawn in the 600 ms after a PLAY press of deck 1 are logged.
+// Off by default, no cost when off.
+struct PerfTrace {
+    qint64 playNs = 0;
+    std::vector<double> frames; // ms since the press
+    std::atomic<bool> armed{false};
+};
+} // namespace
+
+void QmlApplication::setupPerfTrace() {
+    if (!m_pCoreServices->getSettings()->getValue(
+                ConfigKey(QStringLiteral("[Config]"), QStringLiteral("perf_trace")), false)) {
+        return;
+    }
+    QQuickWindow* pWindow = nullptr;
+    for (QObject* pRoot : m_pAppEngine->rootObjects()) {
+        pWindow = qobject_cast<QQuickWindow*>(pRoot);
+        if (pWindow) {
+            break;
+        }
+    }
+    if (!pWindow) {
+        return;
+    }
+    auto* pTrace = new PerfTrace();
+    auto* pPlay = new ControlProxy(
+            ConfigKey(QStringLiteral("[Channel1]"), QStringLiteral("play")), this);
+    pPlay->connectValueChanged(
+            this,
+            [pTrace](double value) {
+                if (value > 0 && !pTrace->armed.load()) {
+                    pTrace->frames.clear();
+                    pTrace->playNs = nowNs();
+                    pTrace->armed.store(true);
+                }
+            },
+            Qt::DirectConnection);
+    connect(pWindow, &QQuickWindow::afterFrameEnd, this, [pTrace, this]() {
+        if (!pTrace->armed.load()) {
+            return;
+        }
+        const double ms = (nowNs() - pTrace->playNs) / 1e6;
+        if (ms < 600) {
+            pTrace->frames.push_back(ms);
+            return;
+        }
+        pTrace->armed.store(false);
+        QStringList list;
+        double maxGap = 0, prev = 0;
+        int slow = 0;
+        for (double f : pTrace->frames) {
+            maxGap = std::max(maxGap, f - prev);
+            slow += (f - prev) > 20.0;
+            prev = f;
+            list << QString::number(f, 'f', 0);
+        }
+        qInfo().noquote() << "PERFTRACE perf=" << m_pPerformanceMode->get()
+                          << "frames=" << pTrace->frames.size()
+                          << "first_ms=" << (pTrace->frames.empty() ? -1 : pTrace->frames.front())
+                          << "max_gap_ms=" << maxGap << "gaps_over_20ms=" << slow
+                          << "at:" << list.join(',');
+    }, Qt::DirectConnection);
+    qInfo() << "perf_trace enabled";
+}
+
+void QmlApplication::applyPerformanceMode(bool on) {
+    const auto pConfig = m_pCoreServices->getSettings();
+    // Parameters (not saved as "on": only these are remembered)
+    const ConfigKey refreshKey(QStringLiteral("[Config]"), QStringLiteral("performance_refresh_hz"));
+    const ConfigKey hintKey(QStringLiteral("[Config]"), QStringLiteral("performance_hint_ms"));
+    const double refreshHz = pConfig->getValue(refreshKey, 60.0);
+    const double hintMs = pConfig->getValue(hintKey, 12.0);
+    QmlWaveformDisplay::setPerformanceMode(on);
+#ifdef __ANDROID__
+    setWindowRefreshRate(on ? static_cast<float>(refreshHz) : 60.0f);
+    if (on) {
+        if (!m_pPerfHint) {
+            m_pPerfHint = std::make_unique<PerfHint>();
+        }
+        auto* h = m_pPerfHint.get();
+        h->targetNs = static_cast<qint64>(hintMs * 1e6);
+        h->closeSession();
+        if (hintMs > 0 && h->createSession()) {
+            QQuickWindow* pWindow = nullptr;
+            if (m_pAppEngine) {
+                for (QObject* pRoot : m_pAppEngine->rootObjects()) {
+                    pWindow = qobject_cast<QQuickWindow*>(pRoot);
+                    if (pWindow) {
+                        break;
+                    }
+                }
+            }
+            h->window = pWindow;
+            if (pWindow) {
+                h->beginConnection = connect(
+                        pWindow, &QQuickWindow::beforeFrameBegin, this, [h]() {
+                            h->frameStartNs.store(
+                                    nowNs(),
+                                    std::memory_order_relaxed);
+                        }, Qt::DirectConnection);
+                h->endConnection = connect(
+                        pWindow, &QQuickWindow::afterFrameEnd, this, [h]() {
+                            if (!h->sessionOk) {
+                                return;
+                            }
+                            const qint64 start = h->frameStartNs.load(std::memory_order_relaxed);
+                            const qint64 dur = nowNs() - start;
+                            h->session.callMethod<void>("reportActualWorkDuration",
+                                    "(J)V",
+                                    static_cast<jlong>(std::max<qint64>(dur, 1000000)));
+                        }, Qt::DirectConnection);
+            }
+            if (!h->pCheckTimer) {
+                h->pCheckTimer = new QTimer(this);
+                h->pCheckTimer->setInterval(3000);
+                connect(h->pCheckTimer, &QTimer::timeout, this, [this, h]() {
+                    // The audio thread appears later (or changes when the
+                    // sound device is restarted): new session with its tid
+                    const int audio = mixxx::g_audioCallbackTid.load(std::memory_order_relaxed);
+                    if (audio > 0 && audio != h->audioTid) {
+                        h->closeSession();
+                        h->createSession();
+                        qInfo() << "Performance mode: hint session updated, threads" << h->tids.size();
+                    }
+                });
+            }
+            h->pCheckTimer->start();
+        }
+        qInfo() << "Performance mode ON: waveforms redrawn every frame, refresh"
+                << refreshHz << "Hz, hint session"
+                << (h->sessionOk ? "active" : "not available") << "target" << hintMs
+                << "ms, threads" << h->tids.size() << ", analysis and best-quality stems paused, screen stays on";
+    } else if (m_pPerfHint) {
+        auto* h = m_pPerfHint.get();
+        if (h->pCheckTimer) {
+            h->pCheckTimer->stop();
+        }
+        disconnect(h->beginConnection);
+        disconnect(h->endConnection);
+        h->closeSession();
+        qInfo() << "Performance mode OFF: normal redraw, 60 Hz, analysis and stems resumed";
+    }
+#else
+    qInfo() << "Performance mode" << (on ? "ON" : "OFF") << "refresh" << refreshHz << "Hz";
+#endif
+}
+
+
+namespace {
+
+#ifdef __ANDROID__
+/// Diagnostics: `setprop debug.mixxx.framemon 1` (root) makes the render
+/// thread log, in logcat (tag mixxx-frames), every gap between two frames of
+/// a continuous stream longer than 20 ms, and a summary every 3 s of
+/// activity. Idle gaps (nothing to draw) are ignored. Cost when off: one
+/// property read every 60 frames.
+void installFrameMonitor(QQuickWindow* pWindow) {
+    struct State {
+        using Clock = std::chrono::steady_clock;
+        Clock::time_point last;
+        Clock::time_point frameBegin;
+        Clock::time_point summaryStart;
+        bool enabled = false;
+        int sinceCheck = 0;
+        int frames = 0;
+        int over20 = 0;
+        int over33 = 0;
+        int over50 = 0;
+        double worstMs = 0;
+    };
+    auto state = std::make_shared<State>();
+    // Duration of each frame on the render thread (sync with the GUI thread
+    // included): long ones are what the eye sees as a hitch
+    QObject::connect(
+            pWindow,
+            &QQuickWindow::beforeFrameBegin,
+            pWindow,
+            [state]() { state->frameBegin = State::Clock::now(); },
+            Qt::DirectConnection);
+    // Direct: runs on the render thread, a queued call would measure the GUI thread
+    QObject::connect(
+            pWindow,
+            &QQuickWindow::frameSwapped,
+            pWindow,
+            [state]() {
+                const auto now = State::Clock::now();
+                if (state->sinceCheck-- <= 0) {
+                    state->sinceCheck = 60;
+                    char value[PROP_VALUE_MAX] = {};
+                    __system_property_get("debug.mixxx.framemon", value);
+                    state->enabled = value[0] == '1';
+                }
+                if (!state->enabled) {
+                    state->last = {};
+                    return;
+                }
+                if (state->frameBegin.time_since_epoch().count() != 0) {
+                    const double frameMs = std::chrono::duration<double, std::milli>(
+                            now - state->frameBegin)
+                                                   .count();
+                    if (frameMs > 16.0) {
+                        __android_log_print(ANDROID_LOG_WARN, "mixxx-frames", "frame took %.1f ms", frameMs);
+                    }
+                }
+                if (state->last.time_since_epoch().count() != 0) {
+                    const double gapMs =
+                            std::chrono::duration<double, std::milli>(now - state->last).count();
+                    if (gapMs < 250.0) {
+                        if (state->frames == 0) {
+                            state->summaryStart = now;
+                        }
+                        state->frames++;
+                        if (gapMs > 20.0) {
+                            state->over20++;
+                            __android_log_print(ANDROID_LOG_WARN, "mixxx-frames", "gap %.1f ms", gapMs);
+                        }
+                        if (gapMs > 33.0) {
+                            state->over33++;
+                        }
+                        if (gapMs > 50.0) {
+                            state->over50++;
+                        }
+                        state->worstMs = std::max(state->worstMs, gapMs);
+                    }
+                }
+                state->last = now;
+                if (state->frames > 0 &&
+                        std::chrono::duration<double>(now - state->summaryStart).count() >= 3.0) {
+                    __android_log_print(ANDROID_LOG_WARN,
+                            "mixxx-frames",
+                            "SUMMARY frames=%d >20ms=%d >33ms=%d >50ms=%d worst=%.1f ms",
+                            state->frames,
+                            state->over20,
+                            state->over33,
+                            state->over50,
+                            state->worstMs);
+                    state->frames = state->over20 = state->over33 = state->over50 = 0;
+                    state->worstMs = 0;
+                }
+            },
+            Qt::DirectConnection);
+
+    // GUI thread stalls: a 5 ms timer, running only while the property is on
+    // (checked once a second), whose lateness is the time the thread was blocked
+    auto* pStall = new QTimer(pWindow);
+    pStall->setInterval(5);
+    pStall->setTimerType(Qt::PreciseTimer);
+    auto lastTick = std::make_shared<State::Clock::time_point>();
+    QObject::connect(pStall, &QTimer::timeout, pWindow, [lastTick]() {
+        const auto now = State::Clock::now();
+        if (lastTick->time_since_epoch().count() != 0) {
+            const double lateMs =
+                    std::chrono::duration<double, std::milli>(now - *lastTick).count() - 5.0;
+            if (lateMs > 12.0) {
+                __android_log_print(ANDROID_LOG_WARN, "mixxx-frames", "GUI thread blocked %.1f ms", lateMs);
+            }
+        }
+        *lastTick = now;
+    });
+    auto* pPoll = new QTimer(pWindow);
+    pPoll->setInterval(1000);
+    QObject::connect(pPoll, &QTimer::timeout, pWindow, [pStall, lastTick]() {
+        char value[PROP_VALUE_MAX] = {};
+        __system_property_get("debug.mixxx.framemon", value);
+        const bool on = value[0] == '1';
+        if (on && !pStall->isActive()) {
+            *lastTick = {};
+            pStall->start();
+        } else if (!on && pStall->isActive()) {
+            pStall->stop();
+        }
+    });
+    pPoll->start();
+}
+#endif
+
+} // namespace
 
 QmlApplication::QmlApplication(
         QApplication* app,
@@ -274,6 +683,13 @@ QmlApplication::QmlApplication(
     m_pShowLibrary->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pStemMode = std::make_unique<ControlObject>(
             ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("stem_mode")));
+    // Performance mode: always starts off (the control is created by
+    // CoreServices at 0 and never saved)
+    m_pPerformanceMode = std::make_unique<ControlProxy>(
+            ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("performance_mode")), this);
+    m_pPerformanceMode->connectValueChanged(this, [this](double value) {
+        applyPerformanceMode(value > 0);
+    });
 
     const QStringList visualGroups =
             m_pCoreServices->getPlayerManager()->getVisualPlayerGroups();
@@ -292,8 +708,14 @@ QmlApplication::QmlApplication(
                 }
             });
     loadQml(m_mainFilePath);
+    QTimer::singleShot(4000, this, [this]() { setupPerfTrace(); });
 
 #ifdef __ANDROID__
+    if (!m_pAppEngine->rootObjects().isEmpty()) {
+        if (auto* pMainWindow = qobject_cast<QQuickWindow*>(m_pAppEngine->rootObjects().first())) {
+            installFrameMonitor(pMainWindow);
+        }
+    }
     // Many phones run at 90/120 Hz. Rendering the waveforms within 8 ms per
     // frame is not realistic, so frames are dropped and the UI stutters.
     // Ask Android for 60 Hz for this window: 16.7 ms per frame.
@@ -411,6 +833,13 @@ bool QmlApplication::eventFilter(QObject* pObj, QEvent* pEvent) {
 }
 
 QmlApplication::~QmlApplication() {
+#ifdef __ANDROID__
+    if (m_pPerfHint) {
+        disconnect(m_pPerfHint->beginConnection);
+        disconnect(m_pPerfHint->endConnection);
+        m_pPerfHint->closeSession();
+    }
+#endif
     QCoreApplication::instance()->removeEventFilter(this);
 #ifdef __ANDROID__
     QJniObject context = QNativeInterface::QAndroidApplication::context();

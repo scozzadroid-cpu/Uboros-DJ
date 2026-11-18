@@ -8,6 +8,7 @@
 #include "qmlautoreload.h"
 
 class ControlObject;
+class ControlProxy;
 class ControlPushButton;
 class GuiTick;
 class VisualsManager;
@@ -42,6 +43,15 @@ class QmlApplication : public QObject {
     std::unique_ptr<ControlPushButton> m_pShowLibrary;
     // 1 while the DDJ-FLX4 SMART CFX is held (EQ knobs = stems), for the deck overlay
     std::unique_ptr<ControlObject> m_pStemMode;
+
+    // [Skin],performance_mode (created by CoreServices, 0 at every start)
+    std::unique_ptr<ControlProxy> m_pPerformanceMode;
+    void applyPerformanceMode(bool on);
+    void setupPerfTrace();
+    // Android performance hint session (PerformanceHintManager); the QJniObject
+    // lives in the .cpp
+    struct PerfHint;
+    std::unique_ptr<PerfHint> m_pPerfHint;
 
     std::unique_ptr<QQmlApplicationEngine> m_pAppEngine;
     QmlAutoReload m_autoReload;
