@@ -126,6 +126,17 @@ void SoundDevice::composeOutputBuffer(CSAMPLE* outputBuffer,
                             (pAudioOutputBuffer[iFrameNo * 2] +
                                     pAudioOutputBuffer[iFrameNo * 2 + 1]) / 2.0f);
                 }
+            } else if (iChannelCount == 2) {
+                // The usual case (a stereo output of the card, the master and the
+                // headphones of a controller): the loop below has an inner loop with
+                // a run time length, 3 % of the audio thread on the phone
+                CSAMPLE* pDest = outputBuffer + iChannelBase;
+                for (SINT iFrameNo = 0; iFrameNo < framesToCompose; ++iFrameNo) {
+                    pDest[iFrameNo * iFrameSize] =
+                            SampleUtil::clampSample(pAudioOutputBuffer[iFrameNo * 2]);
+                    pDest[iFrameNo * iFrameSize + 1] =
+                            SampleUtil::clampSample(pAudioOutputBuffer[iFrameNo * 2 + 1]);
+                }
             } else {
                 for (SINT iFrameNo = 0; iFrameNo < framesToCompose; ++iFrameNo) {
                     // iFrameBase is the "base sample" in a frame (ie. the first
