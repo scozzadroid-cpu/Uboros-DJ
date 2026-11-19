@@ -28,6 +28,10 @@ class QmlConfigProxy : public QObject {
     // Screen turned black (nothing drawn, audio goes on) after these minutes
     // without DJ controller input or touches; 0 = never
     Q_PROPERTY(int screenOffMinutes READ screenOffMinutes WRITE setScreenOffMinutes NOTIFY screenOffMinutesChanged)
+    /// Largest size of the log file (mixxx.log) in MB, 0 = no limit; applied at the next start
+    Q_PROPERTY(int logMaxFileSizeMb READ logMaxFileSizeMb WRITE setLogMaxFileSizeMb NOTIFY logLimitsChanged)
+    /// How many older log files (mixxx.log.1 ...) are kept; applied at the next start
+    Q_PROPERTY(int logMaxOldFiles READ logMaxOldFiles WRITE setLogMaxOldFiles NOTIFY logLimitsChanged)
     // Set by QML while the screen is black: the touch that wakes it is
     // swallowed (does not press what is under the finger)
     Q_PROPERTY(bool screenAsleep READ screenAsleep WRITE setScreenAsleep NOTIFY screenAsleepChanged)
@@ -72,6 +76,10 @@ class QmlConfigProxy : public QObject {
     void setBurnInProtection(bool enabled);
     int screenOffMinutes() const;
     void setScreenOffMinutes(int minutes);
+    int logMaxFileSizeMb() const;
+    void setLogMaxFileSizeMb(int megabytes);
+    int logMaxOldFiles() const;
+    void setLogMaxOldFiles(int files);
     bool screenAsleep() const {
         return m_screenAsleep;
     }
@@ -93,6 +101,7 @@ class QmlConfigProxy : public QObject {
     void tutorialDoneChanged(bool done);
     void burnInProtectionChanged(bool enabled);
     void screenOffMinutesChanged(int minutes);
+    void logLimitsChanged();
     void screenAsleepChanged(bool asleep);
     void interfaceProfileChanged(const QString& profile);
     /// DJ controller input or a touch (GUI thread)

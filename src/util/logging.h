@@ -33,6 +33,12 @@ constexpr LogLevel kLogFlushLevelDefault = LogLevel::Critical;
 /// configured at startup.
 class Logging {
   public:
+    /// Limits from the user settings, for the next initialize(): the largest size of the log file in
+    /// bytes (-1 = no limit, kLogLimitFromCommandLine = what --log-max-file-size says) and the
+    /// number of older log files kept (mixxx.log.1 ...). Call before initialize().
+    static constexpr qint64 kLogLimitFromCommandLine = -2;
+    static void setConfiguredLimits(qint64 maxFileSizeBytes, int maxOldFiles);
+
     // These are not thread safe. Only call them on Mixxx startup and shutdown.
     static void initialize(
             const QString& logDirPath,

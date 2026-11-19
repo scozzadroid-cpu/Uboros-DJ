@@ -705,6 +705,64 @@ ColumnLayout {
 
             onClicked: Mixxx.AppUpdater.install()
         }
+
+        // --------------------------------------------------------------------- Logs
+        // The log (mixxx.log in the app's data folder) is what helps to find a problem; these
+        // limits keep it from taking the phone's space. Applied at the next start.
+        SectionTitle {
+            text: root.updIt ? "Log" : qsTr("Logs")
+        }
+        Skin.DashboardChoice {
+            Layout.fillWidth: true
+            current: Mixxx.Config.logMaxFileSizeMb
+            model: [{
+                    "label": "5 MB",
+                    "value": 5
+                }, {
+                    "label": "20 MB",
+                    "value": 20
+                }, {
+                    "label": "50 MB",
+                    "value": 50
+                }, {
+                    "label": "100 MB",
+                    "value": 100
+                }, {
+                    "label": "500 MB",
+                    "value": 500
+                }, {
+                    "label": root.updIt ? "Nessun limite" : qsTr("No limit"),
+                    "value": 0
+                }]
+            subtitle: root.updIt ? "Dimensione massima del file di log: oltre, smette di scrivere. Vale dal prossimo avvio" : qsTr("Largest size of the log file: beyond it nothing more is written. Applies from the next start")
+            title: root.updIt ? "Dimensione massima del log" : qsTr("Largest log file")
+
+            onPicked: value => Mixxx.Config.logMaxFileSizeMb = value
+        }
+        Skin.DashboardChoice {
+            Layout.fillWidth: true
+            current: Mixxx.Config.logMaxOldFiles
+            model: [{
+                    "label": "1",
+                    "value": 1
+                }, {
+                    "label": "3",
+                    "value": 3
+                }, {
+                    "label": "5",
+                    "value": 5
+                }, {
+                    "label": "10",
+                    "value": 10
+                }, {
+                    "label": "20",
+                    "value": 20
+                }]
+            subtitle: root.updIt ? "Quanti log delle sessioni precedenti si tengono (uno per avvio). I più vecchi vengono cancellati al prossimo avvio" : qsTr("How many logs of earlier sessions are kept (one per start). The oldest are deleted at the next start")
+            title: root.updIt ? "Log precedenti da conservare" : qsTr("Older logs to keep")
+
+            onPicked: value => Mixxx.Config.logMaxOldFiles = value
+        }
         }
     }
 }

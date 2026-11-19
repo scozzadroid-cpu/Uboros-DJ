@@ -475,6 +475,19 @@ void CoreServices::initializeSettings() {
 }
 
 void CoreServices::initializeLogging() {
+    // The largest log file and the number of old ones kept: set in the Dashboard (Updates & help),
+    // applied at this start. Not set = what the command line says (100 MB, 10 files).
+    {
+        const UserSettingsPointer pSettings = m_pSettingsManager->settings();
+        const ConfigKey sizeKey(QStringLiteral("[Logging]"), QStringLiteral("MaxFileSizeMb"));
+        const ConfigKey filesKey(QStringLiteral("[Logging]"), QStringLiteral("MaxOldFiles"));
+        qint64 maxBytes = mixxx::Logging::kLogLimitFromCommandLine;
+        if (!pSettings->getValueString(sizeKey).isEmpty()) {
+            const int megabytes = pSettings->getValue(sizeKey, 100);
+            maxBytes = megabytes <= 0 ? -1 : static_cast<qint64>(megabytes) * 1'000'000;
+        }
+        mixxx::Logging::setConfiguredLimits(maxBytes, pSettings->getValue(filesKey, 10));
+    }
     mixxx::LogFlags logFlags = mixxx::LogFlag::LogToFile;
     if (m_cmdlineArgs.getDebugAssertBreak()) {
         logFlags.setFlag(mixxx::LogFlag::DebugAssertBreak);

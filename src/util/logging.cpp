@@ -1,5 +1,7 @@
 #include "util/logging.h"
 
+#include <algorithm>
+
 #include <signal.h>
 #include <stdio.h>
 
@@ -31,6 +33,9 @@ QMutex s_mutexStdErr;
 // The file handle for Mixxx's log file.
 QFile s_logfile;
 qint64 s_logMaxFileSize = mixxx::kLogMaxFileSizeDefault;
+// From the user settings (see Logging::setConfiguredLimits)
+qint64 s_configuredMaxFileSize = mixxx::Logging::kLogLimitFromCommandLine;
+int s_maxOldLogFiles = 10;
 std::atomic<bool> s_logMaxFileSizeReached = false;
 
 QLoggingCategory::CategoryFilter oldCategoryFilter = nullptr;
@@ -216,7 +221,7 @@ inline void writeToStdErr(
 
 /// Rotate existing logfiles and get the file path of the log file to write to.
 /// May return an invalid/empty QString if the log directory does not exist.
-QString rotateLogFilesAndGetFilePath(const QString& logDirPath) {
+QString rotateLogFilesAndGetFilePath(const QString& logDirPath, int maxOldFiles) {
     if (logDirPath.isEmpty()) {
         fprintf(stderr, "No log directory specified!\n");
         return QString();
@@ -231,8 +236,15 @@ QString rotateLogFilesAndGetFilePath(const QString& logDirPath) {
     }
 
     QString logFilePath;
+    // Older files than the user wants to keep (the number was lowered): removed
+    for (int i = maxOldFiles + 1; i <= maxOldFiles + 60; ++i) {
+        const QString extra = logDir.absoluteFilePath(QString("mixxx.log.%1").arg(i));
+        if (QFileInfo::exists(extra)) {
+            QFile::remove(extra);
+        }
+    }
     // Rotate old logfiles.
-    for (int i = 9; i >= 0; --i) {
+    for (int i = maxOldFiles - 1; i >= 0; --i) {
         const QString logFileName = (i == 0) ? QString("mixxx.log")
                                              : QString("mixxx.log.%1").arg(i);
         logFilePath = logDir.absoluteFilePath(logFileName);
@@ -402,7 +414,7 @@ void Logging::initialize(
 
     QString logFilePath;
     if (flags.testFlag(LogFlag::LogToFile)) {
-        logFilePath = rotateLogFilesAndGetFilePath(logDirPath);
+        logFilePath = rotateLogFilesAndGetFilePath(logDirPath, s_maxOldLogFiles);
     }
 
     if (logFilePath.isEmpty()) {
@@ -456,7 +468,15 @@ void Logging::initialize(
         QLoggingCategory::installFilter(controllerDebugCategoryFilter);
     }
 
-    s_logMaxFileSize = CmdlineArgs::Instance().getLogMaxFileSize();
+    s_logMaxFileSize = s_configuredMaxFileSize == kLogLimitFromCommandLine
+            ? CmdlineArgs::Instance().getLogMaxFileSize()
+            : s_configuredMaxFileSize;
+}
+
+// static
+void Logging::setConfiguredLimits(qint64 maxFileSizeBytes, int maxOldFiles) {
+    s_configuredMaxFileSize = maxFileSizeBytes;
+    s_maxOldLogFiles = std::clamp(maxOldFiles, 1, 50);
 }
 
 // static

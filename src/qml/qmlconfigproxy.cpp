@@ -209,6 +209,39 @@ void QmlConfigProxy::setBurnInProtection(bool enabled) {
     emit burnInProtectionChanged(enabled);
 }
 
+namespace {
+const ConfigKey kLogMaxFileSizeKey(QStringLiteral("[Logging]"), QStringLiteral("MaxFileSizeMb"));
+const ConfigKey kLogMaxOldFilesKey(QStringLiteral("[Logging]"), QStringLiteral("MaxOldFiles"));
+} // namespace
+
+int QmlConfigProxy::logMaxFileSizeMb() const {
+    return std::max(0, m_pConfig->getValue(kLogMaxFileSizeKey, 100));
+}
+
+void QmlConfigProxy::setLogMaxFileSizeMb(int megabytes) {
+    megabytes = std::max(0, megabytes);
+    if (megabytes == logMaxFileSizeMb() && !m_pConfig->getValueString(kLogMaxFileSizeKey).isEmpty()) {
+        return;
+    }
+    m_pConfig->setValue(kLogMaxFileSizeKey, megabytes);
+    m_pConfig->save();
+    emit logLimitsChanged();
+}
+
+int QmlConfigProxy::logMaxOldFiles() const {
+    return std::clamp(m_pConfig->getValue(kLogMaxOldFilesKey, 10), 1, 50);
+}
+
+void QmlConfigProxy::setLogMaxOldFiles(int files) {
+    files = std::clamp(files, 1, 50);
+    if (files == logMaxOldFiles() && !m_pConfig->getValueString(kLogMaxOldFilesKey).isEmpty()) {
+        return;
+    }
+    m_pConfig->setValue(kLogMaxOldFilesKey, files);
+    m_pConfig->save();
+    emit logLimitsChanged();
+}
+
 int QmlConfigProxy::screenOffMinutes() const {
     return std::max(0, m_pConfig->getValue(ConfigKey(kScreenGroup, kScreenOffMinutesKey), 0));
 }
