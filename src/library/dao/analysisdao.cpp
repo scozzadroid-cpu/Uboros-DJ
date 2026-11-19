@@ -7,6 +7,7 @@
 #include "library/queryutil.h"
 #include "preferences/waveformsettings.h"
 #include "util/fastchecksum.h"
+#include "util/fastdeflate.h"
 #include "util/performancetimer.h"
 #include "waveform/waveform.h"
 
@@ -97,7 +98,7 @@ QByteArray AnalysisDao::loadAnalysisData(const QString& path, int checksum) {
         qDebug() << "WARNING: Corrupt analysis loaded from" << path;
         return QByteArray();
     }
-    return qUncompress(compressedData);
+    return mixxx::fastUncompress(compressedData);
 }
 
 QList<AnalysisDao::AnalysisInfo> AnalysisDao::loadAnalysesFromQuery(TrackId trackId, QSqlQuery* query) {
@@ -143,7 +144,7 @@ QList<AnalysisDao::AnalysisInfo> AnalysisDao::loadAnalysesFromQuery(TrackId trac
                      << "length" << compressedData.length();
             continue;
         }
-        info.data = qUncompress(compressedData);
+        info.data = mixxx::fastUncompress(compressedData);
         bytes += info.data.length();
         analyses.append(info);
     }
@@ -165,7 +166,7 @@ bool AnalysisDao::saveAnalysis(AnalysisDao::AnalysisInfo* info) {
     PerformanceTimer time;
     time.start();
 
-    const QByteArray compressedData = qCompress(info->data, kCompressionLevel);
+    const QByteArray compressedData = mixxx::fastCompress(info->data, kCompressionLevel);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     const int checksum = mixxx::fastChecksum(
             QByteArrayView(compressedData));

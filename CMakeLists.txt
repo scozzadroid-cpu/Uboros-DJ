@@ -1653,6 +1653,7 @@ add_library(
   src/util/experiment.cpp
   src/util/file.cpp
   src/util/fileaccess.cpp
+  src/util/fastdeflate.cpp
   src/util/fileinfo.cpp
   src/util/filename.cpp
   src/util/font.cpp
@@ -4735,6 +4736,33 @@ if(SndFile_SUPPORTS_SET_COMPRESSION_LEVEL)
     mixxx-lib
     PUBLIC SFC_SUPPORTS_SET_COMPRESSION_LEVEL
   )
+endif()
+
+# libdeflate (Android only, src/lib/libdeflate/README-mixxx-android.md): the zlib
+# of qCompress/qUncompress was 80 % of the time of preparing a USB drive
+if(ANDROID)
+  add_library(
+    libdeflate-android
+    STATIC
+    lib/libdeflate/lib/adler32.c
+    lib/libdeflate/lib/arm/cpu_features.c
+    lib/libdeflate/lib/crc32.c
+    lib/libdeflate/lib/deflate_compress.c
+    lib/libdeflate/lib/deflate_decompress.c
+    lib/libdeflate/lib/gzip_compress.c
+    lib/libdeflate/lib/gzip_decompress.c
+    lib/libdeflate/lib/utils.c
+    lib/libdeflate/lib/zlib_compress.c
+    lib/libdeflate/lib/zlib_decompress.c
+  )
+  target_include_directories(
+    libdeflate-android
+    PUBLIC lib/libdeflate
+    PRIVATE lib/libdeflate/lib
+  )
+  target_compile_options(libdeflate-android PRIVATE -O3 -w)
+  set_target_properties(libdeflate-android PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(mixxx-lib PRIVATE libdeflate-android)
 endif()
 
 # SoundTouch

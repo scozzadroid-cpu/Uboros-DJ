@@ -17,6 +17,7 @@
 #include "track/beats.h"
 #include "track/keyfactory.h"
 #include "track/track.h"
+#include "util/fastdeflate.h"
 
 namespace mixxx::deviceanalysis {
 
@@ -233,7 +234,7 @@ QByteArray assembleSidecar(QJsonObject header, const QList<SidecarBlob>& rawBlob
         if (data.isEmpty()) {
             continue; // missing or corrupt file: same as no analysis
         }
-        const QByteArray compressed = qCompress(data, 6);
+        const QByteArray compressed = mixxx::fastCompress(data, 6);
         QJsonObject blob;
         blob.insert(QStringLiteral("version"), raw.version);
         blob.insert(QStringLiteral("description"), raw.description);
@@ -417,7 +418,7 @@ bool importIfAvailable(const TrackPointer& pTrack, AnalysisDao& analysisDao) {
         info.type = type;
         info.version = blob.value(QStringLiteral("version")).toString();
         info.description = blob.value(QStringLiteral("description")).toString();
-        info.data = qUncompress(compressed);
+        info.data = mixxx::fastUncompress(compressed);
         if (!info.data.isEmpty()) {
             analysisDao.saveAnalysis(&info);
         }
