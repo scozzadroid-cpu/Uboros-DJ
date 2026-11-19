@@ -3961,6 +3961,7 @@ if(QML)
     mixxx-qml-lib
     PRIVATE
       src/qml/asyncimageprovider.cpp
+      src/qml/keysyncfollower.cpp
       src/qml/qmlapplication.cpp
       src/qml/qmlautoreload.cpp
       src/qml/qmlbeatsmodel.cpp

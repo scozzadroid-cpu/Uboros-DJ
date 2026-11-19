@@ -15,7 +15,7 @@
 //      * Beat Loop Mode
 //      * Beat Jump Mode
 //      * Sampler Mode
-//      * Keyshift mode (pad 8 = KEY SYNC: match the key of the other deck)
+//      * Keyshift mode (pad 8 = KEY SYNC switch: follow the key of the other deck)
 //
 //  Custom (Mixxx specific mappings):
 //      * BeatFX: Assigned Effect Unit 1
@@ -378,6 +378,9 @@ PioneerDDJFLX4.init = function() {
     // Register callbacks for each deck, when the pitch shift is modified
     engine.makeConnection("[Channel1]", "pitch_adjust", PioneerDDJFLX4.pitchAdjusted);
     engine.makeConnection("[Channel2]", "pitch_adjust", PioneerDDJFLX4.pitchAdjusted);
+    // Pad 8 (KEY SYNC) follows its switch
+    engine.makeConnection("[Channel1]", "key_sync_enabled", PioneerDDJFLX4.pitchAdjusted);
+    engine.makeConnection("[Channel2]", "key_sync_enabled", PioneerDDJFLX4.pitchAdjusted);
 
     // Pad mode on the screen (the firmware starts in HOT CUE mode)
     PioneerDDJFLX4.initPadModeBridge();
@@ -1528,8 +1531,9 @@ PioneerDDJFLX4.pitchAdjusted = function(_value, group, _control) {
         lights = 0b11111111;
     }
 
-    // Pad 8 is KEY SYNC, a button: always lit
-    lights |= 0b00000001;
+    // Pad 8 is KEY SYNC, a switch: lit while it is on, whatever the shift is
+    lights = (lights & ~0b00000001) |
+        (engine.getValue(group, "key_sync_enabled") ? 0b00000001 : 0);
 
     for (let i=0; i<8; i++) {
         let code = 0x00;
@@ -1559,6 +1563,9 @@ PioneerDDJFLX4.pitchPadPressed = function(_channel, control, value, _status, gro
     const pad = control - this.pitchPadsFirstControl;
     let pitch = 0;
 
+    // A shift chosen by hand ends Key Sync
+    engine.setValue(group, "key_sync_enabled", 0);
+
     if (pad === 0) {
         pitch = 0;
     } else if (pad === 1) {
@@ -1580,15 +1587,14 @@ PioneerDDJFLX4.pitchPadPressed = function(_channel, control, value, _status, gro
     engine.setValue(group, "pitch_adjust", pitch);
 };
 
-// KEY SHIFT mode, pad 8: KEY SYNC (rekordbox / Serato "Key Sync"). Shifts the
-// key of this deck to the nearest key that mixes with the key of the other
-// deck (same key, relative major/minor or one step on the Camelot wheel), the
-// size of the shift is the one of the pad lights. Does nothing without a
-// playing deck to follow or without a key on either track.
+// KEY SHIFT mode, pad 8: KEY SYNC (our own choice: the FLX4 has no key sync pad, in rekordbox
+// KEY SYNC is a button on the screen). A switch: on, this deck follows the key of the other
+// deck (the nearest key that mixes: same key, relative major/minor or one step on the Camelot
+// wheel), also when another track is loaded; off, the shift that was made stays (pad 1 or
+// reset_key take it away). Done by KeySyncFollower (src/qml/keysyncfollower.cpp).
 PioneerDDJFLX4.keySyncPressed = function(_channel, _control, value, _status, group) {
     if (value === 0) { return; } // ignore release
-    engine.setValue(group, "sync_key", 1);
-    engine.setValue(group, "sync_key", 0);
+    script.toggleControl(group, "key_sync_enabled");
 };
 
 PioneerDDJFLX4.pitchPadShiftPressed = function(_channel, control, value, _status, group) {
@@ -1597,6 +1603,9 @@ PioneerDDJFLX4.pitchPadShiftPressed = function(_channel, control, value, _status
     }
 
     const pad = control - this.pitchPadsFirstControl;
+
+    // A shift chosen by hand ends Key Sync
+    engine.setValue(group, "key_sync_enabled", 0);
 
     let currentPitch = engine.getValue(group, "pitch_adjust");
 

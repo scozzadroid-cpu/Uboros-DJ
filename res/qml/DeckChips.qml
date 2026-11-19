@@ -182,8 +182,9 @@ Item {
                     anchors.fill: parent
                     radius: height / 2
                     color: keyPill.camelot ? Qt.darker(Theme.camelotColor(keyPill.camelot.n), 1.5) : Theme.darkGray2
-                    border.width: 1
-                    border.color: keyPill.camelot ? Theme.camelotColor(keyPill.camelot.n) : Theme.deckLineColor
+                    // Key Sync on: a white ring
+                    border.width: keySyncControl.value > 0 ? 2 : 1
+                    border.color: keySyncControl.value > 0 ? Theme.white : (keyPill.camelot ? Theme.camelotColor(keyPill.camelot.n) : Theme.deckLineColor)
                 }
 
                 Text {
@@ -196,16 +197,14 @@ Item {
                     color: Theme.white
                 }
 
-                // KEY SYNC with a tap, shift taken away with a long press (like the info bar)
+                // KEY SYNC on/off with a tap, off and shift taken away with a long press (like the info bar)
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6
                     enabled: !!root.currentTrack
-                    onClicked: {
-                        syncKeyControl.value = 1;
-                        syncKeyControl.value = 0;
-                    }
+                    onClicked: keySyncControl.value = keySyncControl.value > 0 ? 0 : 1
                     onPressAndHold: {
+                        keySyncControl.value = 0;
                         resetKeyControl.value = 1;
                         resetKeyControl.value = 0;
                     }
@@ -334,10 +333,10 @@ Item {
     }
 
     Mixxx.ControlProxy {
-        id: syncKeyControl
+        id: keySyncControl
 
         group: root.group
-        key: "sync_key"
+        key: "key_sync_enabled"
     }
 
     Mixxx.ControlProxy {

@@ -16,6 +16,8 @@ class VisualsManager;
 namespace mixxx {
 namespace qml {
 
+class KeySyncFollower;
+
 class QmlApplication : public QObject {
     Q_OBJECT
   public:
@@ -51,6 +53,8 @@ class QmlApplication : public QObject {
     // smallest BEAT JUMP pad. A script cannot create controls, so they are here.
     std::unique_ptr<ControlObject> m_pPadMode[4];
     std::unique_ptr<ControlObject> m_pPadBeatjumpUnit;
+    // [ChannelN],key_sync_enabled: Key Sync as a switch (KEY SYNC of rekordbox)
+    std::unique_ptr<KeySyncFollower> m_pKeySyncFollower;
 
     // [Skin],performance_mode (created by CoreServices, 0 at every start)
     std::unique_ptr<ControlProxy> m_pPerformanceMode;

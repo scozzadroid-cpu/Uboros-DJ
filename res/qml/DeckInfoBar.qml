@@ -385,6 +385,13 @@ Rectangle {
             active: quantizeControl.value > 0
         }
 
+        Skin.StatusChip {
+            // Key Sync on: the deck follows the key of the other deck
+            text: "KSYNC"
+            tint: "#ffd24a"
+            active: keySyncControl.value > 0
+        }
+
         Mixxx.ControlProxy {
             id: quantizeControl
 
@@ -466,17 +473,16 @@ Rectangle {
             color: Theme.white
         }
 
-        // KEY SYNC (rekordbox / Serato): a tap shifts the key of the deck to
-        // a key that mixes with the other deck (the FLX4 does it with pad 8 of
-        // the KEY SHIFT mode); a long press takes the shift away
+        // KEY SYNC (rekordbox): a tap switches it on or off. On, the deck follows the
+        // key of the other deck (nearest compatible key) also when another track is
+        // loaded; off, the shift stays. A long press switches it off and takes the
+        // shift away. The FLX4 does it with pad 8 of the KEY SHIFT mode.
         MouseArea {
             anchors.fill: parent
             enabled: !!root.currentTrack
-            onClicked: {
-                syncKeyControl.value = 1;
-                syncKeyControl.value = 0;
-            }
+            onClicked: keySyncControl.value = keySyncControl.value > 0 ? 0 : 1
             onPressAndHold: {
+                keySyncControl.value = 0;
                 resetKeyControl.value = 1;
                 resetKeyControl.value = 0;
             }
@@ -497,10 +503,10 @@ Rectangle {
         }
 
         Mixxx.ControlProxy {
-            id: syncKeyControl
+            id: keySyncControl
 
             group: root.group
-            key: "sync_key"
+            key: "key_sync_enabled"
         }
 
         Mixxx.ControlProxy {

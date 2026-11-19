@@ -93,6 +93,13 @@ Item {
         key: "pitch_adjust"
     }
 
+    Mixxx.ControlProxy {
+        id: keySyncState
+
+        group: root.group
+        key: "key_sync_enabled"
+    }
+
     // A pad: 0 = nothing there (grey), 1 = there but not on, 2 = on (filled
     // with its color); ring = a white outline (hot cue active, e.g. a saved
     // loop that is looping)
@@ -325,8 +332,8 @@ Item {
     }
 
     // KEY SHIFT: the semitones of the pads (0 +1 +2 +3 -3 -2 -1), the one in
-    // use lit; pad 8 is KEY SYNC (match the key of the other deck), lit while
-    // the deck is shifted by a sync or by hand
+    // use lit; pad 8 is KEY SYNC (the deck follows the key of the other deck),
+    // lit while it is on
     Component {
         id: keyCells
 
@@ -346,7 +353,7 @@ Item {
                     height: root.stripHeight
                     label: isSync ? "SYNC" : (modelData > 0 ? "+" : "") + modelData
                     tint: isSync ? "#4ec3ff" : "#c38bff"
-                    level: isSync ? (root.pitchSteps !== 0 ? 2 : 1) : (root.pitchSteps === modelData ? 2 : 1)
+                    level: isSync ? (keySyncState.value > 0 ? 2 : 1) : (root.pitchSteps === modelData ? 2 : 1)
                 }
             }
         }

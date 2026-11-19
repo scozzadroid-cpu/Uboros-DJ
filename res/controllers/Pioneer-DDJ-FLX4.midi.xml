@@ -2899,7 +2899,7 @@
                 </options>
             </control>
             <control>
-                <description>PAD 8 (DECK1) KEY SHIFT MODE - press - KEY SYNC: shift the key to match the other deck</description>
+                <description>PAD 8 (DECK1) KEY SHIFT MODE - press - KEY SYNC (on/off): follow the key of the other deck</description>
                 <group>[Channel1]</group>
                 <key>PioneerDDJFLX4.keySyncPressed</key>
                 <status>0x97</status>
@@ -2919,7 +2919,7 @@
                 </options>
             </control>
             <control>
-                <description>PAD 8 (DECK2) KEY SHIFT MODE - press - KEY SYNC: shift the key to match the other deck</description>
+                <description>PAD 8 (DECK2) KEY SHIFT MODE - press - KEY SYNC (on/off): follow the key of the other deck</description>
                 <group>[Channel2]</group>
                 <key>PioneerDDJFLX4.keySyncPressed</key>
                 <status>0x99</status>

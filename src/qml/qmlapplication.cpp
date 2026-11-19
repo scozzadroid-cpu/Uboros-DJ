@@ -37,6 +37,7 @@
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
 #include "plugins/pluginhost.h"
+#include "qml/keysyncfollower.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "soundio/soundmanager.h"
@@ -717,6 +718,7 @@ QmlApplication::QmlApplication(
             false,
             false,
             1.0);
+    m_pKeySyncFollower = std::make_unique<KeySyncFollower>(this);
     // Performance mode: always starts off (the control is created by
     // CoreServices at 0 and never saved)
     m_pPerformanceMode = std::make_unique<ControlProxy>(
