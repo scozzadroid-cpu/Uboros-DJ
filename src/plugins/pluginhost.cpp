@@ -56,6 +56,37 @@ void PluginHost::setLabelHidden(const QString& label, bool hidden) {
     emit hiddenLabelsChanged();
 }
 
+bool PluginHost::prepareTrack(const QString& group,
+        const TrackPointer& pTrack,
+        const std::function<void(TrackPointer)>& ready) {
+    for (Plugin* pPlugin : std::as_const(m_plugins)) {
+        if (pPlugin->prepareTrack(group, pTrack, ready)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PluginHost::prefetchTrack(const QString& location) {
+    for (Plugin* pPlugin : std::as_const(m_plugins)) {
+        pPlugin->prefetchTrack(location);
+    }
+}
+
+void PluginHost::setLoadingText(const QString& group, const QString& text) {
+    if (text.isEmpty()) {
+        if (m_loadingTexts.remove(group) == 0) {
+            return;
+        }
+    } else {
+        if (m_loadingTexts.value(group).toString() == text) {
+            return;
+        }
+        m_loadingTexts.insert(group, text);
+    }
+    emit loadingTextsChanged();
+}
+
 #ifndef UBOROS_HAS_PLUGINS
 void registerBuiltinPlugins(PluginHost&) {
 }

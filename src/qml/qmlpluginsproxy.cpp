@@ -12,6 +12,10 @@ QmlPluginsProxy::QmlPluginsProxy(QObject* parent)
             &plugins::PluginHost::hiddenLabelsChanged,
             this,
             &QmlPluginsProxy::hiddenLabelsChanged);
+    connect(&plugins::PluginHost::instance(),
+            &plugins::PluginHost::loadingTextsChanged,
+            this,
+            &QmlPluginsProxy::loadingTextsChanged);
 }
 
 QmlPluginsProxy* QmlPluginsProxy::create(QQmlEngine* pQmlEngine, QJSEngine*) {
@@ -24,6 +28,16 @@ QStringList QmlPluginsProxy::dashboardSections() const {
 
 QStringList QmlPluginsProxy::hiddenLabels() const {
     return plugins::PluginHost::instance().hiddenLabels();
+}
+
+QVariantMap QmlPluginsProxy::loadingTexts() const {
+    return plugins::PluginHost::instance().loadingTexts();
+}
+
+void QmlPluginsProxy::trackSelected(const QUrl& url) {
+    if (url.isLocalFile()) {
+        plugins::PluginHost::instance().prefetchTrack(url.toLocalFile());
+    }
 }
 
 } // namespace qml

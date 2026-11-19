@@ -4,8 +4,11 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
+#include <functional>
 
 #include "preferences/usersettings.h"
+#include "track/track_decl.h"
 
 namespace mixxx {
 namespace qml {
@@ -54,6 +57,26 @@ class Plugin : public QObject {
     virtual QStringList dashboardSections() const {
         return {};
     }
+
+    /// Called before a track is loaded into a deck/sampler/preview deck ("group").
+    /// A plugin whose tracks are not on the device yet (a streaming service)
+    /// returns true and calls `ready` later, on the GUI thread, with the track
+    /// to load (a track whose file now exists), or with null if it could not be
+    /// got. Return false (default) to let the load go on at once.
+    virtual bool prepareTrack(const QString& group,
+            const TrackPointer& pTrack,
+            const std::function<void(TrackPointer)>& ready) {
+        Q_UNUSED(group)
+        Q_UNUSED(pTrack)
+        Q_UNUSED(ready)
+        return false;
+    }
+
+    /// The user selected the track with this file location in a library list:
+    /// a plugin may start getting it in the background (and analyze it).
+    virtual void prefetchTrack(const QString& location) {
+        Q_UNUSED(location)
+    }
 };
 
 class PluginHost : public QObject {
@@ -78,14 +101,29 @@ class PluginHost : public QObject {
     }
     void setLabelHidden(const QString& label, bool hidden);
 
+    /// See Plugin::prepareTrack(): true when a plugin took over the load
+    bool prepareTrack(const QString& group,
+            const TrackPointer& pTrack,
+            const std::function<void(TrackPointer)>& ready);
+    void prefetchTrack(const QString& location);
+
+    /// What a deck says instead of its track while a plugin gets the track
+    /// ("Loading ..."): group ("[Channel1]") -> text, empty/absent when idle
+    QVariantMap loadingTexts() const {
+        return m_loadingTexts;
+    }
+    void setLoadingText(const QString& group, const QString& text);
+
   signals:
     void hiddenLabelsChanged();
+    void loadingTextsChanged();
 
   private:
     PluginHost() = default;
 
     QList<Plugin*> m_plugins;
     QStringList m_hiddenLabels;
+    QVariantMap m_loadingTexts;
     bool m_initialized = false;
 };
 

@@ -171,6 +171,9 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     EngineDeck* m_pChannel;
     bool m_replaygainPending;
     EngineChannel* m_pChannelToCloneFrom;
+    // Counts the load requests: a plugin that gets the track first (see
+    // plugins::Plugin::prepareTrack) answers only to the latest one
+    quint64 m_loadToken = 0;
 
     PerformanceTimer m_ejectTimer;
 

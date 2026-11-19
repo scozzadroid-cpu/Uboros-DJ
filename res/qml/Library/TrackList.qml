@@ -243,6 +243,19 @@ Rectangle {
     TableView {
         id: view
 
+        // A plugin (SoundCloud) may get the selected track in the background: told once
+        // the selection rests (the browse knob passes many rows)
+        Timer {
+            id: selectionRest
+
+            interval: 700
+            onTriggered: {
+                const urls = view.selectionModel ? view.selectionModel.selectedTrackUrls() : [];
+                if (urls.length > 0)
+                    Mixxx.Plugins.trackSelected(urls[0]);
+            }
+        }
+
         function loadSelectedTrackIntoNextAvailableDeck(play) {
             const urls = this.selectionModel.selectedTrackUrls();
             if (urls.length == 0)
@@ -370,6 +383,8 @@ Rectangle {
         }
 
         selectionModel: ItemSelectionModel {
+            onSelectionChanged: selectionRest.restart()
+
             function selectRow(row) {
                 const rowCount = this.model.rowCount();
                 if (rowCount == 0) {

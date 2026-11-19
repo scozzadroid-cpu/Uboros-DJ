@@ -2,6 +2,7 @@
 
 #include <QMessageBox>
 #include <QMetaMethod>
+#include <QPointer>
 #include <memory>
 
 #include "control/controlencoder.h"
@@ -15,6 +16,7 @@
 #include "mixer/playerinfo.h"
 #include "mixer/playermanager.h"
 #include "moc_basetrackplayer.cpp"
+#include "plugins/pluginhost.h"
 #include "track/track.h"
 #include "util/cmdlineargs.h"
 #include "util/sandbox.h"
@@ -569,6 +571,31 @@ void BaseTrackPlayerImpl::slotLoadTrack(TrackPointer pNewTrack,
         bool bPlay) {
 #endif
     //qDebug() << "BaseTrackPlayerImpl::slotLoadTrack" << getGroup() << pNewTrack.get();
+    // A plugin may have to get the track first (a streaming service): the deck
+    // keeps what it has meanwhile, the plugin calls back with the track to load
+    const quint64 loadToken = ++m_loadToken;
+    if (pNewTrack) {
+        QPointer<BaseTrackPlayerImpl> pSelf(this);
+        if (mixxx::plugins::PluginHost::instance().prepareTrack(getGroup(),
+                    pNewTrack,
+                    [pSelf, loadToken, bPlay
+#ifdef __STEM__
+                            ,
+                            stemMask
+#endif
+    ](TrackPointer pReady) {
+                        if (!pSelf || pSelf->m_loadToken != loadToken || !pReady) {
+                            return;
+                        }
+#ifdef __STEM__
+                        pSelf->slotLoadTrack(pReady, stemMask, bPlay);
+#else
+                        pSelf->slotLoadTrack(pReady, bPlay);
+#endif
+                    })) {
+            return;
+        }
+    }
     // Before loading the track, ensure we have access. This uses lazy
     // evaluation to make sure track isn't NULL before we dereference it.
     if (pNewTrack) {

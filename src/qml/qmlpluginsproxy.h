@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QStringList>
+#include <QUrl>
+#include <QVariantMap>
 
 namespace mixxx {
 namespace qml {
@@ -17,6 +19,8 @@ class QmlPluginsProxy : public QObject {
     Q_PROPERTY(QStringList dashboardSections READ dashboardSections CONSTANT)
     /// Sidebar labels that must not be shown now
     Q_PROPERTY(QStringList hiddenLabels READ hiddenLabels NOTIFY hiddenLabelsChanged)
+    /// group ("[Channel1]") -> "Loading ..." text while a plugin gets the track of the deck
+    Q_PROPERTY(QVariantMap loadingTexts READ loadingTexts NOTIFY loadingTextsChanged)
 
   public:
     explicit QmlPluginsProxy(QObject* parent = nullptr);
@@ -24,9 +28,14 @@ class QmlPluginsProxy : public QObject {
 
     QStringList dashboardSections() const;
     QStringList hiddenLabels() const;
+    QVariantMap loadingTexts() const;
+
+    /// A track of a library list was selected (file location): plugins may prefetch it
+    Q_INVOKABLE void trackSelected(const QUrl& url);
 
   signals:
     void hiddenLabelsChanged();
+    void loadingTextsChanged();
 };
 
 } // namespace qml
