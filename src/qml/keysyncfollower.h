@@ -35,11 +35,15 @@ class KeySyncFollower : public QObject {
     };
 
     bool isEnabled(int deck) const;
+    /// Watches the decks that exist (2 on a phone, 4 on a tablet/PC), also those added later
+    void watchDecks();
+    void watchDeck(int deck);
     void onEnabledChanged(int deck, double value);
     void schedule(int deck);
     void syncNow(int deck);
 
     Deck m_decks[kDecks];
+    std::unique_ptr<ControlProxy> m_pNumDecks; // [App],num_decks
     /// Gathers the changes of one track load (file key, key, loaded arrive one by one)
     QTimer m_timer;
     int m_pending = 0; // a bit per deck
