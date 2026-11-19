@@ -10,6 +10,10 @@ Item {
     required property string group
 
     function profileApply() {
+        // Run later (Qt.callLater): by then the Club and Stack profiles may
+        // have moved this overview from the deck to the waveform
+        if (!root.parent)
+            return;
         overviewLoader.active = false;
         overviewLoader.active = true;
     }
