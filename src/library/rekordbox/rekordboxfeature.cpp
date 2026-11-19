@@ -2,8 +2,11 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
+#include <algorithm>
 #include <optional>
+#include <vector>
 #include <QtConcurrentRun>
 
 #include "util/threadpriority.h"
@@ -42,6 +45,7 @@
 #include "track/keyutils.h"
 #include "track/track.h"
 #include "util/color/color.h"
+#include "util/defs.h"
 #include "util/db/dbconnectionpooled.h"
 #include "util/db/dbconnectionpooler.h"
 #include "util/sandbox.h"
@@ -81,6 +85,14 @@ constexpr mixxx::RgbColor kColorForIDAqua(0x16C0F8);
 constexpr mixxx::RgbColor kColorForIDBlue(0x0150F8);
 constexpr mixxx::RgbColor kColorForIDPurple(0x9808F8);
 constexpr mixxx::RgbColor kColorForIDNoColor(0x0);
+// kColorForIDRed above has 7 digits (RgbColor masks it to 0x870900, a very
+// dark red): for cue markers on the dark waveform use this one
+constexpr mixxx::RgbColor kCueColorRed(0xF03C3C);
+// Without a color of their own rekordbox shows hot cues green, hot loops
+// amber and memory cues red
+constexpr mixxx::RgbColor kDefaultHotCueColor(0x1EE000);
+constexpr mixxx::RgbColor kDefaultHotLoopColor(0xF8A030);
+constexpr mixxx::RgbColor kDefaultMemoryCueColor(0xF03C3C);
 
 struct memory_cue_loop_t {
     mixxx::audio::FramePos startPosition;
@@ -342,6 +354,11 @@ QString fromUtf16LeString(const std::string& toConvert) {
 QString fromUtf16BeString(const std::string& toConvert) {
     // Kaitai uses std::string as single container for all string encodings.
     int length = static_cast<int>(toConvert.length()) - 2; // strip off trailing nullbyte
+    // An entry without a comment has an empty string here (length -2): a
+    // negative length must never reach the codec
+    if (length <= 0) {
+        return QString();
+    }
     return QTextCodec::codecForName("UTF-16BE")->toUnicode(toConvert.data(), length);
 }
 
@@ -425,6 +442,30 @@ mixxx::RgbColor colorFromID(int colorID) {
         return kColorForIDPurple;
     }
     return kColorForIDNoColor;
+}
+
+/// The color of a memory cue or loop (PCO2 color_id): none for 0 (and for ids
+/// we do not know), so that a cue without a color is not drawn in black on
+/// the dark waveform
+mixxx::RgbColor::optional_t cueColorFromID(int colorID) {
+    if (colorID < static_cast<int>(IDForColor::Pink) ||
+            colorID > static_cast<int>(IDForColor::Purple)) {
+        return mixxx::RgbColor::nullopt();
+    }
+    if (static_cast<IDForColor>(colorID) == IDForColor::Red) {
+        return kCueColorRed;
+    }
+    return colorFromID(colorID);
+}
+
+/// The color of a hot cue (PCO2 color_red/green/blue). All zero, or fields
+/// missing in a short entry, mean that no color was assigned.
+mixxx::RgbColor::optional_t hotCueColorFromRgb(
+        bool hasRgb, uint8_t red, uint8_t green, uint8_t blue) {
+    if (!hasRgb || (red == 0 && green == 0 && blue == 0)) {
+        return mixxx::RgbColor::nullopt();
+    }
+    return mixxx::RgbColor(qRgb(red, green, blue));
 }
 
 void insertTrack(
@@ -951,6 +992,12 @@ void setHotCue(TrackPointer track,
         int id,
         const QString& label,
         mixxx::RgbColor::optional_t color) {
+    // A damaged entry (hot cue number 0 or far too big) must not reach
+    // createAndAddCue(), which returns no cue for it
+    if (id < mixxx::kFirstHotCueIndex || id >= kMaxNumberOfHotcues) {
+        qWarning() << "Rekordbox: ignoring hot cue with invalid number" << (id + 1);
+        return;
+    }
     CuePointer pCue;
     const QList<CuePointer> cuePoints = track->getCuePoints();
     for (const CuePointer& trackCue : cuePoints) {
@@ -965,6 +1012,11 @@ void setHotCue(TrackPointer track,
         type = mixxx::CueType::Loop;
     }
 
+    // No color of its own: green for a cue, amber for a loop (as rekordbox
+    // draws them), not the one Mixxx gives a new cue. Also applied to a cue
+    // already in the library, which an earlier import may have left black.
+    const mixxx::RgbColor finalColor = color.value_or(
+            endPosition.isValid() ? kDefaultHotLoopColor : kDefaultHotCueColor);
     if (pCue) {
         pCue->setStartAndEndPosition(startPosition, endPosition);
     } else {
@@ -972,12 +1024,14 @@ void setHotCue(TrackPointer track,
                 type,
                 id,
                 startPosition,
-                endPosition);
+                endPosition,
+                finalColor);
+    }
+    if (!pCue) {
+        return;
     }
     pCue->setLabel(label);
-    if (color) {
-        pCue->setColor(*color);
-    }
+    pCue->setColor(finalColor);
 }
 
 struct ConstantTempoGrid {
@@ -1204,7 +1258,7 @@ void readAnalyzeImpl(TrackPointer track,
                         memoryCue.startPosition = position;
                         memoryCue.endPosition = mixxx::audio::kInvalidFramePos;
                         memoryCue.comment = fromUtf16BeString(cueExtendedEntry->comment());
-                        memoryCue.color = colorFromID(static_cast<int>(
+                        memoryCue.color = cueColorFromID(static_cast<int>(
                                 cueExtendedEntry->color_id()));
                         memoryCuesAndLoops << memoryCue;
                     } break;
@@ -1223,7 +1277,7 @@ void readAnalyzeImpl(TrackPointer track,
                         loop.endPosition = mixxx::audio::FramePos(
                                 sampleRateKhz * static_cast<double>(endTime));
                         loop.comment = fromUtf16BeString(cueExtendedEntry->comment());
-                        loop.color = colorFromID(static_cast<int>(cueExtendedEntry->color_id()));
+                        loop.color = cueColorFromID(static_cast<int>(cueExtendedEntry->color_id()));
                         memoryCuesAndLoops << loop;
                     } break;
                     }
@@ -1233,18 +1287,21 @@ void readAnalyzeImpl(TrackPointer track,
                     if (hotCueIndex > lastHotCueIndex) {
                         lastHotCueIndex = hotCueIndex;
                     }
+                    // The color fields are missing in short entries (their
+                    // getters would return garbage) and all zero when the
+                    // cue has no color of its own: then the default one
+                    const bool hasRgb = !cueExtendedEntry->_is_null_color_red() &&
+                            !cueExtendedEntry->_is_null_color_green() &&
+                            !cueExtendedEntry->_is_null_color_blue();
                     setHotCue(track,
                             position,
                             mixxx::audio::kInvalidFramePos,
                             hotCueIndex,
                             fromUtf16BeString(cueExtendedEntry->comment()),
-                            mixxx::RgbColor(qRgb(
-                                    static_cast<int>(
-                                            cueExtendedEntry->color_red()),
-                                    static_cast<int>(
-                                            cueExtendedEntry->color_green()),
-                                    static_cast<int>(cueExtendedEntry
-                                                    ->color_blue()))));
+                            hotCueColorFromRgb(hasRgb,
+                                    hasRgb ? cueExtendedEntry->color_red() : 0,
+                                    hasRgb ? cueExtendedEntry->color_green() : 0,
+                                    hasRgb ? cueExtendedEntry->color_blue() : 0));
                 } break;
                 }
             }
@@ -1272,8 +1329,14 @@ void readAnalyzeImpl(TrackPointer track,
                 // Set first chronological memory cue as Mixxx MainCue
                 track->setMainCuePosition(memoryCueOrLoop.startPosition);
                 CuePointer pMainCue = track->findCueByType(mixxx::CueType::MainCue);
-                pMainCue->setLabel(memoryCueOrLoop.comment);
-                pMainCue->setColor(*memoryCueOrLoop.color);
+                if (pMainCue) {
+                    pMainCue->setLabel(memoryCueOrLoop.comment);
+                    // Dereferencing an empty color (a memory cue of a PCOB tag
+                    // or without a color) is undefined behavior
+                    if (memoryCueOrLoop.color) {
+                        pMainCue->setColor(*memoryCueOrLoop.color);
+                    }
+                }
                 mainCueFound = true;
             } else {
                 // Mixxx v2.4 will feature multiple loops, so these saved here will be usable
@@ -1285,7 +1348,12 @@ void readAnalyzeImpl(TrackPointer track,
                         memoryCueOrLoop.endPosition,
                         lastHotCueIndex,
                         memoryCueOrLoop.comment,
-                        memoryCueOrLoop.color);
+                        memoryCueOrLoop.color
+                                ? memoryCueOrLoop.color
+                                : mixxx::RgbColor::optional(
+                                          memoryCueOrLoop.endPosition.isValid()
+                                                  ? kDefaultHotLoopColor
+                                                  : kDefaultMemoryCueColor));
             }
         }
     }
@@ -1309,6 +1377,243 @@ void readAnalyze(TrackPointer track,
 }
 
 } // anonymous namespace
+
+namespace {
+
+// An analysis file is a few hundred KB; anything bigger is not one
+constexpr qint64 kMaxAnlzFileSize = 8 * 1024 * 1024;
+
+bool readAnlzFile(const QString& path, std::string* pData) {
+    QFile file(path);
+    if (!file.exists() || file.size() <= 0 || file.size() > kMaxAnlzFileSize ||
+            !file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    const QByteArray bytes = file.readAll();
+    if (bytes.isEmpty()) {
+        return false;
+    }
+    pData->assign(bytes.constData(), static_cast<size_t>(bytes.size()));
+    return true;
+}
+
+/// Kind and verse number of a phrase from its id, which depends on the mood
+/// of the track. False for an id rekordbox does not define.
+bool phraseKind(rekordbox_anlz_t::track_mood_t mood,
+        int id,
+        RekordboxPhrase::Kind* pKind,
+        int* pNumber) {
+    *pNumber = 0;
+    switch (mood) {
+    case rekordbox_anlz_t::TRACK_MOOD_HIGH:
+        switch (id) {
+        case rekordbox_anlz_t::MOOD_HIGH_PHRASE_INTRO:
+            *pKind = RekordboxPhrase::Kind::Intro;
+            return true;
+        case rekordbox_anlz_t::MOOD_HIGH_PHRASE_UP:
+            *pKind = RekordboxPhrase::Kind::Up;
+            return true;
+        case rekordbox_anlz_t::MOOD_HIGH_PHRASE_DOWN:
+            *pKind = RekordboxPhrase::Kind::Down;
+            return true;
+        case rekordbox_anlz_t::MOOD_HIGH_PHRASE_CHORUS:
+            *pKind = RekordboxPhrase::Kind::Chorus;
+            return true;
+        case rekordbox_anlz_t::MOOD_HIGH_PHRASE_OUTRO:
+            *pKind = RekordboxPhrase::Kind::Outro;
+            return true;
+        default:
+            return false;
+        }
+    case rekordbox_anlz_t::TRACK_MOOD_LOW:
+        switch (id) {
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_INTRO:
+            *pKind = RekordboxPhrase::Kind::Intro;
+            return true;
+        // "1b" and "1c" are only shown as "Verse 1" by rekordbox
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_1:
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_1B:
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_1C:
+            *pKind = RekordboxPhrase::Kind::Verse;
+            *pNumber = 1;
+            return true;
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_2:
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_2B:
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_VERSE_2C:
+            *pKind = RekordboxPhrase::Kind::Verse;
+            *pNumber = 2;
+            return true;
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_BRIDGE:
+            *pKind = RekordboxPhrase::Kind::Bridge;
+            return true;
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_CHORUS:
+            *pKind = RekordboxPhrase::Kind::Chorus;
+            return true;
+        case rekordbox_anlz_t::MOOD_LOW_PHRASE_OUTRO:
+            *pKind = RekordboxPhrase::Kind::Outro;
+            return true;
+        default:
+            return false;
+        }
+    default:
+        // Mid, and a mood we do not know (rekordbox_anlz.ksy reads it as mid)
+        switch (id) {
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_INTRO:
+            *pKind = RekordboxPhrase::Kind::Intro;
+            return true;
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_1:
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_2:
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_3:
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_4:
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_5:
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_6:
+            *pKind = RekordboxPhrase::Kind::Verse;
+            *pNumber = id - rekordbox_anlz_t::MOOD_MID_PHRASE_VERSE_1 + 1;
+            return true;
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_BRIDGE:
+            *pKind = RekordboxPhrase::Kind::Bridge;
+            return true;
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_CHORUS:
+            *pKind = RekordboxPhrase::Kind::Chorus;
+            return true;
+        case rekordbox_anlz_t::MOOD_MID_PHRASE_OUTRO:
+            *pKind = RekordboxPhrase::Kind::Outro;
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
+/// The beat grid of the .DAT file as the time in ms of each beat
+std::vector<double> readBeatTimesMs(const QString& datPath) {
+    std::vector<double> times;
+    std::string data;
+    if (!readAnlzFile(datPath, &data)) {
+        return times;
+    }
+    kaitai::kstream ks(data);
+    rekordbox_anlz_t anlz(&ks);
+    for (const auto& section : *anlz.sections()) {
+        if (section->fourcc() != rekordbox_anlz_t::SECTION_TAGS_BEAT_GRID) {
+            continue;
+        }
+        auto* pBeatGrid = static_cast<rekordbox_anlz_t::beat_grid_tag_t*>(section->body());
+        times.reserve(pBeatGrid->beats()->size());
+        for (const auto& beat : *pBeatGrid->beats()) {
+            times.push_back(static_cast<double>(beat->time()));
+        }
+        break;
+    }
+    return times;
+}
+
+/// Time in ms of beat number `beat` (the first beat of the grid is beat 1);
+/// past the end of the grid the grid is continued at its average tempo
+double beatTimeMs(const std::vector<double>& times, int beat) {
+    const int index = std::max(beat - 1, 0);
+    const int count = static_cast<int>(times.size());
+    if (index < count) {
+        return times[index];
+    }
+    const double interval = count > 1 ? (times.back() - times.front()) / (count - 1) : 0.0;
+    return times.back() + (index - (count - 1)) * interval;
+}
+
+QList<RekordboxPhrase> readRekordboxPhrasesImpl(const QString& anlzPath) {
+    QList<RekordboxPhrase> phrases;
+    if (anlzPath.size() < 4) {
+        return phrases;
+    }
+    // The phrases (PSSI) are in the .EXT file next to the .DAT one
+    QString extPath = anlzPath.left(anlzPath.size() - 3) + QStringLiteral("EXT");
+    if (!QFile::exists(extPath)) {
+        extPath = anlzPath.left(anlzPath.size() - 3) + QStringLiteral("ext");
+    }
+    std::string extData;
+    if (!readAnlzFile(extPath, &extData)) {
+        return phrases;
+    }
+    kaitai::kstream ks(extData);
+    rekordbox_anlz_t anlz(&ks);
+    for (const auto& section : *anlz.sections()) {
+        if (section->fourcc() != rekordbox_anlz_t::SECTION_TAGS_SONG_STRUCTURE) {
+            continue;
+        }
+        auto* pTag = static_cast<rekordbox_anlz_t::song_structure_tag_t*>(section->body());
+        auto* pBody = pTag->body();
+        if (!pBody) {
+            break;
+        }
+        const std::vector<double> beatTimes = readBeatTimesMs(anlzPath);
+        if (beatTimes.empty()) {
+            // No grid to turn beat numbers into time
+            break;
+        }
+        const auto& entries = *pBody->entries();
+        const rekordbox_anlz_t::track_mood_t mood = pBody->mood();
+        for (size_t i = 0; i < entries.size(); ++i) {
+            const auto& pEntry = entries[i];
+            int id = 0;
+            // The kind is a phrase_high/mid/low object chosen by the mood
+            switch (mood) {
+            case rekordbox_anlz_t::TRACK_MOOD_HIGH:
+                id = static_cast<int>(static_cast<rekordbox_anlz_t::phrase_high_t*>(pEntry->kind())->id());
+                break;
+            case rekordbox_anlz_t::TRACK_MOOD_LOW:
+                id = static_cast<int>(static_cast<rekordbox_anlz_t::phrase_low_t*>(pEntry->kind())->id());
+                break;
+            default:
+                id = static_cast<int>(static_cast<rekordbox_anlz_t::phrase_mid_t*>(pEntry->kind())->id());
+                break;
+            }
+            RekordboxPhrase phrase;
+            if (!phraseKind(mood, id, &phrase.kind, &phrase.number)) {
+                continue;
+            }
+            phrase.mood = static_cast<int>(mood);
+            phrase.startSec = beatTimeMs(beatTimes, pEntry->beat()) / 1000.0;
+            const int endBeat = i + 1 < entries.size() ? entries[i + 1]->beat() : pBody->end_beat();
+            phrase.endSec = endBeat > pEntry->beat() ? beatTimeMs(beatTimes, endBeat) / 1000.0 : 0.0;
+            phrases.append(phrase);
+        }
+        break;
+    }
+    return phrases;
+}
+
+} // anonymous namespace
+
+QList<RekordboxPhrase> readRekordboxPhrases(const QString& anlzPath) {
+    // The parser throws on a damaged or truncated file (and a drive that was
+    // pulled out mid-read looks like one): nothing may escape a worker thread
+    try {
+        return readRekordboxPhrasesImpl(anlzPath);
+    } catch (const std::exception& e) {
+        qWarning() << "Rekordbox: cannot read the phrases of" << anlzPath << ":" << e.what();
+    } catch (...) {
+        qWarning() << "Rekordbox: cannot read the phrases of" << anlzPath;
+    }
+    return {};
+}
+
+QString RekordboxFeature::analyzePathForLocation(const QString& location) const {
+    if (location.isEmpty()) {
+        return QString();
+    }
+    QSqlQuery query(m_pTrackCollection->database());
+    query.prepare("SELECT analyze_path FROM " + kRekordboxLibraryTable +
+            " WHERE location=:location");
+    query.bindValue(":location", location);
+    if (!query.exec()) {
+        LOG_FAILED_QUERY(query) << "location:" << location;
+        return QString();
+    }
+    if (query.next()) {
+        return query.value(0).toString();
+    }
+    return QString();
+}
 
 RekordboxPlaylistModel::RekordboxPlaylistModel(QObject* parent,
         TrackCollectionManager* trackCollectionManager,

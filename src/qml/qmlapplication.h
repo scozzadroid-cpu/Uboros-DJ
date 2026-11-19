@@ -43,6 +43,14 @@ class QmlApplication : public QObject {
     std::unique_ptr<ControlPushButton> m_pShowLibrary;
     // 1 while the DDJ-FLX4 SMART CFX is held (EQ knobs = stems), for the deck overlay
     std::unique_ptr<ControlObject> m_pStemMode;
+    // Pad mode of the controller, for the pad panels of the decks
+    // (res/qml/DeckPads.qml): [ChannelN],pad_mode, N = 1..4, -1 when no
+    // controller reports it; written by the controller script (DDJ-FLX4:
+    // 0 hot cue, 1 beat loop, 2 beat jump, 3 sampler, 4 key shift, 5 pad fx 1,
+    // 6 pad fx 2, 7 keyboard/stems). [Skin],pad_beatjump_unit: beats of the
+    // smallest BEAT JUMP pad. A script cannot create controls, so they are here.
+    std::unique_ptr<ControlObject> m_pPadMode[4];
+    std::unique_ptr<ControlObject> m_pPadBeatjumpUnit;
 
     // [Skin],performance_mode (created by CoreServices, 0 at every start)
     std::unique_ptr<ControlProxy> m_pPerformanceMode;

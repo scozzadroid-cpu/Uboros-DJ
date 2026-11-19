@@ -56,7 +56,12 @@ Rectangle {
     // Top-level entries that only appear when there is something inside
     // (a source with no playlists, no crates, no artists or no folders is
     // just a dead button). The labels are the ones of SourceTree.qml.
-    readonly property var hideWhenEmpty: [qsTr("Playlists"), qsTr("Crates"), qsTr("Artists"), qsTr("Folders")]
+    // History is empty until a track has been played (its sessions are listed
+    // only when they have tracks).
+    readonly property var hideWhenEmpty: [qsTr("Playlists"), qsTr("Crates"), qsTr("Artists"), qsTr("Folders"), qsTr("History")]
+    // Only in the Club profile (Matching: tracks that fit the deck, like the
+    // related tracks of rekordbox)
+    readonly property string clubOnlyLabel: qsTr("Matching")
 
     function isRowHidden(row) {
         if (row < 0 || row >= featureView.rows)
@@ -64,7 +69,10 @@ Rectangle {
         const index = featureView.index(row, 0);
         if (!index || !index.valid || index.parent.valid)
             return false;
-        return root.hideWhenEmpty.indexOf(root.model.data(index, Qt.DisplayRole)) >= 0 && !root.model.hasChildren(index);
+        const label = root.model.data(index, Qt.DisplayRole);
+        if (label === root.clubOnlyLabel)
+            return !Theme.isClub;
+        return root.hideWhenEmpty.indexOf(label) >= 0 && !root.model.hasChildren(index);
     }
 
     function currentViewRow() {
@@ -76,6 +84,9 @@ Rectangle {
         const rowCount = featureView.rows;
         if (rowCount <= 0 || offset == 0)
             return;
+        // The encoder is in use: the keyboard of the search field is not
+        // needed (the field keeps its text)
+        Qt.inputMethod.hide();
         let row = root.currentViewRow();
         if (row < 0) {
             row = 0;
@@ -100,6 +111,7 @@ Rectangle {
         const row = root.currentViewRow();
         if (row < 0)
             return;
+        Qt.inputMethod.hide();
         const index = featureView.index(row, 0);
         // Read before activating: activating may list the children lazily
         const wasExpanded = featureView.isExpanded(row);
@@ -314,6 +326,14 @@ Rectangle {
                     // Empty entries (see hideWhenEmpty) take no room
                     rowHeightProvider: function (row) {
                         return root.isRowHidden(row) ? 0 : -1;
+                    }
+
+                    // The profile decides whether Matching is listed
+                    Connections {
+                        target: Theme
+                        function onProfileChanged() {
+                            Qt.callLater(featureView.forceLayout);
+                        }
                     }
 
                     // Expanding/collapsing a node shifts the view rows without

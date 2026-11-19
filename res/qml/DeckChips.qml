@@ -228,6 +228,18 @@ Item {
         group: root.group
     }
 
+    // Pad mode of the controller at the bottom, after the loop badge: hot cue
+    // A-H (colors) and the beat loop sizes; the other modes show their name
+    // only. Nothing until the controller reports its pad mode.
+    Skin.DeckPads {
+        anchors.left: parent.left
+        anchors.leftMargin: 64
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 4
+        group: root.group
+        compact: true
+    }
+
     // DDJ-FLX4 SMART CFX held: the EQ knobs drive the stems (the same message
     // as the deck bar, on the top of the waveform)
     Rectangle {

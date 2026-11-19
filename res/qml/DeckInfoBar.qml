@@ -13,6 +13,9 @@ Rectangle {
     required property int rightColumnWidth
     // Size of the BPM number (Deck.qml: bigger on the Club minimized deck)
     property int bpmFontSize: 17
+    // The small chip with the pad mode of the controller (DeckPadChip.qml);
+    // off where the deck shows the pads on a strip of its own (Club)
+    property bool padChip: true
     // Key / remaining time column: narrower than the BPM column (its
     // content is short), the room goes to title and artist
     readonly property int keyColumnWidth: Math.min(rightColumnWidth, 74)
@@ -331,6 +334,12 @@ Rectangle {
         anchors.rightMargin: 6
         anchors.verticalCenter: infoBarArtist.verticalCenter
         spacing: 3
+
+        // Pad mode of the controller (only when it reports it)
+        Skin.DeckPadChip {
+            group: root.group
+            allowed: root.padChip
+        }
 
         // Instant stems: progress, green when ready. Tap: separate the stems
         // of this track now (as SMART CFX)

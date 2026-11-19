@@ -8,6 +8,7 @@ Item {
     id: root
 
     required property string group
+    readonly property var deckPlayer: Mixxx.PlayerManager.getPlayer(root.group)
 
     function profileApply() {
         // Run later (Qt.callLater): by then the Club and Stack profiles may
@@ -120,11 +121,47 @@ Item {
         key: "passthrough"
     }
 
+    // Hot cues (and, on the Club profile, the phrases of the track) to draw
+    // over the overview: built once when the track is loaded or its cues
+    // change. The phrases are read from the drive only for Club.
+    Mixxx.TrackMarks {
+        id: trackMarks
+
+        track: root.deckPlayer.currentTrack
+        readPhrases: Theme.isClub
+    }
+
+    Mixxx.ControlProxy {
+        id: trackSamplesControl
+
+        group: root.group
+        key: "track_samples"
+    }
+
+    Mixxx.ControlProxy {
+        id: durationControl
+
+        group: root.group
+        key: "duration"
+    }
+
     Rectangle {
         id: waveformContainer
 
         anchors.fill: parent
         color: Theme.deckBackgroundColor
+
+        // Club: the faint bands of the phrases, behind the overview
+        Loader {
+            anchors.fill: parent
+            active: Theme.isClub
+
+            sourceComponent: Skin.PhraseBar {
+                phrases: trackMarks.phrases
+                duration: durationControl.value
+                showTop: false
+            }
+        }
 
         // The overview paints with its colors when it is made or the track
         // changes, not when a color changes: it is made again when the interface
@@ -154,6 +191,26 @@ Item {
                     group: root.group
                 }
             }
+        }
+
+        // Club: the strip and the codes of the phrases, over the overview
+        Loader {
+            anchors.fill: parent
+            active: Theme.isClub
+
+            sourceComponent: Skin.PhraseBar {
+                phrases: trackMarks.phrases
+                duration: durationControl.value
+                showTint: false
+            }
+        }
+
+        // The hot cues, over everything (no touch handling: the overview
+        // below takes the touches)
+        Skin.OverviewCues {
+            anchors.fill: parent
+            cues: trackMarks.cues
+            trackSamples: trackSamplesControl.value
         }
     }
 

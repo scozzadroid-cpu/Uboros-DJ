@@ -5,9 +5,11 @@
 #include <qglobal.h>
 #include <qlist.h>
 
+#include <atomic>
 #include <memory>
 
 #include "moc_qmlwaveformrenderer.cpp"
+#include "qml/qmlwaveformhotcuelabels.h"
 #include "util/assert.h"
 #include "waveform/renderers/allshader/waveformrenderbeat.h"
 #include "waveform/renderers/allshader/waveformrendererendoftrack.h"
@@ -278,6 +280,13 @@ QmlWaveformRendererFactory::Renderer QmlWaveformRendererMark::create(
     }
     auto pRenderer = std::make_unique<allshader::WaveformRenderMark>(waveformWidget,
             ::WaveformRendererAbstract::Play);
+
+    // Before the marks draw their first image (they do it when they are
+    // shown, after this)
+    g_hotcueLabelStyle.store(m_hotcueLabels == QLatin1String("letter") ? 1
+                    : m_hotcueLabels == QLatin1String("name")          ? 2
+                                                                       : 0,
+            std::memory_order_relaxed);
 
     pRenderer->setPlayMarkerForegroundColor(m_playMarkerColor);
     pRenderer->setPlayMarkerBackgroundColor(m_playMarkerBackground);

@@ -19,6 +19,34 @@ Rectangle {
     // Browser.qml), e.g. "Rekordbox > Playlists > House"
     property string pathText: ""
 
+    // Search field (SearchField.qml), on the line above the column headers
+    // together with the path: Uboros a magnifier at the end of the line that
+    // opens into a field; Club the field at the end of the line (the library
+    // header); Stack a wide bar at the start of the line, always there, the
+    // path after it. (Uboros: the line is no taller than it was before.)
+    readonly property int searchRowHeight: Theme.isClub || Theme.isStack ? 20 : Math.max(16, Math.ceil(pathLabel.implicitHeight) + 2)
+    readonly property bool searchOnLeft: Theme.isStack
+
+    // What the list has been asked to search for (after the pause of the field)
+    property string appliedSearch: ""
+
+    // Every list starts without a filter: the field is emptied
+    onModelChanged: {
+        root.appliedSearch = "";
+        searchField.reset();
+    }
+
+    // The keyboard of the phone is closed and the cursor goes back to the
+    // list (typing is over: Enter/Done, a tap on a row, the BROWSE encoder).
+    // Delayed: the key press that ends the typing is still being handled.
+    function leaveSearch() {
+        Qt.inputMethod.hide();
+        Qt.callLater(() => {
+            view.forceActiveFocus();
+            libraryControl.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
+        });
+    }
+
     LibraryComponent.Control {
         id: libraryControl
 
@@ -40,7 +68,7 @@ Rectangle {
         }
     }
 
-    // Takes no room while there is no path
+    // The path line, as high as the search field that shares it
     Item {
         id: pathBar
 
@@ -49,16 +77,18 @@ Rectangle {
         anchors.right: parent.right
         anchors.leftMargin: 5
         anchors.rightMargin: 5
-        anchors.topMargin: root.pathText !== "" ? 3 : 0
-        height: root.pathText !== "" ? pathLabel.implicitHeight + 2 : 0
-        visible: root.pathText !== ""
+        anchors.topMargin: 3
+        height: root.searchRowHeight
 
         Text {
             id: pathLabel
 
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.leftMargin: 10
+            // Room for the search field: at the end of the line, in Stack
+            // at the start
+            anchors.rightMargin: root.searchOnLeft ? 0 : searchField.width + 8
+            anchors.leftMargin: root.searchOnLeft ? searchField.width + 10 : 10
             anchors.verticalCenter: parent.verticalCenter
             // The end of a long path (the open folder) stays visible
             elide: Text.ElideLeft
@@ -68,6 +98,27 @@ Rectangle {
             font.pixelSize: Qt.platform.os === "android" ? 10 : 12
             font.weight: Font.Medium
         }
+    }
+
+    LibraryComponent.SearchField {
+        id: searchField
+
+        z: 2
+        iconMode: !(Theme.isClub || Theme.isStack)
+        available: root.model ? root.model.searchAvailable : false
+        height: root.searchRowHeight
+        expandedWidth: Theme.isStack ? Math.max(140, root.width * 0.5) : Math.min(190, Math.max(120, root.width * 0.38))
+        // Uboros and Club: at the end of the line (the icon grows to the
+        // left); Stack: at the start
+        x: root.searchOnLeft ? 5 : root.width - width - 5
+        y: 3
+
+        onSearchRequested: (text) => {
+            root.appliedSearch = text.trim();
+            if (root.model)
+                root.model.searchText = text;
+        }
+        onFinished: root.leaveSearch()
     }
 
     HorizontalHeaderView {
@@ -252,12 +303,11 @@ Rectangle {
                 return own;
             const kind = libraryColumnKinds[c];
             if (Theme.isClub) {
-                // Cover, title, artist, BPM, key, duration (and the stems badge)
-                if (kind === "cover")
-                    return 24;
+                // Title, artist, BPM, key, duration (and the stems badge). No
+                // cover in the list (it made scrolling stutter): decision 19/11
                 if (kind === "duration")
                     return 52;
-                if (kind === "album" || kind === "year" || kind === "filetype" || kind === "bitrate")
+                if (kind === "cover" || kind === "album" || kind === "year" || kind === "filetype" || kind === "bitrate")
                     return 0;
             } else if (kind === "cover") {
                 // Stack: dense rows, no room for a cover
@@ -327,6 +377,10 @@ Rectangle {
                     return ;
                 }
                 const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
+                // A row chosen (touch or controller) ends the typing: the
+                // keyboard closes, the controller keeps working on the list
+                if (searchField.inputFocus)
+                    root.leaveSearch();
                 // Choosing a row (touch, or the controller already here) puts
                 // the controller cursor on the list, not on the sources
                 if (libraryControl.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
@@ -397,6 +451,24 @@ Rectangle {
             //         Mixxx.Library.analyze(track)
             // }
         }
+    }
+
+    // A search (or Matching) that finds nothing says so, instead of an empty list
+    Text {
+        id: noResults
+
+        readonly property bool matching: root.pathText.indexOf(qsTr("Matching")) === 0
+        visible: view.rows === 0 && (root.appliedSearch !== "" || matching)
+        anchors.horizontalCenter: view.horizontalCenter
+        anchors.top: view.top
+        anchors.topMargin: 12
+        width: view.width - 20
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+        text: root.appliedSearch !== "" ? qsTr("No tracks match \"%1\"").arg(root.appliedSearch) : qsTr("No tracks match the track on the deck")
+        color: Theme.textMutedColor
+        font.family: Theme.fontFamily
+        font.pixelSize: Qt.platform.os === "android" ? 11 : 13
     }
 
     // USB drive being read / prepared (Mixxx.Analysis.deviceBusy)

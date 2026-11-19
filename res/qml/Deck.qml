@@ -53,7 +53,34 @@ Item {
         rightColumnWidth: root.minimized ? 96 : rateSlider.width
         // Club: the BPM is the big number of the minimized deck
         bpmFontSize: root.minimized && Theme.isClub ? 20 : 17
+        // Club: the pad mode is on the pads strip below, not a chip here
+        padChip: !padsStrip.active
     }
+
+    // Club (minimized deck, overview on the waveform): what the pads of the
+    // controller do now, on a strip under the info bar. Nothing is created and
+    // no height is taken until the controller reports its pad mode.
+    Loader {
+        id: padsStrip
+
+        // Height of the strip once the controller reports its pad mode (DeckRow
+        // makes the row that much taller)
+        readonly property real wanted: item && item.shown ? item.stripHeight : 0
+
+        active: root.minimized && root.overviewOnWave && Theme.isClub
+        anchors.top: infoBar.bottom
+        anchors.topMargin: 2
+        anchors.left: parent.left
+        anchors.leftMargin: 5
+        anchors.right: parent.right
+        anchors.rightMargin: 5
+        height: wanted
+
+        sourceComponent: Skin.DeckPads {
+            group: root.group
+        }
+    }
+    readonly property real padsHeight: padsStrip.wanted
 
     // Minimized (e.g. on a phone): a thin overview of the whole track under
     // the info bar, with the play position, the cues and the loops, like on

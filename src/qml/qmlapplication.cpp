@@ -699,6 +699,21 @@ QmlApplication::QmlApplication(
     m_pShowLibrary->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pStemMode = std::make_unique<ControlObject>(
             ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("stem_mode")));
+    // Pad mode per deck: -1 (the default) = unknown, the pad panels stay hidden
+    for (int deck = 0; deck < 4; ++deck) {
+        m_pPadMode[deck] = std::make_unique<ControlObject>(
+                ConfigKey(PlayerManager::groupForDeck(deck), QStringLiteral("pad_mode")),
+                true,
+                false,
+                false,
+                -1.0);
+    }
+    m_pPadBeatjumpUnit = std::make_unique<ControlObject>(
+            ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("pad_beatjump_unit")),
+            true,
+            false,
+            false,
+            1.0);
     // Performance mode: always starts off (the control is created by
     // CoreServices at 0 and never saved)
     m_pPerformanceMode = std::make_unique<ControlProxy>(

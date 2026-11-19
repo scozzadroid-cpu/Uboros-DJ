@@ -46,6 +46,38 @@
 class TrackCollectionManager;
 class BaseExternalPlaylistModel;
 
+/// One phrase of the song structure of a track analyzed by rekordbox (PSSI
+/// tag of the .EXT analysis file): Intro, Verse, Bridge, Chorus, Outro and,
+/// in "high mood" tracks, Up and Down.
+struct RekordboxPhrase {
+    enum class Kind {
+        Intro,
+        Verse,
+        Bridge,
+        Chorus,
+        Outro,
+        Up,
+        Down,
+    };
+    Kind kind = Kind::Intro;
+    /// Verse number 1..6 (0 for the other kinds; verse "1b"/"1c" are Verse 1)
+    int number = 0;
+    /// Mood of the whole track: 1 high, 2 mid, 3 low
+    int mood = 0;
+    /// Position in seconds (rekordbox time, at 100% pitch)
+    double startSec = 0.0;
+    /// 0 when unknown (the phrase then runs to the end of the track)
+    double endSec = 0.0;
+};
+
+/// Reads the phrases of a track from the analysis files of the drive:
+/// `anlzPath` is the ANLZ*.DAT of the track (the beat grid, to turn beat
+/// numbers into time) and the PSSI tag is in the .EXT next to it. Reads two
+/// small files and parses them: call it from a worker thread. Returns an
+/// empty list when the track has no phrases or the files cannot be read (a
+/// drive that went away, a damaged file): it never throws.
+QList<RekordboxPhrase> readRekordboxPhrases(const QString& anlzPath);
+
 class RekordboxPlaylistModel : public BaseExternalPlaylistModel {
     Q_OBJECT
   public:
@@ -82,6 +114,9 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QString busyText() const {
         return m_busyText;
     }
+    /// The ANLZ*.DAT path of the rekordbox track with this file location, or
+    /// "" when it is not on a drive read by this feature (yet). GUI thread.
+    QString analyzePathForLocation(const QString& location) const;
 
   signals:
     void busyTextChanged(const QString& text);

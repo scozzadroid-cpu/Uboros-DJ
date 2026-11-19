@@ -5,10 +5,12 @@
 #include <QObject>
 #include <QSet>
 #include <QQmlEngine>
+#include <QRegularExpression>
 #include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QVariant>
 
+#include "library/basesqltablemodel.h"
 #include "library/basetracktablemodel.h"
 #include "library/columncache.h"
 #include "mixer/playerinfo.h"
@@ -59,10 +61,12 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
         const QList<QmlLibraryTrackListColumn*>& librarySource,
         QAbstractItemModel* pModel,
         QObject* pParent,
-        bool tracksOnDisplay)
+        bool tracksOnDisplay,
+        bool searchable)
         : QIdentityProxyModel(pParent),
           m_columns(),
-          m_tracksOnDisplay(tracksOnDisplay) {
+          m_tracksOnDisplay(tracksOnDisplay),
+          m_searchable(false) {
     m_columns.reserve(librarySource.size());
     for (const auto* pColumn : std::as_const(librarySource)) {
         m_columns.emplace_back(make_parented<QmlLibraryTrackListColumn>(this,
@@ -77,6 +81,17 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     auto* pTrackModel = dynamic_cast<TrackModel*>(pModel);
     VERIFY_OR_DEBUG_ASSERT(pTrackModel) {
         return;
+    }
+    // Only the SQL based models filter by text (the file browser ignores
+    // search()); the others have no search field
+    auto* const pSqlModel = qobject_cast<BaseSqlTableModel*>(pModel);
+    m_searchable = searchable && pSqlModel != nullptr;
+    if (m_searchable) {
+        // The table model may be shared with other lists (all tracks, the
+        // playlists...) and keep the text of the previous one: every list
+        // starts unfiltered. The filter of the source itself (artist, folder)
+        // is the extra filter of the model, not the search.
+        pSqlModel->setSearch(QString());
     }
     pTrackModel->select();
     setSourceModel(pModel);
@@ -209,6 +224,30 @@ QVariant QmlLibraryTrackListModel::data(const QModelIndex& proxyIndex, int role)
                                               pColumn->columnIdx()))
                             : pColumn->columnIdx()),
             role);
+}
+
+void QmlLibraryTrackListModel::setSearchText(const QString& text) {
+    // '|' (and the word OR) split the query into alternatives in the search
+    // syntax, which would let the rows of the source filter through: the
+    // field is a plain "all these words" search
+    QString clean = text;
+    clean.replace(QLatin1Char('|'), QLatin1Char(' '));
+    // (the operator is the upper case word only)
+    static const QRegularExpression kOrWord(QStringLiteral("\\bOR\\b"));
+    clean.replace(kOrWord, QStringLiteral("or"));
+    clean = clean.simplified();
+    if (!m_searchable || clean == m_searchText) {
+        return;
+    }
+    auto* const pTrackModel = dynamic_cast<TrackModel*>(sourceModel());
+    VERIFY_OR_DEBUG_ASSERT(pTrackModel) {
+        return;
+    }
+    m_searchText = clean;
+    // BaseSqlTableModel: stores the text and reads the rows again (the
+    // filter runs in the database, once per change of the text)
+    pTrackModel->search(clean);
+    emit searchTextChanged();
 }
 
 int QmlLibraryTrackListModel::columnCount(const QModelIndex& parent) const {

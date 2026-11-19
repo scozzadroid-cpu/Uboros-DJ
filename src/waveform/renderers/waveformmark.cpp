@@ -6,6 +6,7 @@
 #include <QSvgRenderer>
 #include <QtDebug>
 
+#include "qml/qmlwaveformhotcuelabels.h"
 #include "skin/legacy/skincontext.h"
 #include "waveform/renderers/waveformsignalcolors.h"
 #include "widget/wimagestore.h"
@@ -70,6 +71,27 @@ float overlappingMarkerIncrement(const float labelRectHeight, const float breadt
 }
 
 #define FOO
+
+// What the label of a hot cue mark says, chosen by the QML interface profile
+// (hotcueLabels of Mixxx.WaveformRendererMark, qmlwaveformhotcuelabels.h):
+// 0 the number (Mixxx's own), 1 the letter A-H of the pad (hot cues 9 and up,
+// the memory cues of a rekordbox drive, get no text), 2 the name of the cue
+// (its number when it has none)
+QString hotcueLabelText(int hotCue, const QString& name, int style) {
+    constexpr int kLetters = 8;
+    constexpr int kNameMaxChars = 8;
+    if (style == 1) {
+        return hotCue < kLetters ? QString(QChar('A' + hotCue)) : QString();
+    }
+    if (style == 2) {
+        if (!name.isEmpty()) {
+            return name.left(kNameMaxChars);
+        }
+        return hotCue < kLetters ? QString::number(hotCue + 1) : QString();
+    }
+    return name.isEmpty() ? QString::number(hotCue + 1)
+                          : QString::number(hotCue + 1) + QStringLiteral(": ") + name;
+}
 
 bool isShowUntilNextPositionControl(const QString& positionControl) {
     // To identify which markers are included in the beat/time until next marker
@@ -601,10 +623,7 @@ QImage WaveformMark::generateImage(float devicePixelRatio) {
 
     // Determine mark text.
     if (getHotCue() >= 0) {
-        if (!label.isEmpty()) {
-            label.prepend(": ");
-        }
-        label.prepend(QString::number(getHotCue() + 1));
+        label = hotcueLabelText(getHotCue(), m_text, mixxx::qml::hotcueLabelStyle());
     }
 
     return performImageGeneration(devicePixelRatio, m_pixmapPath, label, &m_label, m_iconPath);

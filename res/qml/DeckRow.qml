@@ -10,6 +10,9 @@ Item {
     // Interface profiles Club / Stack: the overview of the decks is on the
     // waveforms (WaveformDisplay.qml), the minimized row is the info bar only
     property bool overviewOnWave: false
+    // Club: height of the strip with the pads of the controller (Deck.qml),
+    // 0 until the controller reports its pad mode
+    readonly property real padsExtra: Math.max(leftDeck.padsHeight, rightDeck.padsHeight)
 
     implicitHeight: mixer.height
     states: [
@@ -26,7 +29,7 @@ Item {
                 target: root
                 // Info bar + the thin track overview (see Deck.qml); Club:
                 // the info bar only (the overview is under the waveform)
-                implicitHeight: root.overviewOnWave ? 66 : 97
+                implicitHeight: (root.overviewOnWave ? 66 : 97) + root.padsExtra
             }
 
             AnchorChanges {

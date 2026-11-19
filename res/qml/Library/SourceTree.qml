@@ -30,6 +30,18 @@ Mixxx.LibrarySourceTree {
             group: deckState.group
             key: "bpm"
         }
+        // BPM and key of the loaded track itself (they change once, when a
+        // track is loaded, not with the pitch fader): what Matching is built on
+        readonly property Mixxx.ControlProxy fileBpm: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "file_bpm"
+            onValueChanged: root.deckTrackChanged(deckState)
+        }
+        readonly property Mixxx.ControlProxy fileKey: Mixxx.ControlProxy {
+            group: deckState.group
+            key: "file_key"
+            onValueChanged: root.deckTrackChanged(deckState)
+        }
     }
 
     readonly property list<QtObject> decks: [
@@ -52,6 +64,62 @@ Mixxx.LibrarySourceTree {
     readonly property var referenceKey: referenceDeck ? Harmony.fromChromaticKey(referenceDeck.key.value) : null
     readonly property color playedTextColor: "#6f8fb0"
     readonly property real referenceBpm: referenceDeck ? referenceDeck.bpm.value : 0
+
+    // Matching (Club): the tracks that fit the deck that plays (the sync
+    // leader first), otherwise the deck that loaded a track last. The list
+    // is built once per track: the search is computed by Harmony.js when the
+    // BPM or the key of the file of that deck change (a short pause groups
+    // the two changes of one load).
+    property var lastLoadedDeck: null
+    readonly property var matchDeck: {
+        if (referenceDeck && referenceDeck.fileBpm.value > 0)
+            return referenceDeck;
+        if (lastLoadedDeck && lastLoadedDeck.fileBpm.value > 0)
+            return lastLoadedDeck;
+        for (const deck of decks) {
+            if (deck.fileBpm.value > 0)
+                return deck;
+        }
+        return null;
+    }
+    readonly property real matchBpm: matchDeck ? matchDeck.fileBpm.value : 0
+    readonly property real matchKey: matchDeck ? matchDeck.fileKey.value : 0
+    // What Matching is matched to, for the label above the list
+    readonly property string matchingInfo: {
+        if (!matchDeck)
+            return qsTr("no track loaded");
+        const key = Harmony.camelotText(matchKey);
+        return matchDeck.group.replace(/^\[Channel(\d+)\]$/, "Deck $1") + "  " + matchBpm.toFixed(1) + " BPM" + (key !== "" ? "  " + key : "");
+    }
+
+    function deckTrackChanged(deck) {
+        if (deck.fileBpm.value > 0)
+            lastLoadedDeck = deck;
+        matchTimer.restart();
+    }
+
+    onMatchBpmChanged: matchTimer.restart()
+    onMatchKeyChanged: matchTimer.restart()
+
+    // (properties, not children: the default property of this item takes
+    // library sources only)
+    readonly property Timer matchTimer: Timer {
+        interval: 300
+        // Only the Club profile has the Matching list
+        onTriggered: {
+            if (Theme.isClub)
+                matchingSource.setQuery(Harmony.matchingQuery(root.matchBpm, root.matchKey));
+        }
+    }
+    readonly property Connections themeWatcher: Connections {
+        target: Theme
+
+        function onProfileChanged() {
+            root.matchTimer.restart();
+        }
+    }
+
+    Component.onCompleted: matchTimer.restart()
 
     component DefaultDelegate: LibraryComponent.Cell {
         id: cell
@@ -190,8 +258,8 @@ Mixxx.LibrarySourceTree {
                     fillMode: Image.PreserveAspectCrop
                     source: cover_art
                     // Decode a thumbnail, not the full size embedded cover
-                    sourceSize.width: Theme.isClub ? 64 : 96
-                    sourceSize.height: Theme.isClub ? 64 : 96
+                    sourceSize.width: 96
+                    sourceSize.height: 96
                     clip: true
                     asynchronous: true
                 }
@@ -341,6 +409,15 @@ Mixxx.LibrarySourceTree {
         label: qsTr("All...")
         columns: root.defaultColumns
     }
+    // Club only (Browser.qml hides the entry in the other profiles): the
+    // tracks that fit a deck, see matchDeck above. The list is a search of
+    // its own, the text field of the track list is off for it.
+    Mixxx.LibraryMatchingSource {
+        id: matchingSource
+
+        label: qsTr("Matching")
+        columns: root.defaultColumns
+    }
     // Ways to split the library: playlists and crates (Mixxx), artists and
     // folders (groups of the library tracks)
     Mixxx.LibraryPlaylistSource {
@@ -349,6 +426,12 @@ Mixxx.LibrarySourceTree {
     }
     Mixxx.LibraryCrateSource {
         label: qsTr("Crates")
+        columns: root.defaultColumns
+    }
+    // The sessions played, newest first; hidden until something has been
+    // played (Browser.qml)
+    Mixxx.LibraryHistorySource {
+        label: qsTr("History")
         columns: root.defaultColumns
     }
     Mixxx.LibraryArtistSource {

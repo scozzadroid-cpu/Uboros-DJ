@@ -10,6 +10,7 @@
 #include <QQuickItem>
 #include <QTimer>
 #include <QVariant>
+#include <list>
 #include <memory>
 
 #include "library/browse/browsefeature.h"
@@ -18,11 +19,14 @@
 #include "library/trackset/crate/cratefeature.h"
 #include "library/trackset/playlistfeature.h"
 #include "library/treeitem.h"
+#include "track/trackid.h"
+#include "track/track_decl.h"
 #include "qmlconfigproxy.h"
 #include "qmllibrarytracklistmodel.h"
 #include "util/parented_ptr.h"
 
 class LibraryTableModel;
+class PlaylistTableModel;
 class TreeItemModel;
 class TreeItem;
 
@@ -64,6 +68,86 @@ class GroupedTrackFeature final : public LibraryFeature {
     /// What the sidebar shows now (labels, data, nesting)
     QString m_treeSignature;
 };
+
+/// History: the sessions played (the set logs of Mixxx, hidden playlists of
+/// type PLHT_SET_LOG), newest first, each with its tracks in the order they
+/// were played. The legacy SetlogFeature of the library does the logging only
+/// when it is bound to a library widget, which the QML interface never does:
+/// this feature logs the tracks that start playing itself (without touching
+/// the play counter or the "played" flag of the track, the list keeps its own
+/// session based "played" mark). A session without tracks is not listed, so
+/// that the entry stays hidden until something has been played.
+class HistoryFeature final : public LibraryFeature {
+    Q_OBJECT
+  public:
+    HistoryFeature(Library* pLibrary, UserSettingsPointer pConfig);
+    ~HistoryFeature() override = default;
+
+    QVariant title() override {
+        return tr("History");
+    }
+    TreeItemModel* sidebarModel() const override {
+        return m_pSidebarModel;
+    }
+    bool hasTrackTable() override {
+        return true;
+    }
+
+  public slots:
+    void activate() override;
+    void activateChild(const QModelIndex& index) override;
+
+  private slots:
+    void slotPlayingTrackChanged(TrackPointer pTrack);
+
+  private:
+    void reloadSessions();
+    /// The session the played tracks are added to: the newest set log (the
+    /// one the library created at startup), or a new one
+    int currentSessionId();
+
+    QTimer m_reloadTimer;
+    PlaylistTableModel* m_pTableModel;
+    parented_ptr<TreeItemModel> m_pSidebarModel;
+    int m_currentSessionId;
+    /// The last tracks played: a track that is played again within this
+    /// window is not logged twice (same rule as the legacy history)
+    std::list<TrackId> m_recentTracks;
+};
+
+/// Matching (Club profile): the library tracks that fit the track of a deck:
+/// BPM within 6% (also half and double tempo) and a compatible key. The
+/// interface builds the search (Harmony.js) once, when the track of the
+/// reference deck changes, and gives it with setQuery().
+class MatchingFeature final : public LibraryFeature {
+    Q_OBJECT
+  public:
+    MatchingFeature(Library* pLibrary, UserSettingsPointer pConfig);
+    ~MatchingFeature() override = default;
+
+    QVariant title() override {
+        return tr("Matching");
+    }
+    TreeItemModel* sidebarModel() const override {
+        return m_pSidebarModel;
+    }
+    bool hasTrackTable() override {
+        return true;
+    }
+    /// Sets the search of the list; the rows are read again only if the list
+    /// has been shown
+    void setQuery(const QString& query);
+
+  public slots:
+    void activate() override;
+
+  private:
+    LibraryTableModel* m_pTableModel;
+    parented_ptr<TreeItemModel> m_pSidebarModel;
+    QString m_query;
+    bool m_activated = false;
+};
+
 class AllTrackLibraryFeature final : public LibraryFeature {
     Q_OBJECT
   public:
@@ -141,6 +225,10 @@ class QmlLibrarySource : public QObject {
     /// (files, external libraries), where creating a track object imports the
     /// file into the library.
     bool m_tracksOnDisplay{true};
+    /// Whether the list can be filtered by the text of the search field (see
+    /// QmlLibraryTrackListModel::searchText). False for a source that already
+    /// is a search of its own (Matching).
+    bool m_searchable{true};
 };
 
 class QmlLibraryAllTrackSource : public QmlLibrarySource {
@@ -233,6 +321,40 @@ class QmlLibraryArtistSource : public QmlLibrarySource {
 
   private:
     std::unique_ptr<GroupedTrackFeature> m_pLibraryFeature;
+};
+
+/// Sessions played, see HistoryFeature
+class QmlLibraryHistorySource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryHistorySource)
+  public:
+    explicit QmlLibraryHistorySource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+
+  private:
+    std::unique_ptr<HistoryFeature> m_pLibraryFeature;
+};
+
+/// Tracks that fit a deck (BPM and key), see MatchingFeature
+class QmlLibraryMatchingSource : public QmlLibrarySource {
+    Q_OBJECT
+    QML_NAMED_ELEMENT(LibraryMatchingSource)
+  public:
+    explicit QmlLibraryMatchingSource(QObject* parent = nullptr,
+            const QList<QmlLibraryTrackListColumn*>& columns = {});
+    LibraryFeature* internal() override {
+        return m_pLibraryFeature.get();
+    }
+    /// The search that selects the matching tracks (built in Harmony.js)
+    Q_INVOKABLE void setQuery(const QString& query) {
+        m_pLibraryFeature->setQuery(query);
+    }
+
+  private:
+    std::unique_ptr<MatchingFeature> m_pLibraryFeature;
 };
 
 class QmlLibraryFolderSource : public QmlLibrarySource {

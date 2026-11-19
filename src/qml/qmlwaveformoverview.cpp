@@ -1,12 +1,49 @@
 #include "qml/qmlwaveformoverview.h"
 
+#include <QThreadPool>
+#include <QtConcurrentRun>
+#include <algorithm>
+
 #include "moc_qmlwaveformoverview.cpp"
 #include "qmlplayerproxy.h"
 #include "qmltrackproxy.h"
+#include "track/cue.h"
 #include "track/track.h"
 
 namespace {
 constexpr double kDesiredChannelHeight = 255;
+
+/// The phrases are read by one background thread of its own: the priority of
+/// a thread of the global pool cannot be given back
+QThreadPool* phrasesPool() {
+    static QThreadPool* const pPool = [] {
+        auto* pNewPool = new QThreadPool();
+        pNewPool->setMaxThreadCount(1);
+        pNewPool->setThreadPriority(QThread::LowPriority);
+        return pNewPool;
+    }();
+    return pPool;
+}
+
+QString phraseKindName(RekordboxPhrase::Kind kind) {
+    switch (kind) {
+    case RekordboxPhrase::Kind::Intro:
+        return QStringLiteral("intro");
+    case RekordboxPhrase::Kind::Verse:
+        return QStringLiteral("verse");
+    case RekordboxPhrase::Kind::Bridge:
+        return QStringLiteral("bridge");
+    case RekordboxPhrase::Kind::Chorus:
+        return QStringLiteral("chorus");
+    case RekordboxPhrase::Kind::Outro:
+        return QStringLiteral("outro");
+    case RekordboxPhrase::Kind::Up:
+        return QStringLiteral("up");
+    case RekordboxPhrase::Kind::Down:
+        return QStringLiteral("down");
+    }
+    return QString();
+}
 } // namespace
 
 namespace mixxx {
@@ -220,6 +257,152 @@ QColor QmlWaveformOverview::getRgbPenColor(ConstWaveformPointer pWaveform, int c
         return color;
     }
     return QColor();
+}
+
+QmlTrackMarks::QmlTrackMarks(QObject* parent)
+        : QObject(parent) {
+    connect(&m_phrasesWatcher,
+            &QFutureWatcher<QList<RekordboxPhrase>>::finished,
+            this,
+            &QmlTrackMarks::slotPhrasesRead);
+}
+
+QmlTrackMarks::~QmlTrackMarks() = default;
+
+void QmlTrackMarks::setTrack(QmlTrackProxy* pTrack) {
+    if (m_pTrack == pTrack) {
+        return;
+    }
+    if (m_pTrackObject) {
+        m_pTrackObject->disconnect(this);
+    }
+    m_pTrack = pTrack;
+    m_pTrackObject = pTrack ? pTrack->internal().get() : nullptr;
+    if (m_pTrackObject) {
+        connect(m_pTrackObject.data(),
+                &Track::cuesUpdated,
+                this,
+                &QmlTrackMarks::slotCuesUpdated);
+    }
+    emit trackChanged();
+    rebuildCues();
+    requestPhrases();
+}
+
+void QmlTrackMarks::setReadPhrases(bool read) {
+    if (m_readPhrases == read) {
+        return;
+    }
+    m_readPhrases = read;
+    emit readPhrasesChanged();
+    requestPhrases();
+}
+
+void QmlTrackMarks::slotCuesUpdated() {
+    rebuildCues();
+}
+
+void QmlTrackMarks::rebuildCues() {
+    QVariantList cues;
+    if (m_pTrackObject) {
+        const QList<CuePointer> cuePoints = m_pTrackObject->getCuePoints();
+        for (const CuePointer& pCue : cuePoints) {
+            const int hotCue = pCue->getHotCue();
+            const CueType type = pCue->getType();
+            if (hotCue < 0 || (type != CueType::HotCue && type != CueType::Loop)) {
+                continue;
+            }
+            const auto position = pCue->getPosition();
+            if (!position.isValid()) {
+                continue;
+            }
+            const auto endPosition = pCue->getEndPosition();
+            QVariantMap cue;
+            cue.insert(QStringLiteral("index"), hotCue);
+            // Engine samples (2 per frame), as the hotcue_N_position controls,
+            // for the track_samples control to be the whole track
+            cue.insert(QStringLiteral("pos"), position.toEngineSamplePos());
+            cue.insert(QStringLiteral("endPos"),
+                    type == CueType::Loop && endPosition.isValid()
+                            ? endPosition.toEngineSamplePos()
+                            : -1.0);
+            cue.insert(QStringLiteral("color"), RgbColor::toQColor(pCue->getColor()));
+            cue.insert(QStringLiteral("label"), pCue->getLabel());
+            cue.insert(QStringLiteral("isLoop"), type == CueType::Loop);
+            cues.append(cue);
+        }
+        std::sort(cues.begin(), cues.end(), [](const QVariant& a, const QVariant& b) {
+            return a.toMap().value(QStringLiteral("index")).toInt() <
+                    b.toMap().value(QStringLiteral("index")).toInt();
+        });
+    }
+    if (cues == m_cues) {
+        return;
+    }
+    m_cues = cues;
+    emit cuesChanged();
+}
+
+void QmlTrackMarks::requestPhrases() {
+    ++m_phrasesGeneration;
+    m_waitingForDrive = false;
+    if (!m_phrases.isEmpty()) {
+        m_phrases.clear();
+        emit phrasesChanged();
+    }
+    if (!m_readPhrases || !m_pTrackObject) {
+        return;
+    }
+    RekordboxFeature* pFeature = RekordboxFeature::instance();
+    if (!pFeature) {
+        return;
+    }
+    if (!m_connectedToRekordbox) {
+        connect(pFeature,
+                &RekordboxFeature::busyTextChanged,
+                this,
+                &QmlTrackMarks::slotRekordboxBusyChanged);
+        m_connectedToRekordbox = true;
+    }
+    const QString anlzPath = pFeature->analyzePathForLocation(m_pTrackObject->getLocation());
+    if (anlzPath.isEmpty()) {
+        // Not a track of a drive (or the drive is still being read: asked
+        // again when the feature has finished)
+        m_waitingForDrive = true;
+        return;
+    }
+    m_watcherGeneration = m_phrasesGeneration;
+    m_phrasesWatcher.setFuture(
+            QtConcurrent::run(phrasesPool(), &readRekordboxPhrases, anlzPath));
+}
+
+void QmlTrackMarks::slotRekordboxBusyChanged(const QString& busyText) {
+    if (m_waitingForDrive && busyText.isEmpty()) {
+        requestPhrases();
+    }
+}
+
+void QmlTrackMarks::slotPhrasesRead() {
+    // The track changed since the request
+    if (m_watcherGeneration != m_phrasesGeneration) {
+        return;
+    }
+    const QList<RekordboxPhrase> phrases = m_phrasesWatcher.result();
+    QVariantList list;
+    for (const RekordboxPhrase& phrase : phrases) {
+        QVariantMap map;
+        map.insert(QStringLiteral("kind"), phraseKindName(phrase.kind));
+        map.insert(QStringLiteral("number"), phrase.number);
+        map.insert(QStringLiteral("mood"), phrase.mood);
+        map.insert(QStringLiteral("start"), phrase.startSec);
+        map.insert(QStringLiteral("end"), phrase.endSec);
+        list.append(map);
+    }
+    if (list == m_phrases) {
+        return;
+    }
+    m_phrases = list;
+    emit phrasesChanged();
 }
 
 } // namespace qml

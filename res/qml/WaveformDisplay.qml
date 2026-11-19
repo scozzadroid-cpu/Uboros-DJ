@@ -148,6 +148,10 @@ Item {
                 }
 
                 Mixxx.WaveformRendererMark {
+                    // The marks of the hot cues say the letter of the pad
+                    // (A-H) and the color of the cue; Stack: the name of the
+                    // cue (its number when it has none)
+                    hotcueLabels: Theme.isStack ? "name" : "letter"
                     playMarkerColor: Theme.playMarkerColor
                     playMarkerBackground: Theme.playMarkerColor
                     defaultMark: Mixxx.WaveformMark {

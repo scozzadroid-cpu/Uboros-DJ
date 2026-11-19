@@ -29,6 +29,7 @@
 //      * 32 beat jump forward & back (Shift + </> CUE/LOOP CALL arrows)
 //      * Toggle quantize (Shift + channel cue)
 //      * Stems selection using PADs (using controller's Keyboard mode)
+//      * Pad mode shown on the screen: [ChannelN],pad_mode (see padModeBridge)
 //
 //      * BROWSE / LOAD (rekordbox / CDJ style navigation, in the XML):
 //                BROWSE turn      scroll the list or the sources (the first turn
@@ -377,6 +378,9 @@ PioneerDDJFLX4.init = function() {
     // Register callbacks for each deck, when the pitch shift is modified
     engine.makeConnection("[Channel1]", "pitch_adjust", PioneerDDJFLX4.pitchAdjusted);
     engine.makeConnection("[Channel2]", "pitch_adjust", PioneerDDJFLX4.pitchAdjusted);
+
+    // Pad mode on the screen (the firmware starts in HOT CUE mode)
+    PioneerDDJFLX4.initPadModeBridge();
 
     PioneerDDJFLX4.keepAliveTimer = engine.beginTimer(200, PioneerDDJFLX4.sendKeepAlive);
 
@@ -1132,6 +1136,7 @@ PioneerDDJFLX4.increaseBeatjumpSizes = function(_channel, control, value, _statu
         PioneerDDJFLX4.beatjumpSizeForPad[pad] = PioneerDDJFLX4.beatjumpSizeForPad[pad] * 16;
     });
     engine.setValue(group, "beatjump_size", PioneerDDJFLX4.beatjumpSizeForPad[0x21]);
+    PioneerDDJFLX4.publishBeatjumpUnit();
 };
 
 PioneerDDJFLX4.decreaseBeatjumpSizes = function(_channel, control, value, _status, group) {
@@ -1142,6 +1147,7 @@ PioneerDDJFLX4.decreaseBeatjumpSizes = function(_channel, control, value, _statu
         PioneerDDJFLX4.beatjumpSizeForPad[pad] = PioneerDDJFLX4.beatjumpSizeForPad[pad] / 16;
     });
     engine.setValue(group, "beatjump_size", PioneerDDJFLX4.beatjumpSizeForPad[0x21]);
+    PioneerDDJFLX4.publishBeatjumpUnit();
 };
 
 //
@@ -1175,8 +1181,72 @@ PioneerDDJFLX4.samplerPlayOutputCallbackFunction = function(value, group, _contr
     }
 };
 
+//
+// Pad mode bridge to the QML interface (res/qml/DeckPads.qml, DeckPadChip.qml)
+//
+// The FLX4 changes the pad mode in its firmware and tells us only by the
+// press of the mode button, so this is the one place that knows the mode.
+// It is written to [ChannelN],pad_mode (created in C++, src/qml/
+// qmlapplication.cpp, default -1 = unknown / no controller that reports it,
+// which keeps the pad panels hidden):
+//   0 hot cue   1 beat loop   2 beat jump   3 sampler   4 key shift
+//   5 pad fx 1  6 pad fx 2    7 keyboard (stems)
+// and [Skin],pad_beatjump_unit = beats of the smallest BEAT JUMP pad (the pads
+// are -1x +1x -2x +2x -4x +4x -8x +8x of it; 1, or 1/16 and 16 after SHIFT +
+// pads 7/8). The state of the pads themselves (hot cue colors, loop size,
+// samplers...) the interface reads from the usual Mixxx controls.
+// Set padModeBridge = false to leave both controls alone.
+//
+PioneerDDJFLX4.padModeBridge = true;
+
+// Mode button (note of the 0x90 / 0x91 messages) -> pad_mode value
+PioneerDDJFLX4.padModeOfButton = {
+    0x1B: 0, // HOT CUE
+    0x6D: 1, // BEAT LOOP
+    0x20: 2, // BEAT JUMP
+    0x22: 3, // SAMPLER
+    0x6F: 4, // KEY SHIFT
+    0x1E: 5, // PAD FX 1
+    0x6B: 6, // PAD FX 2
+    0x69: 7, // KEYBOARD (stems)
+};
+
+PioneerDDJFLX4.padModeGroups = ["[Channel1]", "[Channel2]"];
+
+PioneerDDJFLX4.setPadMode = function(group, mode) {
+    if (PioneerDDJFLX4.padModeBridge) {
+        engine.setValue(group, "pad_mode", mode);
+    }
+};
+
+PioneerDDJFLX4.publishBeatjumpUnit = function() {
+    if (PioneerDDJFLX4.padModeBridge) {
+        engine.setValue("[Skin]", "pad_beatjump_unit", PioneerDDJFLX4.beatjumpSizeForPad[0x21]);
+    }
+};
+
+// The firmware starts in HOT CUE mode when the controller is switched on
+PioneerDDJFLX4.initPadModeBridge = function() {
+    PioneerDDJFLX4.padModeGroups.forEach(function(group) {
+        PioneerDDJFLX4.setPadMode(group, 0);
+    });
+    PioneerDDJFLX4.publishBeatjumpUnit();
+};
+
+PioneerDDJFLX4.shutdownPadModeBridge = function() {
+    PioneerDDJFLX4.padModeGroups.forEach(function(group) {
+        PioneerDDJFLX4.setPadMode(group, -1);
+    });
+};
+
 PioneerDDJFLX4.padModeKeyPressed = function(_channel, _control, value, _status, _group) {
     const deck = (_status === 0x90 ? PioneerDDJFLX4.lights.deck1 : PioneerDDJFLX4.lights.deck2);
+
+    // Show the mode on the screen (the release of the button is ignored)
+    const padMode = PioneerDDJFLX4.padModeOfButton[_control];
+    if (value > 0 && padMode !== undefined) {
+        PioneerDDJFLX4.setPadMode(_status === 0x90 ? "[Channel1]" : "[Channel2]", padMode);
+    }
 
     if (_control === 0x1B) {
         PioneerDDJFLX4.toggleLight(deck.hotcueMode, true);
@@ -1571,6 +1641,8 @@ PioneerDDJFLX4.smartFaderPress = function(_channel, _control, value) {
 //
 
 PioneerDDJFLX4.shutdown = function() {
+    // the pad panels of the screen go away with the controller
+    PioneerDDJFLX4.shutdownPadModeBridge();
     // leave the crossfader working for whoever uses Mixxx next
     if (!PioneerDDJFLX4.crossfaderActive) {
         PioneerDDJFLX4.setCrossfaderActive(true);

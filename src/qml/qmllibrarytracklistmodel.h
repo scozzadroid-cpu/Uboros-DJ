@@ -13,6 +13,14 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
     Q_OBJECT
     QML_NAMED_ELEMENT(LibraryTrackListModel)
     Q_PROPERTY(QQmlListProperty<QmlLibraryTrackListColumn> columns READ columns FINAL)
+    /// Text typed by the user to filter the tracks (title, artist, album...:
+    /// the search of the library, see SearchQueryParser). Empty = no filter.
+    /// A list starts without a search, also when its table model is shared
+    /// with another list.
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged FINAL)
+    /// False for the lists that cannot be filtered by text (the file browser,
+    /// or a list that is already a search such as Matching)
+    Q_PROPERTY(bool searchAvailable READ searchAvailable CONSTANT FINAL)
     QML_UNCREATABLE("Only accessible via Mixxx.Library")
 
   public:
@@ -55,8 +63,17 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
     QmlLibraryTrackListModel(const QList<QmlLibraryTrackListColumn*>& librarySource,
             QAbstractItemModel* pModel,
             QObject* pParent = nullptr,
-            bool tracksOnDisplay = true);
+            bool tracksOnDisplay = true,
+            bool searchable = true);
     ~QmlLibraryTrackListModel() = default;
+
+    QString searchText() const {
+        return m_searchText;
+    }
+    void setSearchText(const QString& text);
+    bool searchAvailable() const {
+        return m_searchable;
+    }
 
     QQmlListProperty<QmlLibraryTrackListColumn> columns() {
         return {this,
@@ -79,9 +96,14 @@ class QmlLibraryTrackListModel : public QIdentityProxyModel {
             int role = Qt::DisplayRole) const override;
     Q_INVOKABLE void sort(int column, Qt::SortOrder order) override;
 
+  signals:
+    void searchTextChanged();
+
   private:
     std::vector<parented_ptr<QmlLibraryTrackListColumn>> m_columns;
     bool m_tracksOnDisplay;
+    bool m_searchable;
+    QString m_searchText;
 
     static void parent_qlist_append(
             QQmlListProperty<QmlLibraryTrackListColumn>* p,

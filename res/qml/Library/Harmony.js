@@ -107,3 +107,73 @@ function bpmDistancePercent(bpm, referenceBpm) {
     }
     return best;
 }
+
+// ---- Matching (the Club "Matching" list: tracks that fit a deck) ----
+
+/// Same window as the BPM highlight of the track list (BpmDelegate: yellow up to 6%)
+const kMatchingBpmPercent = 6;
+
+/// OpenKey text ("1d".."12d" major, "1m".."12m" minor) of a Mixxx ChromaticKey
+/// (1..12 = C..B major, 13..24 = C..B minor). The search of the library
+/// understands it ("key:1m"). Empty when the key is unknown.
+function openKeyText(chromaticKey) {
+    const key = Math.round(chromaticKey);
+    if (key < 1 || key > 24)
+        return "";
+    const minor = key > 12;
+    const pitchClass = (key - 1) % 12;
+    // Position on the circle of fifths of the (relative) major key, C = 1
+    const majorPitchClass = minor ? (pitchClass + 3) % 12 : pitchClass;
+    return ((majorPitchClass * 7) % 12 + 1) + (minor ? "m" : "d");
+}
+
+/// Camelot name ("8A", "11B") of a ChromaticKey, "" when unknown
+function camelotText(chromaticKey) {
+    const camelot = fromChromaticKey(chromaticKey);
+    return camelot ? camelot.n + (camelot.minor ? "A" : "B") : "";
+}
+
+/// The keys that go with a key: the ones that compatibility() accepts
+/// (same key, relative major/minor, one step on the wheel).
+function compatibleChromaticKeys(chromaticKey) {
+    const reference = fromChromaticKey(chromaticKey);
+    const keys = [];
+    if (!reference)
+        return keys;
+    for (let key = 1; key <= 24; key++) {
+        if (compatibility(reference, fromChromaticKey(key)) > 0)
+            keys.push(key);
+    }
+    return keys;
+}
+
+/// Search (library search syntax) for the tracks that fit a deck's track: BPM
+/// within kMatchingBpmPercent of the reference (also half and double tempo,
+/// like bpmDistancePercent) and a compatible key. Built once when the track
+/// of the deck changes; the database does the filtering. Alternatives are
+/// written as "a | b", so every BPM range is repeated for each key.
+/// No reference BPM: "id:0", which nothing matches.
+function matchingQuery(referenceBpm, referenceChromaticKey) {
+    if (!(referenceBpm > 0))
+        return "id:0";
+    const low = 1 - kMatchingBpmPercent / 100;
+    const high = 1 + kMatchingBpmPercent / 100;
+    // value * factor within [low, high] * reference, factor = 0.5, 1, 2
+    const ranges = [];
+    for (const factor of [1, 0.5, 2]) {
+        const from = referenceBpm * low / factor;
+        const to = referenceBpm * high / factor;
+        ranges.push("bpm:" + from.toFixed(2) + "-" + to.toFixed(2));
+    }
+    const keys = compatibleChromaticKeys(referenceChromaticKey).map(openKeyText);
+    const terms = [];
+    for (const range of ranges) {
+        if (keys.length === 0) {
+            terms.push(range);
+            continue;
+        }
+        for (const key of keys)
+            terms.push(range + " key:" + key);
+    }
+    return terms.join(" | ");
+}

@@ -127,7 +127,8 @@ Item {
             clip: true
 
             model: root.sidebar.tracklist
-            pathText: browser.shownPath
+            // The Matching list says which track it is matched to
+            pathText: browser.shownPath + (browser.shownPath === qsTr("Matching") && librarySources.matchingInfo !== "" ? "   (" + librarySources.matchingInfo + ")" : "")
         }
     }
 }

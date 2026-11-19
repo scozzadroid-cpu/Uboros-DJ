@@ -531,6 +531,11 @@ class QmlWaveformRendererMark
                     playMarkerPositionChanged)
     Q_PROPERTY(QmlWaveformMark* defaultMark MEMBER m_defaultMark NOTIFY defaultMarkChanged)
     Q_PROPERTY(QmlWaveformUntilMark* untilMark READ untilMark FINAL)
+    // What the marks of the hot cues say: "number" (1-8, Mixxx's own),
+    // "letter" (A-H, the pads of the controller) or "name" (the name of the
+    // cue, its number when it has none). Read when the waveform is made, see
+    // g_hotcueLabelStyle (qmlwaveformhotcuelabels.h)
+    Q_PROPERTY(QString hotcueLabels MEMBER m_hotcueLabels NOTIFY hotcueLabelsChanged)
     Q_CLASSINFO("DefaultProperty", "marks")
     QML_NAMED_ELEMENT(WaveformRendererMark)
 
@@ -554,6 +559,7 @@ class QmlWaveformRendererMark
     void playMarkerColorChanged(const QColor&);
     void playMarkerBackgroundChanged(const QColor&);
     void playMarkerPositionChanged(double);
+    void hotcueLabelsChanged(const QString&);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
     void defaultMarkChanged(QmlWaveformMark*);
 #else
@@ -567,6 +573,7 @@ class QmlWaveformRendererMark
     QList<QmlWaveformMark*> m_marks;
     QmlWaveformMark* m_defaultMark;
     std::unique_ptr<QmlWaveformUntilMark> m_untilMark;
+    QString m_hotcueLabels{QStringLiteral("number")};
 };
 
 } // namespace qml
