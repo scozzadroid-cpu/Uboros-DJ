@@ -24,17 +24,19 @@ applicationId (it installs next to the normal app; the plugin's `plugin.cmake` m
     plugin.cmake          calls uboros_add_plugin() (cmake/UborosPlugins.cmake)
     src/*.cpp, *.h        C++ (compiled into mixxx-qml-lib, AUTOMOC on, `#include "moc_<file>.cpp"`)
     qml/*.qml             copied to assets/qml/Plugins/<name>/ (Android)
+    assets/               merged into the assets root (Android), e.g. images/library/ic_library_<name>.svg:
+                          the sidebar icon of a feature is images/library/ic_library_<iconName>.svg
     android/java/         extra Java sources of the APK (optional)
     android/plugin.gradle Gradle file applied to the APK: dependencies... (optional)
 
 `uboros_add_plugin(NAME x SOURCES ... [LIBRARIES ...] [DEFINITIONS ...] [QML_DIR qml]
-[ANDROID_JAVA_DIR android/java] [ANDROID_GRADLE android/plugin.gradle])`. The C++ must define
+[ASSETS_DIR assets] [ANDROID_JAVA_DIR android/java] [ANDROID_GRADLE android/plugin.gradle])`. The C++ must define
 `mixxx::plugins::Plugin* uborosCreatePlugin_<name>();` (global namespace).
 
 ## What the host offers (`src/plugins/pluginhost.h`)
 
 - `Plugin::init(UserSettingsPointer)`: once at start-up. Stay idle: no thread, timer or network
-  until the user uses the plugin. Register QML types here (e.g. `qmlRegisterSingletonInstance("Mixxx", 1, 0, ...)`).
+  until the user uses the plugin. Register QML types here (e.g. `qmlRegisterSingletonInstance("Uboros.<Name>", 1, 0, "<Name>", obj)`, imported in the QML with `import Uboros.<Name> 1.0`). **Never register under the URI "Mixxx"**: a type added to that module before it is loaded makes the whole `import Mixxx 1.0` fail (found on the phone, 19/11/2026).
 - `Plugin::createLibrarySources(parent, defaultColumns)`: entries of the library sidebar, shown
   above the USB drives. A source is a `QmlLibrarySource` wrapping a `LibraryFeature`.
 - `PluginHost::setLabelHidden(label, hidden)`: hides/shows a sidebar entry by its title (e.g.

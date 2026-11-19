@@ -19,11 +19,12 @@ define_property(GLOBAL PROPERTY UBOROS_PLUGIN_GRADLE_FILES BRIEF_DOCS "gradle" F
 #     SOURCES <c++ files, relative to the plugin folder>
 #     [LIBRARIES <targets/libs>] [DEFINITIONS <defs>]
 #     [QML_DIR <folder>]            copied to assets/qml/Plugins/<id> (Android)
+#     [ASSETS_DIR <folder>]         merged into the root of the assets (e.g. images/library/ic_library_<id>.svg)
 #     [ANDROID_JAVA_DIR <folder>]   extra Java sources of the APK
 #     [ANDROID_GRADLE <file>])      Gradle file applied to the APK (dependencies...)
 # The C++ must define  mixxx::plugins::Plugin* uborosCreatePlugin_<id>();
 function(uboros_add_plugin)
-  cmake_parse_arguments(P "" "NAME;QML_DIR;ANDROID_JAVA_DIR;ANDROID_GRADLE"
+  cmake_parse_arguments(P "" "NAME;QML_DIR;ASSETS_DIR;ANDROID_JAVA_DIR;ANDROID_GRADLE"
     "SOURCES;LIBRARIES;DEFINITIONS" ${ARGN})
   if(NOT P_NAME)
     message(FATAL_ERROR "uboros_add_plugin: NAME is required")
@@ -53,6 +54,17 @@ function(uboros_add_plugin)
       POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory "${P_QML_DIR}"
         "${CMAKE_BINARY_DIR}/android-build/assets/qml/Plugins/${P_NAME}"
+    )
+  endif()
+  if(P_ASSETS_DIR AND ANDROID)
+    if(NOT IS_ABSOLUTE "${P_ASSETS_DIR}")
+      set(P_ASSETS_DIR "${UBOROS_PLUGIN_DIR}/${P_ASSETS_DIR}")
+    endif()
+    add_custom_command(
+      TARGET copy-resource-android
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${P_ASSETS_DIR}"
+        "${CMAKE_BINARY_DIR}/android-build/assets"
     )
   endif()
   if(P_ANDROID_JAVA_DIR)
