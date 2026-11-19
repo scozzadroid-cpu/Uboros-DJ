@@ -108,7 +108,7 @@ Rectangle {
                 elide: Text.ElideRight
                 font.bold: true
                 font.pixelSize: 11
-                text: root.failed ? (root.info.message || "") : (root.progress < 0 ? qsTr("Connecting to SoundCloud…") : qsTr("Downloading from SoundCloud…"))
+                text: root.failed ? (root.info.message || "") : (root.info && root.info.status ? root.info.status : (root.progress < 0 ? qsTr("Connecting to SoundCloud…") : qsTr("Downloading from SoundCloud…")))
             }
         }
 
@@ -118,7 +118,7 @@ Rectangle {
             font.bold: true
             font.pixelSize: 20
             text: Math.round(root.progress * 100) + "%"
-            visible: !root.failed && root.progress >= 0
+            visible: !root.failed && root.progress >= 0 && !(root.info && root.info.status)
         }
     }
 
