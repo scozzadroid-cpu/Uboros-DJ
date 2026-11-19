@@ -73,18 +73,18 @@ void PluginHost::prefetchTrack(const QString& location) {
     }
 }
 
-void PluginHost::setLoadingText(const QString& group, const QString& text) {
-    if (text.isEmpty()) {
-        if (m_loadingTexts.remove(group) == 0) {
+void PluginHost::setLoadingInfo(const QString& group, const QVariantMap& info) {
+    if (info.isEmpty()) {
+        if (m_loadingInfo.remove(group) == 0) {
             return;
         }
     } else {
-        if (m_loadingTexts.value(group).toString() == text) {
+        if (m_loadingInfo.value(group).toMap() == info) {
             return;
         }
-        m_loadingTexts.insert(group, text);
+        m_loadingInfo.insert(group, info);
     }
-    emit loadingTextsChanged();
+    emit loadingInfoChanged();
 }
 
 #ifndef UBOROS_HAS_PLUGINS

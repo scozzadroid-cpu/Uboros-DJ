@@ -13,9 +13,9 @@ QmlPluginsProxy::QmlPluginsProxy(QObject* parent)
             this,
             &QmlPluginsProxy::hiddenLabelsChanged);
     connect(&plugins::PluginHost::instance(),
-            &plugins::PluginHost::loadingTextsChanged,
+            &plugins::PluginHost::loadingInfoChanged,
             this,
-            &QmlPluginsProxy::loadingTextsChanged);
+            &QmlPluginsProxy::loadingInfoChanged);
 }
 
 QmlPluginsProxy* QmlPluginsProxy::create(QQmlEngine* pQmlEngine, QJSEngine*) {
@@ -30,8 +30,8 @@ QStringList QmlPluginsProxy::hiddenLabels() const {
     return plugins::PluginHost::instance().hiddenLabels();
 }
 
-QVariantMap QmlPluginsProxy::loadingTexts() const {
-    return plugins::PluginHost::instance().loadingTexts();
+QVariantMap QmlPluginsProxy::loadingInfo() const {
+    return plugins::PluginHost::instance().loadingInfo();
 }
 
 void QmlPluginsProxy::trackSelected(const QUrl& url) {

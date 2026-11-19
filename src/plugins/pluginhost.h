@@ -107,23 +107,25 @@ class PluginHost : public QObject {
             const std::function<void(TrackPointer)>& ready);
     void prefetchTrack(const QString& location);
 
-    /// What a deck says instead of its track while a plugin gets the track
-    /// ("Loading ..."): group ("[Channel1]") -> text, empty/absent when idle
-    QVariantMap loadingTexts() const {
-        return m_loadingTexts;
+    /// What a deck shows while a plugin gets its track (a panel over the info bar): group
+    /// ("[Channel1]") -> {title, artist, progress (0..1, -1 = not known yet), state ("loading" or
+    /// "error"), message}. Absent when the deck waits for nothing.
+    QVariantMap loadingInfo() const {
+        return m_loadingInfo;
     }
-    void setLoadingText(const QString& group, const QString& text);
+    /// An empty map clears it
+    void setLoadingInfo(const QString& group, const QVariantMap& info);
 
   signals:
     void hiddenLabelsChanged();
-    void loadingTextsChanged();
+    void loadingInfoChanged();
 
   private:
     PluginHost() = default;
 
     QList<Plugin*> m_plugins;
     QStringList m_hiddenLabels;
-    QVariantMap m_loadingTexts;
+    QVariantMap m_loadingInfo;
     bool m_initialized = false;
 };
 

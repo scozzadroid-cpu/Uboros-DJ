@@ -21,8 +21,6 @@ Rectangle {
     readonly property int keyColumnWidth: Math.min(rightColumnWidth, 74)
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
     property var currentTrack: deckPlayer ? deckPlayer.currentTrack : null
-    // A plugin (SoundCloud) is getting the track of this deck: the title says so
-    readonly property string loadingText: Mixxx.Plugins.loadingTexts[group] || ""
     property color lineColor: Theme.deckLineColor
     readonly property color deckColor: Theme.deckColor(group)
     readonly property string deckNumber: {
@@ -212,7 +210,7 @@ Rectangle {
         Skin.EmbeddedText {
             id: titleText
 
-            text: root.loadingText !== "" ? root.loadingText : (root.currentTrack ? root.currentTrack.title : "")
+            text: root.currentTrack ? root.currentTrack.title : ""
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: Math.max(implicitWidth, parent.width)

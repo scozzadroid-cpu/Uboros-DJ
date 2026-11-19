@@ -57,6 +57,14 @@ Item {
         padChip: !padsStrip.active
     }
 
+    // A plugin (SoundCloud) is getting the track that was loaded into this deck: a panel over the
+    // info bar (the buttons stay usable: the previous track goes on until the new one is there)
+    Skin.DeckLoadingOverlay {
+        anchors.fill: infoBar
+        group: root.group
+        z: 5
+    }
+
     // Club (minimized deck, overview on the waveform): what the pads of the
     // controller do now, on a strip under the info bar. Nothing is created and
     // no height is taken until the controller reports its pad mode.
