@@ -6,6 +6,7 @@
 
 #include "library/queryutil.h"
 #include "preferences/waveformsettings.h"
+#include "util/fastchecksum.h"
 #include "util/performancetimer.h"
 #include "waveform/waveform.h"
 
@@ -92,7 +93,7 @@ QByteArray AnalysisDao::loadAnalysisData(const QString& path, int checksum) {
         return QByteArray();
     }
     const QByteArray compressedData = file.readAll();
-    if (checksum != static_cast<int>(qChecksum(QByteArrayView(compressedData)))) {
+    if (checksum != static_cast<int>(mixxx::fastChecksum(QByteArrayView(compressedData)))) {
         qDebug() << "WARNING: Corrupt analysis loaded from" << path;
         return QByteArray();
     }
@@ -130,8 +131,8 @@ QList<AnalysisDao::AnalysisInfo> AnalysisDao::loadAnalysesFromQuery(TrackId trac
             QString::number(info.analysisId));
         const QByteArray compressedData = loadDataFromFile(dataPath);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        const int file_checksum = qChecksum(
-                compressedData);
+        const int file_checksum = mixxx::fastChecksum(
+                QByteArrayView(compressedData));
 #else
         const int file_checksum = qChecksum(
                 compressedData.constData(),
@@ -166,8 +167,8 @@ bool AnalysisDao::saveAnalysis(AnalysisDao::AnalysisInfo* info) {
 
     const QByteArray compressedData = qCompress(info->data, kCompressionLevel);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    const int checksum = qChecksum(
-            compressedData);
+    const int checksum = mixxx::fastChecksum(
+            QByteArrayView(compressedData));
 #else
     const int checksum = qChecksum(
             compressedData.constData(),

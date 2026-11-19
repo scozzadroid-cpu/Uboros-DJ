@@ -4732,8 +4732,41 @@ if(SndFile_SUPPORTS_SET_COMPRESSION_LEVEL)
 endif()
 
 # SoundTouch
-find_package(SoundTouch 2.1.2 REQUIRED)
-target_link_libraries(mixxx-lib PRIVATE SoundTouch::SoundTouch)
+if(ANDROID)
+  # Our own copy with NEON filter loops (lib/soundtouch/README-mixxx-android.md):
+  # the filter of the stems was 49 % of the audio thread
+  add_library(
+    soundtouch-android
+    STATIC
+    lib/soundtouch/source/AAFilter.cpp
+    lib/soundtouch/source/BPMDetect.cpp
+    lib/soundtouch/source/FIFOSampleBuffer.cpp
+    lib/soundtouch/source/FIRFilter.cpp
+    lib/soundtouch/source/InterpolateCubic.cpp
+    lib/soundtouch/source/InterpolateLinear.cpp
+    lib/soundtouch/source/InterpolateShannon.cpp
+    lib/soundtouch/source/PeakFinder.cpp
+    lib/soundtouch/source/RateTransposer.cpp
+    lib/soundtouch/source/SoundTouch.cpp
+    lib/soundtouch/source/TDStretch.cpp
+    lib/soundtouch/source/cpu_detect_x86.cpp
+  )
+  target_include_directories(
+    soundtouch-android
+    PUBLIC lib/soundtouch/include
+    PRIVATE lib/soundtouch/include/soundtouch lib/soundtouch/source
+  )
+  target_compile_definitions(soundtouch-android PRIVATE SOUNDTOUCH_FLOAT_SAMPLES)
+  target_compile_options(
+    soundtouch-android
+    PRIVATE -O3 -ffast-math -Wno-unknown-pragmas -Wno-unused-parameter
+  )
+  set_target_properties(soundtouch-android PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(mixxx-lib PRIVATE soundtouch-android)
+else()
+  find_package(SoundTouch 2.1.2 REQUIRED)
+  target_link_libraries(mixxx-lib PRIVATE SoundTouch::SoundTouch)
+endif()
 
 # TagLib
 find_package(TagLib 1.11 REQUIRED)
