@@ -88,6 +88,15 @@ ApplicationWindow {
     // the height left. Toggled by [Skin],show_library (FLX4 SHIFT + BROWSE press or
     // the "Waves" toolbar button).
     readonly property bool waveformView: compact && !showMixer && !maximizeLibrary && showLibraryControl.value === 0
+    // Interface profiles Club and Stack ("uboros": always false, the original
+    // layout): compact DJ view with the waveforms shown. The overview of each
+    // deck moves onto its waveform (WaveformDisplay.qml) and the deck rows
+    // change: Club has them without the overview, Stack has none and shows the
+    // info of the decks over the waveforms. With the library maximized or the
+    // on-screen mixer there are no waveforms, the decks are the original ones.
+    readonly property bool profileWaves: compact && !showMixer && !maximizeLibrary && (Theme.isClub || Theme.isStack)
+    readonly property int waveOverviewHeight: profileWaves ? Theme.waveOverviewHeight : 0
+    readonly property bool deckRowsHidden: profileWaves && Theme.isStack
     readonly property real waveformHeight: {
         if (!compact)
             return large ? Math.min(220, Math.floor(height * 0.12)) : 120;
@@ -96,7 +105,7 @@ ApplicationWindow {
             return 0;
         if (waveformView) {
             // Everything in the Column except the waveforms themselves
-            const others = toolbar.height + decks12.height
+            const others = toolbar.height + (deckRowsHidden ? 0 : decks12.height)
                     + (crossfader.visible ? crossfader.height : 0)
                     + (decks34.visible ? decks34.height : 0)
                     + (samplers.visible ? samplers.height : 0)
@@ -104,7 +113,11 @@ ApplicationWindow {
             return Math.max(32, Math.floor((height - others) / waveformCount));
         }
         // Share ~26% of the window between the visible waveforms, the
-        // library needs the rest.
+        // library needs the rest. Club: the same, plus the overview strip of
+        // each waveform (the deck row is 31 dp shorter); Stack: x1.25, up to
+        // 150 dp, plus the strip.
+        if (profileWaves)
+            return Math.max(32, Math.min(Theme.waveHeightMax, Math.floor(height * 0.26 * Theme.waveHeightScale / waveformCount))) + waveOverviewHeight;
         return Math.max(32, Math.min(120, Math.floor(height * 0.26 / waveformCount)));
     }
 
@@ -149,6 +162,15 @@ ApplicationWindow {
         target: Theme
         property: "dimWhites"
         value: root.burnInProtection
+    }
+    // Interface profile ("uboros", "club", "stack"): palette and waveform
+    // colors in Theme follow it at once, no restart
+    readonly property string interfaceProfile: Mixxx.Config.interfaceProfile
+
+    Binding {
+        target: Theme
+        property: "profile"
+        value: root.interfaceProfile
     }
     Timer {
         interval: 3 * 60 * 1000
@@ -295,57 +317,93 @@ ApplicationWindow {
                         key: "live_stems"
                     }
                 }
-                // Live Stems starts off: the switch next to the button shows
-                // that it has to be turned on (knob left, grey = off)
-                Item {
-                    id: liveStemsSwitch
+                Skin.Button {
+                    id: perfModeButton
+                    // Performance mode: waveforms always at full rate, clocks
+                    // kept warm, no background analysis. Always off at start.
+                    // No text: a speedometer when off, a flame when on (hand
+                    // drawn SVGs, no font/emoji needed). The warm active color
+                    // gives the ember-colored button fill, see Button.qml
+                    Accessible.description: "Waveforms at full rate, no background analysis"
+                    Accessible.name: "Performance mode"
+                    ToolTip.delay: 600
+                    ToolTip.text: "Performance mode"
+                    ToolTip.visible: hovered && !root.isAndroid
+                    activeColor: "#ff7a1a"
+                    checkable: true
+                    checked: perfModeControl.value > 0
 
-                    readonly property bool on: liveStemsControl.value > 0
+                    onClicked: perfModeControl.value = perfModeControl.value > 0 ? 0 : 1
 
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredHeight: 18
-                    Layout.preferredWidth: 34
+                    Image {
+                        // Performance mode off: speedometer
+                        anchors.centerIn: parent
+                        asynchronous: true
+                        height: 18
+                        source: "images/perf_gauge.svg"
+                        sourceSize: Qt.size(64, 64)
+                        visible: !perfModeButton.checked
+                        width: 18
+                        z: 1
+                    }
+                    Image {
+                        id: perfFlame
+                        // Performance mode on: flame. Only scale/opacity are
+                        // animated (the window renders every frame in this
+                        // mode anyway); the animation stops when the flame is
+                        // hidden (mode off, toolbar hidden)
+                        anchors.centerIn: parent
+                        asynchronous: true
+                        height: 18
+                        source: "images/perf_flame.svg"
+                        sourceSize: Qt.size(64, 64)
+                        transformOrigin: Item.Bottom
+                        visible: perfModeButton.checked
+                        width: 18
+                        z: 1
 
-                    Rectangle {
-                        anchors.fill: parent
-                        border.color: liveStemsSwitch.on ? Qt.lighter("#c77dff", 1.3) : Theme.buttonBorderColor
-                        border.width: 1
-                        color: liveStemsSwitch.on ? Qt.darker("#c77dff", 1.7) : Theme.buttonBackgroundColor
-                        radius: height / 2
+                        SequentialAnimation {
+                            loops: Animation.Infinite
+                            running: perfFlame.visible
 
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: liveStemsSwitch.on ? "#c77dff" : Theme.textMutedColor
-                            height: parent.height - 6
-                            radius: height / 2
-                            width: height
-                            x: liveStemsSwitch.on ? parent.width - width - 3 : 3
-
-                            Behavior on x {
+                            ParallelAnimation {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 700
+                                    easing.type: Easing.InOutSine
+                                    from: 0.94
+                                    property: "scale"
+                                    target: perfFlame
+                                    to: 1.08
+                                }
+                                NumberAnimation {
+                                    duration: 700
+                                    easing.type: Easing.InOutSine
+                                    from: 0.8
+                                    property: "opacity"
+                                    target: perfFlame
+                                    to: 1
+                                }
+                            }
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    duration: 700
+                                    easing.type: Easing.InOutSine
+                                    from: 1.08
+                                    property: "scale"
+                                    target: perfFlame
+                                    to: 0.94
+                                }
+                                NumberAnimation {
+                                    duration: 700
+                                    easing.type: Easing.InOutSine
+                                    from: 1
+                                    property: "opacity"
+                                    target: perfFlame
+                                    to: 0.8
                                 }
                             }
                         }
                     }
-                    MouseArea {
-                        // A bigger touch area than the switch itself
-                        anchors.fill: parent
-                        anchors.margins: -6
-
-                        onClicked: liveStemsControl.value = liveStemsSwitch.on ? 0 : 1
-                    }
-                }
-                Skin.Button {
-                    id: perfModeButton
-                    // Performance mode: waveforms always at full rate, clocks
-                    // kept warm, no background analysis. Always off at start
-                    activeColor: Theme.white
-                    checkable: true
-                    checked: perfModeControl.value > 0
-                    text: "PERF"
-
-                    onClicked: perfModeControl.value = perfModeControl.value > 0 ? 0 : 1
 
                     Mixxx.ControlProxy {
                         id: perfModeControl
@@ -373,6 +431,11 @@ ApplicationWindow {
                 Skin.BeatFxIndicator {
                     id: beatFxIndicator
 
+                    // Shrinks (down to a minimum) when the toolbar is full, so that the
+                    // "?" and the gear at the right end never go off screen
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: implicitWidth
+                    Layout.minimumWidth: 120
                     Layout.rightMargin: 6
                 }
                 Skin.Button {
@@ -414,6 +477,15 @@ ApplicationWindow {
                         root.enterDashboard();
                     }
                 }
+                // Help: the guided tour again, always visible
+                Skin.Button {
+                    id: helpButton
+                    activeColor: Theme.white
+                    implicitWidth: implicitHeight
+                    text: "?"
+
+                    onClicked: tutorial.open()
+                }
                 Skin.Button {
                     id: showPreferencesButton
                     Layout.rightMargin: 8
@@ -439,6 +511,9 @@ ApplicationWindow {
             id: deck3waveform
             group: "[Channel3]"
             height: root.waveformHeight
+            infoChips: root.profileWaves && Theme.isStack && root.show4decks
+            overviewAbove: Theme.isStack
+            overviewHeight: root.waveOverviewHeight
             visible: root.show4decks && !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
@@ -450,6 +525,9 @@ ApplicationWindow {
             id: deck1waveform
             group: "[Channel1]"
             height: root.waveformHeight
+            infoChips: root.profileWaves && Theme.isStack
+            overviewAbove: Theme.isStack
+            overviewHeight: root.waveOverviewHeight
             visible: !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
@@ -461,6 +539,9 @@ ApplicationWindow {
             id: deck2waveform
             group: "[Channel2]"
             height: root.waveformHeight
+            infoChips: root.profileWaves && Theme.isStack
+            overviewAbove: Theme.isStack
+            overviewHeight: root.waveOverviewHeight
             visible: !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
@@ -472,6 +553,9 @@ ApplicationWindow {
             id: deck4waveform
             group: "[Channel4]"
             height: root.waveformHeight
+            infoChips: root.profileWaves && Theme.isStack && root.show4decks
+            overviewAbove: Theme.isStack
+            overviewHeight: root.waveOverviewHeight
             visible: root.show4decks && !root.maximizeLibrary && root.waveformHeight > 0
             width: root.width
 
@@ -483,7 +567,10 @@ ApplicationWindow {
             id: decks12
             leftDeckGroup: "[Channel1]"
             minimized: root.decksMinimized
+            overviewOnWave: root.profileWaves
             rightDeckGroup: "[Channel2]"
+            // Stack: the info of the decks is over the waveforms
+            visible: !root.deckRowsHidden
             width: parent.width
         }
         Skin.CrossfaderRow {
@@ -500,8 +587,9 @@ ApplicationWindow {
             id: decks34
             leftDeckGroup: "[Channel3]"
             minimized: root.decksMinimized || root.compact
+            overviewOnWave: root.profileWaves
             rightDeckGroup: "[Channel4]"
-            visible: root.show4decks
+            visible: root.show4decks && !root.deckRowsHidden
             width: parent.width
 
             Skin.FadeBehavior on visible  {
@@ -525,6 +613,41 @@ ApplicationWindow {
             Skin.FadeBehavior on visible  {
                 fadeTarget: effects
             }
+        }
+    }
+    // [Master],maximize_library (a controller, e.g. SHIFT + LOAD 1 of the
+    // FLX4) <-> the Library button. The control is saved in the settings but
+    // the view always starts normal: at start the button wins. After that each
+    // side follows the other; the control's echo is read back from the control
+    // so a late echo cannot undo a newer change of the button.
+    Mixxx.ControlProxy {
+        id: maximizeLibraryControl
+
+        property bool ready: false
+
+        group: "[Master]"
+        key: "maximize_library"
+
+        Component.onCompleted: {
+            maximizeLibraryControl.ready = true;
+            if (maximizeLibraryControl.initialized)
+                maximizeLibraryControl.value = maximizeLibraryButton.checked ? 1 : 0;
+        }
+        onValueChanged: (newValue) => {
+            if (!maximizeLibraryControl.ready || !maximizeLibraryControl.initialized)
+                return;
+            // The control as it is now (a queued echo may be older)
+            const on = maximizeLibraryControl.value > 0;
+            if (maximizeLibraryButton.checked !== on)
+                maximizeLibraryButton.checked = on;
+        }
+    }
+    Connections {
+        target: maximizeLibraryButton
+
+        function onCheckedChanged() {
+            if (maximizeLibraryControl.ready && maximizeLibraryControl.initialized)
+                maximizeLibraryControl.value = maximizeLibraryButton.checked ? 1 : 0;
         }
     }
     // The library fills the space below the Column. It must not be a child
@@ -642,10 +765,10 @@ ApplicationWindow {
                 waveformViewButton: waveformViewButton,
                 autoMixButton: autoMixButton,
                 liveStemsButton: liveStemsButton,
-                liveStemsSwitch: liveStemsSwitch,
                 beatFxIndicator: beatFxIndicator,
                 perfModeButton: perfModeButton,
                 showDashboardButton: showDashboardButton,
+                helpButton: helpButton,
                 showPreferencesButton: showPreferencesButton,
                 deck1waveform: deck1waveform,
                 decks12: decks12,

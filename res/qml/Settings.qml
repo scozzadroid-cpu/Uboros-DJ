@@ -21,7 +21,7 @@ Popup {
     property int activeCategoryIndex: 0
     // Only the categories that are implemented in QML. The others are still
     // placeholders upstream; the full widget preferences dialog covers them.
-    property list<string> sections: ["SoundHardware", "Controller"]
+    property list<string> sections: ["SoundHardware", "Controller", "Interface"]
 
     readonly property var manager: managerItem
 

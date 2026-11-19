@@ -10,7 +10,13 @@ Rectangle {
 
     anchors.fill: parent
 
-    color: selected ? Theme.accent : (row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor)
+    // The controller cursor (see TrackList.qml): the selected row is bright,
+    // with a line above and below, while the cursor is on the track list, and
+    // dim while it is on the sources
+    readonly property bool cursorOnList: tableView.controllerFocus
+    readonly property color rowColor: row % 2 == 0 ? Theme.sunkenBackgroundColor : Theme.backgroundColor
+
+    color: selected ? (cursorOnList ? Theme.accent : Qt.tint(rowColor, Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5))) : rowColor
 
     Drag.dragType: Drag.Automatic
     Drag.supportedActions: Qt.CopyAction
@@ -113,6 +119,29 @@ Rectangle {
             top: parent.top
             bottom: parent.bottom
             right: parent.right
+        }
+    }
+
+    // Lines above and below the row under the controller cursor (created
+    // only for its cells)
+    Loader {
+        anchors.fill: parent
+        active: selected && root.cursorOnList
+        sourceComponent: Item {
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Theme.white
+            }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Theme.white
+            }
         }
     }
 }

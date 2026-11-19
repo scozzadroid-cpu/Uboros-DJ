@@ -31,6 +31,9 @@ class QmlConfigProxy : public QObject {
     // Set by QML while the screen is black: the touch that wakes it is
     // swallowed (does not press what is under the finger)
     Q_PROPERTY(bool screenAsleep READ screenAsleep WRITE setScreenAsleep NOTIFY screenAsleepChanged)
+    // Interface profile ([Skin],interface_profile): "uboros" (default),
+    // "club" or "stack". Anything else is ignored. Applied at once, no restart.
+    Q_PROPERTY(QString interfaceProfile READ interfaceProfile WRITE setInterfaceProfile NOTIFY interfaceProfileChanged)
   public:
     explicit QmlConfigProxy(
             UserSettingsPointer pConfig,
@@ -73,6 +76,8 @@ class QmlConfigProxy : public QObject {
         return m_screenAsleep;
     }
     void setScreenAsleep(bool asleep);
+    QString interfaceProfile() const;
+    void setInterfaceProfile(const QString& profile);
 
     static QmlConfigProxy* create(QQmlEngine* pQmlEngine, QJSEngine* pJsEngine);
     static inline void registerUserSettings(UserSettingsPointer pConfig) {
@@ -89,6 +94,7 @@ class QmlConfigProxy : public QObject {
     void burnInProtectionChanged(bool enabled);
     void screenOffMinutesChanged(int minutes);
     void screenAsleepChanged(bool asleep);
+    void interfaceProfileChanged(const QString& profile);
     /// DJ controller input or a touch (GUI thread)
     void userActivity();
 

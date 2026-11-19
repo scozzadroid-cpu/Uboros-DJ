@@ -110,6 +110,20 @@ Item {
         }
     }
 
+    // Back (SHIFT + BROWSE press on the FLX4): from the track list the cursor
+    // goes to the sources, the same as the plain press does (toggleFocus).
+    // From the sources Browser.qml closes the open source or goes up to its
+    // parent; the focus is read before it is changed, so a press never does
+    // both.
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveLeft"
+        onValueChanged: (value) => {
+            if (value != 0 && root.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView)
+                root.toggleFocus();
+        }
+    }
+
     Mixxx.ControlProxy {
         group: "[Library]"
         key: "MoveVertical"

@@ -7,6 +7,9 @@ Item {
     required property string rightDeckGroup
     property alias mixer: mixer
     property bool minimized: false
+    // Interface profiles Club / Stack: the overview of the decks is on the
+    // waveforms (WaveformDisplay.qml), the minimized row is the info bar only
+    property bool overviewOnWave: false
 
     implicitHeight: mixer.height
     states: [
@@ -21,8 +24,9 @@ Item {
 
             PropertyChanges {
                 target: root
-                // Info bar + the thin track overview (see Deck.qml)
-                implicitHeight: 97
+                // Info bar + the thin track overview (see Deck.qml); Club:
+                // the info bar only (the overview is under the waveform)
+                implicitHeight: root.overviewOnWave ? 66 : 97
             }
 
             AnchorChanges {
@@ -71,6 +75,7 @@ Item {
         id: leftDeck
 
         minimized: root.minimized
+        overviewOnWave: root.overviewOnWave
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.bottom: parent.bottom
@@ -94,6 +99,7 @@ Item {
         id: rightDeck
 
         minimized: root.minimized
+        overviewOnWave: root.overviewOnWave
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.bottom: parent.bottom

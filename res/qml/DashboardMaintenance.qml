@@ -52,10 +52,31 @@ ColumnLayout {
             return (it ? "Pronto da installare: " : qsTr("Ready to install: ")) + Mixxx.AppUpdater.availableVersion;
         if (st === "installing")
             return it ? "Installazione in corso…" : qsTr("Installing…");
+        // A check that could not run (no network, no server answer) is not a
+        // "last check": the neutral message below says it instead
+        if (st === "error" && root.updErrorIsSoft())
+            return "";
         const t = Mixxx.AppUpdater.lastCheck;
         const when = t > 0 ? new Date(t).toLocaleString(Qt.locale(), Locale.ShortFormat) : (it ? "mai" : qsTr("never"));
         const upToDate = Mixxx.AppUpdater.lastCheck > 0 && st === "idle";
         return (upToDate ? (it ? "Sei aggiornato. " : qsTr("You are up to date. ")) : "") + (it ? "Ultima verifica: " : qsTr("Last check: ")) + when;
+    }
+    // "network" and "check" only say that the website could not be asked or has
+    // nothing to say (offline, server down, update.json not published yet): not
+    // a fault of the app, so they are shown in neutral grey, not as an error.
+    // The real errors (manifest, download, hash, missing, permission, install)
+    // keep the warning colour; a wrong sha256 and a failed install are red.
+    function updErrorIsSoft() {
+        const code = Mixxx.AppUpdater.errorCode;
+        return code === "network" || code === "check";
+    }
+    function updErrorColor() {
+        const code = Mixxx.AppUpdater.errorCode;
+        if (code === "network" || code === "check")
+            return Theme.midGray;
+        if (code === "hash" || code === "install")
+            return Theme.red;
+        return Theme.yellow;
     }
     function updErrorText() {
         if (Mixxx.AppUpdater.errorCode === "")
@@ -63,9 +84,16 @@ ColumnLayout {
         const it = root.updIt;
         switch (Mixxx.AppUpdater.errorCode) {
         case "network":
-            return it ? "Nessuna connessione: riprova più tardi" : qsTr("No connection: try again later");
+            return it ? "Impossibile controllare gli aggiornamenti: nessuna connessione. Riprova quando sei online." : qsTr("Could not check for updates: no network connection. Try again when you are online.");
         case "check":
-            return it ? "Impossibile leggere le informazioni di aggiornamento dal sito" : qsTr("Could not read the update information from the website");
+            {
+                // The detail is "<Exception>: <message>" (see AppUpdater.java): an HTTP
+                // 4xx or a reply that is not update.json means "nothing published"
+                const detail = Mixxx.AppUpdater.errorDetail || "";
+                if (/HTTP (403|404|410)/.test(detail) || detail.indexOf("JSONException") >= 0)
+                    return it ? "Nessun aggiornamento disponibile: il sito non ha ancora pubblicato informazioni di aggiornamento." : qsTr("No update available: the website has not published update information yet.");
+                return it ? "Impossibile controllare gli aggiornamenti: il server non risponde. Riprova più tardi." : qsTr("Could not check for updates: the server is not reachable. Try again later.");
+            }
         case "manifest":
             return it ? "Le informazioni di aggiornamento del sito non sono valide" : qsTr("The update information of the website is not valid");
         case "download":
@@ -121,6 +149,13 @@ ColumnLayout {
         font.letterSpacing: 1.2
         font.pixelSize: 12
     }
+    // Group heading inside a section (the analysis options are many)
+    component SubTitle: Text {
+        Layout.topMargin: 8
+        color: Theme.lightGray2
+        font.bold: true
+        font.pixelSize: 14
+    }
     component Card: Rectangle {
         default property alias content: cardColumn.data
 
@@ -154,6 +189,21 @@ ColumnLayout {
         on: !!Mixxx.Analysis.options[option]
 
         onSwitched: value => Mixxx.Analysis.setOption(option, value)
+    }
+
+    // -------------------------------------------------------------------- Help
+    SectionTitle {
+        text: root.updIt ? "Aiuto" : qsTr("Help")
+    }
+    Skin.DashboardAction {
+        Layout.fillWidth: true
+        subtitle: root.updIt ? "Mostra di nuovo il tour di benvenuto" : qsTr("Show the first-run tour again")
+        title: qsTr("Tutorial")
+
+        onClicked: {
+            Mixxx.Config.tutorialDone = false;
+            root.showTutorial();
+        }
     }
 
     // ---------------------------------------------------------------- Analysis
@@ -228,34 +278,44 @@ ColumnLayout {
 
         onClicked: Mixxx.Analysis.analyze("all")
     }
+    SubTitle {
+        text: root.updIt ? "Ritmo (BPM)" : qsTr("Tempo (BPM)")
+    }
     Option {
         option: "bpmDetection"
         subtitle: qsTr("Detect BPM and beat grid of tracks that have none")
         title: qsTr("BPM detection")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.bpmDetection
         option: "bpmFixedTempo"
         subtitle: qsTr("Straight grid for electronic music; off for live drums")
         title: qsTr("Assume constant tempo")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.bpmDetection
         option: "bpmFast"
         subtitle: qsTr("Faster, less accurate: analyzes only part of the track")
         title: qsTr("Fast BPM analysis")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.bpmDetection
         option: "bpmReanalyzeOnChange"
         subtitle: qsTr("Analyze the beat grid again when these settings change")
         title: qsTr("Re-detect BPM after changes")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.bpmDetection
         option: "bpmReanalyzeImported"
         subtitle: qsTr("Replaces the rekordbox grids with the app's own: usually leave off")
         title: qsTr("Re-detect BPM of imported tracks")
+    }
+    SubTitle {
+        text: root.updIt ? "Tonalità" : qsTr("Key")
     }
     Option {
         option: "keyDetection"
@@ -263,16 +323,21 @@ ColumnLayout {
         title: qsTr("Key detection")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.keyDetection
         option: "keyFast"
         subtitle: qsTr("Faster, less accurate")
         title: qsTr("Fast key analysis")
     }
     Option {
+        Layout.leftMargin: 16
         enabled: !!root.options.keyDetection
         option: "keyReanalyzeOnChange"
         subtitle: qsTr("Analyze the key again when these settings change")
         title: qsTr("Re-detect key after changes")
+    }
+    SubTitle {
+        text: root.updIt ? "Chiavette USB" : qsTr("USB drives")
     }
     Option {
         option: "devicePreanalysis"
@@ -300,7 +365,7 @@ ColumnLayout {
         on: perfMode.value > 0
         readonly property bool italian: Qt.locale().name.startsWith("it")
 
-        subtitle: italian ? "Waveform ridisegnate a ogni frame anche a deck fermo (niente scatto al play), niente analisi in background né rifinitura stem, schermo sempre acceso. Più batteria; sempre spenta all'avvio. Anche il bottone \"PERF\" della toolbar" : qsTr("Waveforms redrawn at every frame also while stopped (no hitch when you press play), no background analysis or stem refinement, screen always on. Uses more battery; always off at start. Also the \"PERF\" button of the toolbar")
+        subtitle: italian ? "Waveform ridisegnate a ogni frame anche a deck fermo (niente scatto al play), niente analisi in background né rifinitura stem, schermo sempre acceso. Più batteria; sempre spenta all'avvio. Anche il bottone con il simbolo prestazioni/fuoco della toolbar" : qsTr("Waveforms redrawn at every frame also while stopped (no hitch when you press play), no background analysis or stem refinement, screen always on. Uses more battery; always off at start. Also the toolbar button with the performance/flame symbol")
         title: italian ? "Modalità prestazioni" : qsTr("Performance mode")
 
         onSwitched: value => perfMode.value = value ? 1 : 0
@@ -313,17 +378,6 @@ ColumnLayout {
         title: qsTr("Waveforms drawn by the GPU")
 
         onSwitched: value => Mixxx.Config.waveformGpu = value
-    }
-
-    Skin.DashboardAction {
-        Layout.fillWidth: true
-        subtitle: qsTr("Show the first-run tour again")
-        title: qsTr("Tutorial")
-
-        onClicked: {
-            Mixxx.Config.tutorialDone = false;
-            root.showTutorial();
-        }
     }
 
     // ------------------------------------------------------------------ Screen
@@ -349,6 +403,16 @@ ColumnLayout {
             const index = choices.indexOf(Mixxx.Config.screenOffMinutes);
             Mixxx.Config.screenOffMinutes = choices[(index + 1) % choices.length];
         }
+    }
+    // Interface profile: Uboros -> Club -> Stack; also in Settings > Interface
+    Skin.DashboardAction {
+        readonly property bool italian: Qt.locale().name.startsWith("it")
+
+        Layout.fillWidth: true
+        subtitle: Theme.profileDescription(Mixxx.Config.interfaceProfile, italian) + (italian ? " Tocca per cambiare (Uboros, Club, Stack): si applica subito." : " Tap to change (Uboros, Club, Stack): it applies at once.")
+        title: (italian ? "Interfaccia: " : "Interface: ") + Theme.profileName(Mixxx.Config.interfaceProfile)
+
+        onClicked: Mixxx.Config.interfaceProfile = Theme.nextProfile(Mixxx.Config.interfaceProfile)
     }
 
     // ------------------------------------------------------------------- Cache
@@ -503,6 +567,7 @@ ColumnLayout {
         }
         InfoLine {
             text: root.updStatusText()
+            visible: text.length > 0
         }
         ProgressBar {
             Layout.fillWidth: true
@@ -523,7 +588,7 @@ ColumnLayout {
             }
         }
         InfoLine {
-            color: Theme.yellow
+            color: root.updErrorColor()
             text: root.updErrorText()
             visible: text.length > 0
         }

@@ -9,6 +9,13 @@ Item {
 
     required property string group
     property bool splitStemTracks: false
+    // Interface profiles Club / Stack (set by main.qml; 0 = none, uboros): the
+    // overview of the deck is on its waveform, a strip of this height under it
+    // (Club) or above it (Stack, overviewAbove); Stack also draws the info of
+    // the deck as chips over the waveform (infoChips)
+    property int overviewHeight: 0
+    property bool overviewAbove: false
+    property bool infoChips: false
 
     readonly property string zoomGroup: Mixxx.Config.waveformZoomSynchronization() ? "[Channel1]" : group
 
@@ -18,12 +25,29 @@ Item {
         Scratching
     }
 
+    // Default zoom: the configured one plus the offset of the interface
+    // profile (none for "uboros" and "club")
+    function defaultZoom() {
+        return Math.min(10, Mixxx.Config.waveformDefaultZoom() + Theme.waveZoomOffset);
+    }
+    // The interface profile changed: the renderers read their colors when they
+    // are made, so the display is made again; and the profile's default zoom
+    function profileApply() {
+        displayLoader.active = false;
+        displayLoader.active = true;
+        if (zoomControl.group == root.group)
+            zoomControl.value = root.defaultZoom();
+    }
+
     // The renderers are made when the display is created: it is created again
-    // when the GPU waveform is switched on or off in the dashboard
+    // when the GPU waveform is switched on or off in the dashboard, and when the
+    // interface profile changes
     Loader {
         id: displayLoader
 
         anchors.fill: parent
+        anchors.topMargin: root.overviewAbove ? root.overviewHeight : 0
+        anchors.bottomMargin: root.overviewAbove ? 0 : root.overviewHeight
 
         Connections {
             function onWaveformGpuChanged() {
@@ -33,13 +57,23 @@ Item {
 
             target: Mixxx.Config
         }
+        // Theme.profile follows Mixxx.Config.interfaceProfile (main.qml) and
+        // also changes once at start for a profile other than the default.
+        // Done later: Theme's palette must have settled
+        Connections {
+            function onProfileChanged() {
+                Qt.callLater(root.profileApply);
+            }
+
+            target: Theme
+        }
 
         sourceComponent: Component {
             MixxxControls.WaveformDisplay {
                 anchors.fill: parent
                 group: root.group
                 zoom: zoomControl.value
-                backgroundColor: "#5e000000"
+                backgroundColor: Theme.waveBackground
 
                 Behavior on zoom {
                     SmoothedAnimation {
@@ -49,14 +83,14 @@ Item {
                 }
 
                 Mixxx.WaveformRendererEndOfTrack {
-                    color: '#ff8872'
+                    color: Theme.waveEndOfTrack
                     endOfTrackWarningTime: 30
                 }
 
                 // Before the start / after the end of the track: discreet, the
                 // salmon color is kept for the end of track warning only
                 Mixxx.WaveformRendererPreroll {
-                    color: '#3a3f47'
+                    color: Theme.wavePreroll
                 }
 
                 Mixxx.WaveformRendererMarkRange {
@@ -91,14 +125,14 @@ Item {
                 }
 
                 Mixxx.WaveformRendererFiltered {
-                    axesColor: '#a1a1a1a1'
-                    // Three bands like the Pioneer decks: blue lows, amber mids,
-                    // near-white highs
-                    lowColor: '#1f5fff'
-                    midColor: '#c9852f'
-                    highColor: '#f1e7d6'
+                    axesColor: Theme.waveAxes
+                    // Three bands by interface profile (uboros: blue lows, amber
+                    // mids, near-white highs; stack: red, green, light blue)
+                    lowColor: Theme.waveLow
+                    midColor: Theme.waveMid
+                    highColor: Theme.waveHigh
 
-                    gainAll: 1.0
+                    gainAll: Theme.waveGain
                     gainLow: 1.0
                     gainMid: 1.0
                     gainHigh: 1.0
@@ -110,7 +144,7 @@ Item {
                 }
 
                 Mixxx.WaveformRendererBeat {
-                    color: '#60ffffff'
+                    color: Theme.waveBeat
                 }
 
                 Mixxx.WaveformRendererMark {
@@ -182,6 +216,38 @@ Item {
         }
     }
 
+    // The overview of the deck (the only one: Deck.qml makes it only when this
+    // is not used) and, on Club, its loop badge and beat counter
+    Item {
+        id: overviewStrip
+
+        // y, not anchors: switching the anchored edge at run time (the
+        // profile changed) leaves the height the anchors made
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: root.overviewAbove ? 0 : root.height - root.overviewHeight
+        height: root.overviewHeight
+        visible: root.overviewHeight > 0
+
+        Loader {
+            anchors.fill: parent
+            active: root.overviewHeight > 0
+
+            sourceComponent: Skin.WaveformOverview {
+                group: root.group
+            }
+        }
+
+        Loader {
+            anchors.fill: parent
+            active: root.overviewHeight > 0 && !root.infoChips
+
+            sourceComponent: Skin.DeckOverviewMarks {
+                group: root.group
+            }
+        }
+    }
+
     Mixxx.ControlProxy {
         id: scratchPositionEnableControl
 
@@ -218,7 +284,7 @@ Item {
 
         Component.onCompleted: {
             if (group == root.group) {
-                value = Mixxx.Config.waveformDefaultZoom()
+                value = root.defaultZoom()
             }
         }
     }
@@ -228,6 +294,9 @@ Item {
         property point mouseAnchor: Qt.point(0, 0)
 
         anchors.fill: parent
+        // Not over the overview strip (it has its own mouse area)
+        anchors.topMargin: root.overviewAbove ? root.overviewHeight : 0
+        anchors.bottomMargin: root.overviewAbove ? 0 : root.overviewHeight
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onDoubleClicked: {
             if (mouse.button == Qt.RightButton) {
@@ -288,6 +357,18 @@ Item {
             } else if (mouse.angleDelta.y > 0 && zoomControl.value < 10.0) {
                 zoomControl.value += 1;
             }
+        }
+    }
+
+    // Stack: the info of the deck over the waveform (no deck row in that view)
+    Loader {
+        anchors.fill: parent
+        anchors.topMargin: root.overviewAbove ? root.overviewHeight : 0
+        anchors.bottomMargin: root.overviewAbove ? 0 : root.overviewHeight
+        active: root.infoChips && root.overviewHeight > 0
+
+        sourceComponent: Skin.DeckChips {
+            group: root.group
         }
     }
 }

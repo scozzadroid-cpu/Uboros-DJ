@@ -43,6 +43,16 @@ const QString kTutorialGroup = QStringLiteral("[Tutorial]");
 const QString kTutorialDoneKey = QStringLiteral("Done");
 const QString kBurnInProtectionKey = QStringLiteral("BurnInProtection");
 const QString kScreenOffMinutesKey = QStringLiteral("ScreenOffMinutes");
+const QString kSkinGroup = QStringLiteral("[Skin]");
+const QString kInterfaceProfileKey = QStringLiteral("interface_profile");
+const QString kInterfaceProfileDefault = QStringLiteral("uboros");
+
+/// The interface profiles QML knows about
+bool isValidInterfaceProfile(const QString& profile) {
+    return profile == QStringLiteral("uboros") ||
+            profile == QStringLiteral("club") ||
+            profile == QStringLiteral("stack");
+}
 
 const mixxx::Logger kLogger("QmlConfigProxy");
 
@@ -211,6 +221,24 @@ void QmlConfigProxy::setScreenOffMinutes(int minutes) {
     m_pConfig->setValue(ConfigKey(kScreenGroup, kScreenOffMinutesKey), minutes);
     m_pConfig->save();
     emit screenOffMinutesChanged(minutes);
+}
+
+QString QmlConfigProxy::interfaceProfile() const {
+    const QString profile = m_pConfig->getValueString(
+            ConfigKey(kSkinGroup, kInterfaceProfileKey));
+    return isValidInterfaceProfile(profile) ? profile : kInterfaceProfileDefault;
+}
+
+void QmlConfigProxy::setInterfaceProfile(const QString& profile) {
+    if (!isValidInterfaceProfile(profile)) {
+        return;
+    }
+    if (profile == interfaceProfile()) {
+        return;
+    }
+    m_pConfig->setValue(ConfigKey(kSkinGroup, kInterfaceProfileKey), profile);
+    m_pConfig->save();
+    emit interfaceProfileChanged(profile);
 }
 
 void QmlConfigProxy::setScreenAsleep(bool asleep) {

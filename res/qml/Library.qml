@@ -68,7 +68,9 @@ Item {
         SplitView {
             id: sideBarSplitView
             SplitView.minimumWidth: 100
-            SplitView.preferredWidth: root.compact ? Math.min(170, root.width * 0.2) : 415
+            // Interface profiles: Club 22% of the width, Stack 18%; uboros
+            // (librarySidebarShare 0) keeps the original width
+            SplitView.preferredWidth: Theme.librarySidebarShare > 0 ? Math.round(root.width * Theme.librarySidebarShare) : (root.compact ? Math.min(170, root.width * 0.2) : 415)
             SplitView.maximumWidth: root.compact ? root.width * 0.5 : 600
 
             orientation: Qt.Vertical
@@ -125,6 +127,7 @@ Item {
             clip: true
 
             model: root.sidebar.tracklist
+            pathText: browser.shownPath
         }
     }
 }

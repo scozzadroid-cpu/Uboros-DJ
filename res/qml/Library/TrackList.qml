@@ -15,6 +15,9 @@ Rectangle {
     color: Theme.darkGray
 
     required property var model
+    // Path of the source whose tracks are shown (set by Library.qml from
+    // Browser.qml), e.g. "Rekordbox > Playlists > House"
+    property string pathText: ""
 
     LibraryComponent.Control {
         id: libraryControl
@@ -37,10 +40,40 @@ Rectangle {
         }
     }
 
+    // Takes no room while there is no path
+    Item {
+        id: pathBar
+
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: 5
+        anchors.rightMargin: 5
+        anchors.topMargin: root.pathText !== "" ? 3 : 0
+        height: root.pathText !== "" ? pathLabel.implicitHeight + 2 : 0
+        visible: root.pathText !== ""
+
+        Text {
+            id: pathLabel
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            // The end of a long path (the open folder) stays visible
+            elide: Text.ElideLeft
+            text: root.pathText
+            color: Theme.textMutedColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Qt.platform.os === "android" ? 10 : 12
+            font.weight: Font.Medium
+        }
+    }
+
     HorizontalHeaderView {
         id: horizontalHeader
 
-        anchors.top: parent.top
+        anchors.top: pathBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.margins: 5
@@ -180,6 +213,11 @@ Rectangle {
             player.loadTrackFromLocationUrl(urls[0], play);
         }
 
+        // The controller cursor (e.g. the BROWSE encoder of a DJ controller) is
+        // on the track list and not on the sources (see Control.qml): the
+        // cells (Cell.qml) draw the selected row stronger, or dim
+        readonly property bool controllerFocus: libraryControl.focusWidget == Skin.FocusedWidgetControl.WidgetKind.LibraryView
+
         ScrollBar.vertical: ScrollBar {
             policy: ScrollBar.AlwaysOn
         }
@@ -201,6 +239,33 @@ Rectangle {
         Keys.onEnterPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         Keys.onReturnPressed: this.loadSelectedTrackIntoNextAvailableDeck(false)
         model: root.model
+        // Columns of the interface profiles. The models keep their own copy of
+        // the columns of SourceTree.qml, so the widths of the profile are
+        // applied here, by position in that list (the Browse source, with
+        // other columns, is left as it is). "uboros": every width is the one
+        // of the source.
+        readonly property var libraryColumnKinds: ["cover", "title", "artist", "album", "year", "bpm", "key", "stems", "filetype", "bitrate", "duration"]
+
+        function preferredWidthOf(c) {
+            const own = model.columns[c].preferredWidth;
+            if (!(Theme.isClub || Theme.isStack) || model.columns.length !== libraryColumnKinds.length)
+                return own;
+            const kind = libraryColumnKinds[c];
+            if (Theme.isClub) {
+                // Cover, title, artist, BPM, key, duration (and the stems badge)
+                if (kind === "cover")
+                    return 24;
+                if (kind === "duration")
+                    return 52;
+                if (kind === "album" || kind === "year" || kind === "filetype" || kind === "bitrate")
+                    return 0;
+            } else if (kind === "cover") {
+                // Stack: dense rows, no room for a cover
+                return 0;
+            }
+            return own;
+        }
+
         function updateColumnSize() {
             usedWidth = 0;
             dynamicColumnCount = 0;
@@ -208,10 +273,11 @@ Rectangle {
                 return;
             }
             for (let c = 0; c < model.columns.length; c++) {
-                if (model.columns[c].hidden || model.columns[c].preferredWidth === 0) {
+                const preferredWidth = preferredWidthOf(c);
+                if (model.columns[c].hidden || preferredWidth === 0) {
                     continue
-                } else if (model.columns[c].preferredWidth > 0) {
-                    usedWidth += model.columns[c].preferredWidth;
+                } else if (preferredWidth > 0) {
+                    usedWidth += preferredWidth;
                 } else {
                     dynamicColumnCount += model.columns[c].fillSpan || 1
                 }
@@ -220,16 +286,34 @@ Rectangle {
         Component.onCompleted: this.updateColumnSize()
         onModelChanged: this.updateColumnSize()
 
+        // The interface profile changed: the widths of the columns and the
+        // height of the rows are read again
+        Connections {
+            target: Theme
+
+            function onProfileChanged() {
+                view.updateColumnSize();
+                view.forceLayout();
+            }
+        }
+
         property int usedWidth: 0
         property int dynamicColumnCount: 0
+
+        // Club and Stack have their own row height ("uboros": the height of
+        // the cells, as before)
+        rowHeightProvider: function (row) {
+            return (Theme.isClub || Theme.isStack) ? Theme.trackRowHeight : -1;
+        }
 
         columnWidthProvider: function(column) {
             const columnDef = view.model.columns[column]
             if (columnDef.hidden) {
                 return 0;
             }
-            if (columnDef.preferredWidth >= 0) {
-                return columnDef.preferredWidth;
+            const preferredWidth = view.preferredWidthOf(column);
+            if (preferredWidth >= 0) {
+                return preferredWidth;
             }
             const span = columnDef.fillSpan || 1;
             return span * (view.width - view.usedWidth) / view.dynamicColumnCount;
@@ -243,6 +327,10 @@ Rectangle {
                     return ;
                 }
                 const newRow = Mixxx.MathUtils.positiveModulo(row, rowCount);
+                // Choosing a row (touch, or the controller already here) puts
+                // the controller cursor on the list, not on the sources
+                if (libraryControl.focusWidget == Skin.FocusedWidgetControl.WidgetKind.Sidebar)
+                    libraryControl.focusWidget = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
                 this.select(this.model.index(newRow, 0), ItemSelectionModel.Rows | ItemSelectionModel.Select | ItemSelectionModel.Clear | ItemSelectionModel.Current);
                 // Keep the selected track visible, e.g. when browsing with
                 // the controller's browse knob

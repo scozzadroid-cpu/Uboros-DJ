@@ -11,6 +11,8 @@ Rectangle {
 
     required property string group
     required property int rightColumnWidth
+    // Size of the BPM number (Deck.qml: bigger on the Club minimized deck)
+    property int bpmFontSize: 17
     // Key / remaining time column: narrower than the BPM column (its
     // content is short), the room goes to title and artist
     readonly property int keyColumnWidth: Math.min(rightColumnWidth, 74)
@@ -491,7 +493,7 @@ Rectangle {
         readonly property bool unsure: root.currentTrack ? root.currentTrack.beatsUnsure : false
         text: displayBpm > 0 ? displayBpm.toFixed(2) + (unsure ? "?" : "") : "-"
         font.bold: true
-        font.pixelSize: 17
+        font.pixelSize: root.bpmFontSize
         color: unsure ? Theme.yellow : Theme.white
 
         Mixxx.ControlProxy {

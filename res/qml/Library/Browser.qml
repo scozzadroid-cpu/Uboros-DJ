@@ -19,7 +19,24 @@ Rectangle {
     color: Theme.backgroundColor
 
     Component.onCompleted: {
-        root.model.activate(root.model.index(0, 0))
+        root.showSource(root.model.index(0, 0))
+    }
+
+    // Path of the source whose tracks are shown, e.g. "Rekordbox > Playlists
+    // > House" (label above the track list, so "back" is predictable)
+    property string shownPath: ""
+
+    function pathOf(index) {
+        const names = [];
+        for (let i = index; i && i.valid; i = i.parent)
+            names.unshift(root.model.data(i, Qt.DisplayRole));
+        return names.join(" › ");
+    }
+
+    // Shows the tracks of a source (every place that activates one)
+    function showSource(index) {
+        root.shownPath = root.pathOf(index);
+        root.model.activate(index);
     }
 
     // Controller navigation (e.g. the BROWSE encoder of a DJ controller),
@@ -86,7 +103,7 @@ Rectangle {
         const index = featureView.index(row, 0);
         // Read before activating: activating may list the children lazily
         const wasExpanded = featureView.isExpanded(row);
-        root.model.activate(index);
+        root.showSource(index);
         if (wasExpanded) {
             focusedWidget.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
             return;
@@ -116,6 +133,34 @@ Rectangle {
                 focusedWidget.value = Skin.FocusedWidgetControl.WidgetKind.LibraryView;
             }
         }
+    }
+
+    // Back (SHIFT + BROWSE press on the FLX4 = [Library],MoveLeft) while the
+    // cursor is on the sources: an open source is closed first (like a tap on
+    // it), then the cursor goes up to the parent source. Only the cursor
+    // moves; nothing is opened on the way. In the track list the same control
+    // brings the cursor here instead (Control.qml).
+    function back() {
+        const row = root.currentViewRow();
+        if (row < 0)
+            return;
+        // A source the controller has just pressed must not open afterwards
+        openedCheck.stop();
+        root.openedRow = -1;
+        if (featureView.isExpanded(row)) {
+            // No automatic re-expansion until the close is done
+            root.noAutoExpandUntil = Date.now() + 800;
+            featureView.collapse(row);
+            return;
+        }
+        const parentIndex = featureSelection.currentIndex.parent;
+        if (!parentIndex || !parentIndex.valid)
+            return;
+        const parentRow = featureView.rowAtIndex(parentIndex);
+        if (parentRow < 0)
+            return;
+        featureSelection.setCurrentIndex(parentIndex, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+        featureView.positionViewAtRow(parentRow, TableView.Contain);
     }
 
     onControllerFocusChanged: {
@@ -157,6 +202,25 @@ Rectangle {
         onValueChanged: (value) => {
             if (value != 0)
                 root.onPress();
+        }
+    }
+
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveLeft"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus)
+                root.back();
+        }
+    }
+
+    // The other way round: like pressing, enters the source under the cursor
+    Mixxx.ControlProxy {
+        group: "[Library]"
+        key: "MoveRight"
+        onValueChanged: (value) => {
+            if (value != 0 && root.controllerFocus)
+                Qt.callLater(root.openSelection);
         }
     }
 
@@ -358,7 +422,7 @@ Rectangle {
                                         // Lazy sources (folders, drives) only list
                                         // their children once activated
                                         if (!treeView.model.hasChildren(index) || !hasChildren)
-                                            treeView.model.activate(index);
+                                            root.showSource(index);
                                         if (treeView.model.hasChildren(index))
                                             treeView.expand(viewRow);
                                         else
@@ -373,7 +437,7 @@ Rectangle {
                                 onPressAndHold: (event) => {
                                     const index = currentModelIndex();
                                     treeView.selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
-                                    treeView.model.activate(index);
+                                    root.showSource(index);
                                 }
                             }
 

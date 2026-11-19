@@ -61,6 +61,8 @@ class GroupedTrackFeature final : public LibraryFeature {
     LibraryTableModel* m_pTableModel;
     parented_ptr<TreeItemModel> m_pSidebarModel;
     bool m_loaded = false;
+    /// What the sidebar shows now (labels, data, nesting)
+    QString m_treeSignature;
 };
 class AllTrackLibraryFeature final : public LibraryFeature {
     Q_OBJECT

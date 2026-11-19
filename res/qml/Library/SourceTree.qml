@@ -95,7 +95,7 @@ Mixxx.LibrarySourceTree {
             id: value
             anchors.fill: parent
             anchors.leftMargin: Qt.platform.os === "android" ? 6 : 15
-            font.pixelSize: Qt.platform.os === "android" ? 12 : 14
+            font.pixelSize: Theme.trackFontSize
             text: display ?? ""
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -105,10 +105,23 @@ Mixxx.LibrarySourceTree {
     }
 
     // Green: same key or compatible on the Camelot wheel
+    // Stack: the key in the color of the Camelot wheel (a bar on the left
+    // marks a compatible key, bold text a match with the playing deck)
     component KeyDelegate: DefaultDelegate {
-        readonly property int match: Harmony.compatibility(Harmony.fromText(display), root.referenceKey)
-        textColor: match == 2 ? "#4ee04e" : (match == 1 ? "#a6e36b" : baseTextColor)
-        textBold: match > 0
+        readonly property var camelot: Harmony.fromText(display)
+        readonly property int match: Harmony.compatibility(camelot, root.referenceKey)
+        textColor: Theme.isStack && camelot ? (played ? Qt.darker(Theme.camelotColor(camelot.n), 1.5) : Theme.camelotColor(camelot.n)) : (match == 2 ? "#4ee04e" : (match == 1 ? "#a6e36b" : baseTextColor))
+        textBold: match > 0 || (Theme.isStack && camelot !== null)
+
+        Rectangle {
+            visible: Theme.isStack && match > 0
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: 3
+            height: parent.height - 6
+            radius: 1.5
+            color: match == 2 ? "#4ee04e" : "#a6e36b"
+        }
     }
 
     // Green: within 3% of the reference BPM (also half/double tempo),
@@ -177,8 +190,8 @@ Mixxx.LibrarySourceTree {
                     fillMode: Image.PreserveAspectCrop
                     source: cover_art
                     // Decode a thumbnail, not the full size embedded cover
-                    sourceSize.width: 96
-                    sourceSize.height: 96
+                    sourceSize.width: Theme.isClub ? 64 : 96
+                    sourceSize.height: Theme.isClub ? 64 : 96
                     clip: true
                     asynchronous: true
                 }
@@ -310,6 +323,17 @@ Mixxx.LibrarySourceTree {
             preferredWidth: Qt.platform.os === "android" ? 0 : 70
 
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Bitrate
+            delegate: DefaultDelegate { }
+        },
+        // Track length (ColumnCache COLUMN_LIBRARYTABLE_DURATION = 12, not in
+        // the SQLColumns enum). Hidden (0 width) except in the Club profile,
+        // see TrackList.qml (preferredWidthOf). Keep it last, and the order of
+        // these columns in step with libraryColumnKinds there.
+        Mixxx.TrackListColumn {
+            label: qsTr("Time")
+            preferredWidth: 0
+
+            columnIdx: 12
             delegate: DefaultDelegate { }
         }
     ]

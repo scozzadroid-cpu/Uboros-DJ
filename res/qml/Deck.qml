@@ -8,6 +8,9 @@ Item {
 
     required property string group
     property bool minimized: false
+    // Interface profiles Club / Stack: the overview of this deck is on its
+    // waveform (WaveformDisplay.qml), so it is not made here too
+    property bool overviewOnWave: false
     property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
 
     Drag.active: dragArea.drag.active
@@ -48,6 +51,8 @@ Item {
         // Minimized decks have room to spare: the BPM column also shows the
         // difference from the original BPM
         rightColumnWidth: root.minimized ? 96 : rateSlider.width
+        // Club: the BPM is the big number of the minimized deck
+        bpmFontSize: root.minimized && Theme.isClub ? 20 : 17
     }
 
     // Minimized (e.g. on a phone): a thin overview of the whole track under
@@ -56,7 +61,7 @@ Item {
     Rectangle {
         id: miniOverview
 
-        visible: root.minimized
+        visible: root.minimized && !root.overviewOnWave
         anchors.top: infoBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -67,9 +72,14 @@ Item {
         radius: 4
         color: Theme.deckBackgroundColor
 
-        Skin.WaveformOverview {
+        // One overview per deck: here, or on the waveform (Club, Stack)
+        Loader {
             anchors.fill: parent
-            group: root.group
+            active: !root.overviewOnWave
+
+            sourceComponent: Skin.WaveformOverview {
+                group: root.group
+            }
         }
 
         // Active loop with its length in beats (MASTER, SYNC and KEY LOCK are

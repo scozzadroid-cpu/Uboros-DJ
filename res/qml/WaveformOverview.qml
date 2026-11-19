@@ -9,6 +9,11 @@ Item {
 
     required property string group
 
+    function profileApply() {
+        overviewLoader.active = false;
+        overviewLoader.active = true;
+    }
+
     states: [
         State {
             when: passthroughControl.value == 0
@@ -117,15 +122,34 @@ Item {
         anchors.fill: parent
         color: Theme.deckBackgroundColor
 
-        MixxxControls.WaveformOverview {
+        // The overview paints with its colors when it is made or the track
+        // changes, not when a color changes: it is made again when the interface
+        // profile changes (see WaveformDisplay.qml)
+        Loader {
+            id: overviewLoader
+
             anchors.fill: parent
-            channels: Mixxx.WaveformOverview.Channels.LeftChannel
-            renderer: Mixxx.WaveformOverview.Renderer.Filtered
-            // Same three bands as the scrolling waveform
-            colorHigh: '#f1e7d6'
-            colorMid: '#c9852f'
-            colorLow: '#1f5fff'
-            group: root.group
+
+            Connections {
+                function onProfileChanged() {
+                    Qt.callLater(root.profileApply);
+                }
+
+                target: Theme
+            }
+
+            sourceComponent: Component {
+                MixxxControls.WaveformOverview {
+                    anchors.fill: parent
+                    channels: Mixxx.WaveformOverview.Channels.LeftChannel
+                    renderer: Mixxx.WaveformOverview.Renderer.Filtered
+                    // Same three bands as the scrolling waveform
+                    colorHigh: Theme.waveHigh
+                    colorMid: Theme.waveMid
+                    colorLow: Theme.waveLow
+                    group: root.group
+                }
+            }
         }
     }
 

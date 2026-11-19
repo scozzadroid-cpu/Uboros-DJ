@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Performance symbol (flame), shown while performance mode is on.
+     Drawn by hand: red-orange outer flame with a yellow core -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="outer" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffb000"/>
+      <stop offset="0.5" stop-color="#ff6a00"/>
+      <stop offset="1" stop-color="#ff2a1a"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fff2a8"/>
+      <stop offset="1" stop-color="#ffc21a"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#outer)" d="M12.6 1.2 C13.4 4.6 16.2 6.4 17.9 9.1 C19.1 11 19.6 12.7 19.6 14.6 C19.6 19.1 16.2 22.8 12 22.8 C7.8 22.8 4.4 19.3 4.4 14.9 C4.4 12.2 5.6 10.1 7.4 8.2 C7.6 9.6 8.2 10.6 9.2 11.2 C8.7 7.6 10 3.8 12.6 1.2 Z"/>
+  <path fill="url(#core)" d="M12 21.2 C9.6 21.2 7.9 19.4 7.9 17.2 C7.9 15.4 9 14 10.4 12.8 C10.6 14.1 11.2 14.8 12 15.3 C13.6 14.2 14.2 13 14 11.4 C15.4 12.8 16.1 14.4 16.1 17.1 C16.1 19.5 14.4 21.2 12 21.2 Z"/>
+</svg>

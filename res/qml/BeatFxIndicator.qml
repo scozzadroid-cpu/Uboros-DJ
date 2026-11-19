@@ -39,7 +39,13 @@ Rectangle {
         return "—";
     }
 
-    implicitWidth: row.implicitWidth + 20
+    // Natural width (all the parts); the toolbar may give less: then the label
+    // "BEAT FX" is dropped and the effect name is shortened (nothing here depends
+    // on root.width, so no binding loop)
+    readonly property int fullWidth: labelText.implicitWidth + nameText.implicitWidth
+            + stateText.implicitWidth + channelsText.implicitWidth + 3 * row.spacing + 20
+
+    implicitWidth: fullWidth
     implicitHeight: 30
     radius: 6
     color: on ? "#2f6b1f" : Theme.darkGray2
@@ -109,6 +115,9 @@ Rectangle {
         spacing: 8
 
         Text {
+            id: labelText
+
+            visible: root.width >= root.fullWidth
             text: "BEAT FX"
             color: Theme.textMutedColor
             font.family: Theme.fontFamily
@@ -117,6 +126,13 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
+            id: nameText
+
+            // Shortened (with ...) only when the toolbar is too narrow
+            width: Math.max(24, Math.min(implicitWidth, root.width - 20
+                    - (labelText.visible ? labelText.implicitWidth + row.spacing : 0)
+                    - stateText.implicitWidth - channelsText.implicitWidth - 2 * row.spacing))
+            elide: Text.ElideRight
             text: root.effectName
             color: root.on ? "#b9ff9e" : Theme.white
             font.family: Theme.fontFamily
@@ -125,6 +141,8 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
+            id: stateText
+
             text: root.on ? "ON" : "armed"
             color: root.on ? "#4ee04e" : Theme.textMutedColor
             font.family: Theme.fontFamily
@@ -133,6 +151,8 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
+            id: channelsText
+
             text: root.channels + "  " + Math.round(mixControl.value * 100) + "%"
             color: Theme.textMutedColor
             font.family: Theme.fontFamily

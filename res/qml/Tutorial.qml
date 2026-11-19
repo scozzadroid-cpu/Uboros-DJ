@@ -175,9 +175,9 @@ Item {
         },
         {
             view: "none",
-            targets: ["liveStemsSwitch", "liveStemsButton"],
+            targets: ["liveStemsButton"],
             title: tr("Stem", "Stems"),
-            text: flx ? tr("Separa voce, batteria, basso e resto direttamente sul telefono, senza internet. Sulla FLX4 comanda gli stem con SMART CFX; accendi prima l'interruttore Live Stems. Il primo brano richiede un po' di tempo, poi il risultato resta in cache.", "Split vocals, drums, bass and other right on the phone, no internet. On the FLX4 SMART CFX drives the stems; turn the Live Stems switch on first. The first track takes a little while, then the result is cached.") : tr("Separa voce, batteria, basso e resto direttamente sul telefono, senza internet. Si comandano dallo schermo. Accendi l'interruttore Live Stems. Il primo brano richiede un po' di tempo, poi il risultato resta in cache.", "Split vocals, drums, bass and other right on the phone, no internet. They are controlled from the screen. Turn the Live Stems switch on. The first track takes a little while, then the result is cached.")
+            text: flx ? tr("Separa voce, batteria, basso e resto direttamente sul telefono, senza internet. Sulla FLX4 comanda gli stem con SMART CFX; accendi prima il pulsante Live Stems. Il primo brano richiede un po' di tempo, poi il risultato resta in cache.", "Split vocals, drums, bass and other right on the phone, no internet. On the FLX4 SMART CFX drives the stems; turn the Live Stems button on first. The first track takes a little while, then the result is cached.") : tr("Separa voce, batteria, basso e resto direttamente sul telefono, senza internet. Si comandano dallo schermo. Accendi il pulsante Live Stems. Il primo brano richiede un po' di tempo, poi il risultato resta in cache.", "Split vocals, drums, bass and other right on the phone, no internet. They are controlled from the screen. Turn the Live Stems button on. The first track takes a little while, then the result is cached.")
         },
         {
             view: "none",
@@ -193,9 +193,9 @@ Item {
         },
         {
             view: "none",
-            targets: ["showPreferencesButton"],
+            targets: ["helpButton", "showPreferencesButton"],
             title: tr("Pronto!", "You're ready"),
-            text: tr("Dall'ingranaggio trovi audio, schermo e cache, e puoi rivedere questo giro. Buon set!", "The gear icon has audio, screen and cache options, and lets you see this tour again. Have a good set!")
+            text: tr("Il tasto ? ti rimostra questo giro quando vuoi, sempre in alto accanto all'ingranaggio. Dall'ingranaggio trovi audio, schermo e cache. Buon set!", "The ? button shows this tour again whenever you like, always at the top next to the gear icon. The gear icon has audio, screen and cache options. Have a good set!")
         }
     ]
     readonly property bool last: step === steps.length - 1

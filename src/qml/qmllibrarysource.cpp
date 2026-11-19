@@ -5,6 +5,7 @@
 #include <qqmlengine.h>
 
 #include <QAbstractListModel>
+#include <QMap>
 #include <QVariant>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -36,6 +37,69 @@ AllTrackLibraryFeature::AllTrackLibraryFeature(Library* pLibrary, UserSettingsPo
 void AllTrackLibraryFeature::activate() {
     emit showTrackModel(m_pLibraryTableModel);
 }
+
+namespace {
+
+/// One folder of the tree shown by "Folders": like the folder view of
+/// rekordbox, the real hierarchy of the disk with a count of the tracks
+/// inside (subfolders included)
+struct DirNode {
+    QString name;
+    QString path;
+    int direct = 0; // tracks directly in this folder
+    int total = 0;  // tracks in this folder and below
+    QMap<QString, std::shared_ptr<DirNode>> kids;
+};
+
+int computeTotals(DirNode& node) {
+    node.total = node.direct;
+    for (const auto& kid : std::as_const(node.kids)) {
+        node.total += computeTotals(*kid);
+    }
+    return node.total;
+}
+
+/// Entry for a folder. A folder with no tracks of its own and a single
+/// subfolder (that has more inside) is merged with it ("emulated/0/Music"),
+/// a folder whose only child is a folder with just tracks is kept as is
+/// (Artist > Title, like on the USB drive)
+std::unique_ptr<TreeItem> makeFolderItem(const DirNode& start) {
+    QStringList names{start.name};
+    const DirNode* pNode = &start;
+    while (pNode->direct == 0 && pNode->kids.size() == 1) {
+        const DirNode& next = *pNode->kids.first();
+        if (next.kids.isEmpty()) {
+            break;
+        }
+        names << next.name;
+        pNode = &next;
+    }
+    QString label = names.size() > 3
+            ? QStringLiteral("\u2026/") + names.mid(names.size() - 3).join('/')
+            : names.join('/');
+    auto pItem = std::make_unique<TreeItem>(
+            QStringLiteral("%1 (%2)").arg(label).arg(pNode->total),
+            pNode->path);
+    for (const auto& kid : std::as_const(pNode->kids)) {
+        pItem->insertChild(pItem->childRows(), makeFolderItem(*kid));
+    }
+    return pItem;
+}
+
+/// Everything the entries say (labels, data, nesting): to know whether the
+/// sidebar has to be rebuilt
+void appendSignature(const TreeItem* pItem, QString* pOut) {
+    *pOut += pItem->getLabel();
+    *pOut += QChar(0x1f);
+    *pOut += pItem->getData().toString();
+    *pOut += QChar('(');
+    for (const TreeItem* pChild : pItem->children()) {
+        appendSignature(pChild, pOut);
+    }
+    *pOut += QChar(')');
+}
+
+} // namespace
 
 GroupedTrackFeature::GroupedTrackFeature(
         Library* pLibrary, UserSettingsPointer pConfig, Mode mode)
@@ -103,35 +167,65 @@ void GroupedTrackFeature::reloadGroups() {
         return;
     }
     std::vector<std::unique_ptr<TreeItem>> children;
-    while (query.next()) {
-        const QString value = query.value(0).toString();
-        QString label = value;
-        if (m_mode == Mode::Folder) {
-            // Parent and name: "Music/House" is clearer than "House" alone
+    if (m_mode == Mode::Folder) {
+        DirNode top;
+        while (query.next()) {
+            const QString value = query.value(0).toString();
+            const int count = query.value(1).toInt();
             const QStringList parts = value.split('/', Qt::SkipEmptyParts);
-            label = parts.size() > 1 ? parts.mid(parts.size() - 2).join('/')
-                                     : value;
+            if (parts.isEmpty()) {
+                continue;
+            }
+            const QString prefix = value.startsWith('/') ? QStringLiteral("/") : QString();
+            DirNode* pNode = &top;
+            for (int i = 0; i < parts.size(); ++i) {
+                std::shared_ptr<DirNode>& pKid =
+                        pNode->kids[parts.at(i).toLower() + QChar(0) + parts.at(i)];
+                if (!pKid) {
+                    pKid = std::make_shared<DirNode>();
+                    pKid->name = parts.at(i);
+                    pKid->path = prefix + parts.mid(0, i + 1).join('/');
+                }
+                pNode = pKid.get();
+            }
+            pNode->direct += count;
         }
-        children.push_back(std::make_unique<TreeItem>(
-                QStringLiteral("%1 (%2)").arg(label).arg(query.value(1).toInt()),
-                value));
+        computeTotals(top);
+        // The part of the path that all the tracks share (/storage/emulated/0...)
+        // says nothing: the entries start where the folders split
+        std::vector<const DirNode*> tops;
+        for (const auto& kid : std::as_const(top.kids)) {
+            tops.push_back(kid.get());
+        }
+        while (tops.size() == 1 && tops[0]->direct == 0 && !tops[0]->kids.isEmpty()) {
+            const DirNode* pOnly = tops[0];
+            tops.clear();
+            for (const auto& kid : std::as_const(pOnly->kids)) {
+                tops.push_back(kid.get());
+            }
+        }
+        for (const DirNode* pNode : tops) {
+            children.push_back(makeFolderItem(*pNode));
+        }
+    } else {
+        while (query.next()) {
+            children.push_back(std::make_unique<TreeItem>(
+                    QStringLiteral("%1 (%2)")
+                            .arg(query.value(0).toString())
+                            .arg(query.value(1).toInt()),
+                    query.value(0).toString()));
+        }
     }
     // Same groups and counts as now: leave the model alone, so that the
     // selection of the user in the sidebar is not lost
-    const QList<TreeItem*>& current = root->children();
-    if (static_cast<size_t>(current.size()) == children.size()) {
-        bool same = true;
-        for (size_t i = 0; i < children.size(); ++i) {
-            if (current.at(static_cast<qsizetype>(i))->getLabel() != children[i]->getLabel() ||
-                    current.at(static_cast<qsizetype>(i))->getData() != children[i]->getData()) {
-                same = false;
-                break;
-            }
-        }
-        if (same) {
-            return;
-        }
+    QString signature;
+    for (const auto& pChild : children) {
+        appendSignature(pChild.get(), &signature);
     }
+    if (signature == m_treeSignature) {
+        return;
+    }
+    m_treeSignature = signature;
     if (root->childRows() > 0) {
         m_pSidebarModel->removeRows(0, root->childRows());
     }

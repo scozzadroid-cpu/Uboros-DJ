@@ -17,6 +17,8 @@ Rectangle {
     // Opened from the DJ view (toolbar button): it stays open with a
     // controller connected
     property bool openedByUser: false
+    // English by default, Italian on an Italian system (as the dashboard sections)
+    readonly property bool italian: Qt.locale().name.startsWith("it")
 
     signal openSettings
     signal showTutorial
@@ -40,7 +42,8 @@ Rectangle {
     Flickable {
         // Tablets / big screens: a centered column, not stretched edge to edge
         readonly property real contentMaxWidth: 760
-        anchors.bottom: parent.bottom
+        // The scrolling list ends where the fixed bar starts
+        anchors.bottom: backBar.top
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 16
         anchors.top: parent.top
@@ -85,6 +88,14 @@ Rectangle {
                         font.pixelSize: 11
                         text: qsTr("FREE · OPEN SOURCE")
                     }
+                }
+                Skin.Button {
+                    activeColor: Theme.white
+                    implicitHeight: 40
+                    implicitWidth: 40
+                    text: "?"
+
+                    onClicked: root.showTutorial()
                 }
                 Skin.Button {
                     activeColor: Theme.white
@@ -209,13 +220,6 @@ Rectangle {
 
                 onClicked: Mixxx.Library.importUsbDrives()
             }
-            Skin.DashboardAction {
-                Layout.fillWidth: true
-                subtitle: qsTr("Decks, library and on-screen mixer, in landscape")
-                title: root.deviceCount > 0 ? qsTr("Back to the DJ view") : qsTr("Open the DJ view without a controller")
-
-                onClicked: root.continueWithoutController()
-            }
             Skin.DashboardMaintenance {
                 onShowTutorial: root.showTutorial()
                 Layout.bottomMargin: 24
@@ -223,6 +227,79 @@ Rectangle {
                 // Not built until the dashboard is shown
                 visible: root.visible
             }
+        }
+    }
+
+    // Fixed bar at the bottom: the way back to the DJ view never scrolls away
+    // (and stays within the thumb's reach). Not in the scrolling list.
+    Rectangle {
+        id: backBar
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        color: "#0b0c0f"
+        implicitHeight: backButton.implicitHeight + 16
+        z: 5
+
+        // Top edge line
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            color: Theme.deckLineColor
+            height: 1
+        }
+        AbstractButton {
+            id: backButton
+
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            // Large touch target (at least 56 px high), same column width as the list
+            implicitHeight: Math.max(56, backLabels.implicitHeight + 20)
+            width: Math.min(parent.width - 32, 760)
+
+            background: Rectangle {
+                border.color: Qt.lighter(Theme.accentColor, 1.3)
+                border.width: 1
+                color: backButton.pressed ? Qt.darker(Theme.accentColor, 1.4) : Theme.accentColor
+                radius: 14
+            }
+            contentItem: RowLayout {
+                spacing: 12
+
+                Text {
+                    Layout.leftMargin: 14
+                    color: Theme.white
+                    font.bold: true
+                    font.pixelSize: 30
+                    text: "‹"
+                }
+                ColumnLayout {
+                    id: backLabels
+
+                    Layout.fillWidth: true
+                    spacing: 1
+
+                    Text {
+                        Layout.fillWidth: true
+                        color: Theme.white
+                        font.bold: true
+                        font.pixelSize: 16
+                        text: root.deviceCount > 0 ? (root.italian ? "Torna alla vista DJ" : qsTr("Back to the DJ view")) : (root.italian ? "Apri la vista DJ senza controller" : qsTr("Open the DJ view without a controller"))
+                        wrapMode: Text.WordWrap
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        color: Qt.alpha(Theme.white, 0.75)
+                        font.pixelSize: 12
+                        text: root.italian ? "Deck, libreria e mixer a schermo, in orizzontale" : qsTr("Decks, library and on-screen mixer, in landscape")
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            onClicked: root.continueWithoutController()
         }
     }
 }
