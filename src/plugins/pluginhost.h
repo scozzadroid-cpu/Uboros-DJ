@@ -32,7 +32,7 @@ class Plugin : public QObject {
             : QObject(parent) {
     }
 
-    /// Short lower case name, e.g. "soundcloud" (QML folder, settings group)
+    /// Short lower case name, e.g. "example" (QML folder, settings group)
     virtual QString id() const = 0;
 
     /// Called once at start-up, before the QML interface is created. The
@@ -52,7 +52,7 @@ class Plugin : public QObject {
         return {};
     }
 
-    /// QML files, relative to the QML root (e.g. "Plugins/soundcloud/Dashboard.qml"):
+    /// QML files, relative to the QML root (e.g. "Plugins/example/Dashboard.qml"):
     /// each one is a section at the end of the Dashboard (Dashboard > ...)
     virtual QStringList dashboardSections() const {
         return {};
@@ -94,7 +94,7 @@ class PluginHost : public QObject {
     }
     QStringList dashboardSections() const;
 
-    /// Sidebar labels the library must not show now (e.g. "SoundCloud" until the
+    /// Sidebar labels the library must not show now (e.g. "Example" until the
     /// user has signed in)
     QStringList hiddenLabels() const {
         return m_hiddenLabels;

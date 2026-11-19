@@ -1,6 +1,6 @@
 # Plugins outside of this source tree (see PLUGINS.md).
 #
-#   cmake ... -DUBOROS_PLUGINS_DIR="/path/to/plugins/soundcloud;/path/to/other"
+#   cmake ... -DUBOROS_PLUGINS_DIR="/path/to/plugin;/path/to/other"
 #
 # Every folder has a plugin.cmake that calls uboros_add_plugin(). Without the
 # option nothing is added to the app: no source, no QML, no Java, no define.

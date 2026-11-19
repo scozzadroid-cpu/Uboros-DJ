@@ -243,7 +243,7 @@ Rectangle {
     TableView {
         id: view
 
-        // A plugin (SoundCloud) may get the selected track in the background: told once
+        // A plugin may get the selected track in the background: told once
         // the selection rests (the browse knob passes many rows)
         Timer {
             id: selectionRest

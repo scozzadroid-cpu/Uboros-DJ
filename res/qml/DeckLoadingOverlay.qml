@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import "Theme"
 
-// Over the info bar of a deck while a plugin (SoundCloud) gets the track that was loaded into it:
+// Over the info bar of a deck while a plugin gets the track that was loaded into it:
 // the title and the artist, what is happening (connecting, downloading with the percentage) and a
 // progress bar along the bottom edge. A failure stays on for a few seconds, with its reason.
 // Nothing is drawn, and no animation runs, when the deck waits for nothing.
@@ -109,7 +109,7 @@ Rectangle {
                 elide: Text.ElideRight
                 font.bold: true
                 font.pixelSize: 11
-                text: root.failed ? (root.info.message || "") : (root.info && root.info.status ? root.info.status : (root.progress < 0 ? qsTr("Connecting to SoundCloud…") : qsTr("Downloading from SoundCloud…")))
+                text: root.failed ? (root.info.message || "") : (root.info && root.info.status ? root.info.status : (root.progress < 0 ? qsTr("Connecting…") : qsTr("Downloading…")))
             }
         }
 

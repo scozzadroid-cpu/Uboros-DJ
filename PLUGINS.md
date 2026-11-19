@@ -13,7 +13,7 @@ no Java, no define. The host itself costs nothing (an empty list, one QML single
 
     cd ~/mixxx-android
     ./build.sh build-amidi                      # normal app, no plugin
-    ./build.sh build-private -DUBOROS_PLUGINS_DIR=$HOME/mixxx-android/plugins/soundcloud -DENABLE_SELF_UPDATE=OFF
+    ./build.sh build-private -DUBOROS_PLUGINS_DIR=/path/to/your/plugin -DENABLE_SELF_UPDATE=OFF
 
 Use a separate build folder per variant (they never invalidate each other). Several plugins:
 `-DUBOROS_PLUGINS_DIR="/a;/b"`. `-DUBOROS_APPLICATION_ID=org.x.y` gives the APK another
@@ -40,9 +40,9 @@ applicationId (it installs next to the normal app; the plugin's `plugin.cmake` m
 - `Plugin::createLibrarySources(parent, defaultColumns)`: entries of the library sidebar, shown
   above the USB drives. A source is a `QmlLibrarySource` wrapping a `LibraryFeature`.
 - `PluginHost::setLabelHidden(label, hidden)`: hides/shows a sidebar entry by its title (e.g.
-  "SoundCloud" until the user has signed in).
+  "Example" until the user has signed in).
 - `Plugin::dashboardSections()`: QML files (relative to the QML root, e.g.
-  `Plugins/soundcloud/Dashboard.qml`) loaded as sections at the end of the Dashboard
+  `Plugins/example/Dashboard.qml`) loaded as sections at the end of the Dashboard
   (`Mixxx.Plugins.dashboardSections`). Import the interface components with `import "../.." as Skin`.
 
 The files of this tree touched for this: `CMakeLists.txt` (2 lines + 2 sources),

@@ -57,7 +57,7 @@ Item {
         padChip: !padsStrip.active
     }
 
-    // A plugin (SoundCloud) is getting the track that was loaded into this deck: a panel over the
+    // A plugin is getting the track that was loaded into this deck: a panel over the
     // info bar (the buttons stay usable: the previous track goes on until the new one is there)
     Skin.DeckLoadingOverlay {
         anchors.fill: infoBar
