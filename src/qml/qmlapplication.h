@@ -17,6 +17,7 @@ namespace mixxx {
 namespace qml {
 
 class KeySyncFollower;
+class QmlDeckPrefsProxy;
 
 class QmlApplication : public QObject {
     Q_OBJECT
@@ -55,6 +56,8 @@ class QmlApplication : public QObject {
     std::unique_ptr<ControlObject> m_pPadBeatjumpUnit;
     // [ChannelN],key_sync_enabled: Key Sync as a switch (KEY SYNC of rekordbox)
     std::unique_ptr<KeySyncFollower> m_pKeySyncFollower;
+    // Mixxx.DeckPrefs: the deck preferences saved in the config, applied to the decks at start-up
+    std::unique_ptr<QmlDeckPrefsProxy> m_pDeckPrefs;
 
     // [Skin],performance_mode (created by CoreServices, 0 at every start)
     std::unique_ptr<ControlProxy> m_pPerformanceMode;

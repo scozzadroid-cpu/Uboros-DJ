@@ -69,6 +69,11 @@ Rectangle {
             "page": page
         });
     }
+    function openDeckPage(title) {
+        stack.push(deckPage, {
+            "pageTitle": title
+        });
+    }
     function openSettingsSection(title, section) {
         stack.push(settingsPage, {
             "pageTitle": title,
@@ -281,6 +286,14 @@ Rectangle {
                     Skin.DashboardTile {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
+                        subtitle: root.tr("CUE mode, tempo range, key lock, track load", "Modo CUE, intervallo del tempo, key lock, caricamento")
+                        title: root.tr("Decks", "Deck")
+
+                        onClicked: root.openDeckPage(title)
+                    }
+                    Skin.DashboardTile {
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
                         subtitle: Theme.profileName(Mixxx.Config.interfaceProfile) + " · " + root.tr("profiles, waveform colors", "profili, colori delle onde")
                         title: root.tr("Interface", "Interfaccia")
 
@@ -386,6 +399,46 @@ Rectangle {
                     y: 8
 
                     onShowTutorial: root.showTutorial()
+                }
+            }
+        }
+    }
+
+    // The deck preferences (DashboardDeckPage.qml)
+    Component {
+        id: deckPage
+
+        Item {
+            id: deckRoot
+
+            property string pageTitle
+
+            Skin.DashboardPageHeader {
+                id: deckHeader
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                title: deckRoot.pageTitle
+
+                onBack: root.goBack()
+            }
+            Flickable {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: deckHeader.bottom
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentHeight: decks.implicitHeight + 32
+                contentWidth: width
+
+                Skin.DashboardDeckPage {
+                    id: decks
+
+                    width: Math.min(parent.width - 32, 760)
+                    x: (parent.width - width) / 2
+                    y: 8
                 }
             }
         }

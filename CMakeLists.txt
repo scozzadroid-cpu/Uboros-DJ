@@ -3975,6 +3975,7 @@ if(QML)
       src/qml/qmleffectsmanagerproxy.cpp
       src/qml/qmlanalysisproxy.cpp
       src/qml/qmlappupdater.cpp
+      src/qml/qmldeckprefsproxy.cpp
       src/qml/qmlpluginsproxy.cpp
       src/plugins/pluginhost.cpp
       src/qml/qmlautomix.cpp
