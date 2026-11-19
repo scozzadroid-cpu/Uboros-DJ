@@ -2902,9 +2902,9 @@
                 </options>
             </control>
             <control>
-                <description>PAD 8 (DECK1) KEY SHIFT MODE - press - No pitch modification</description>
+                <description>PAD 8 (DECK1) KEY SHIFT MODE - press - KEY SYNC: shift the key to match the other deck</description>
                 <group>[Channel1]</group>
-                <key>PioneerDDJFLX4.pitchPadPressed</key>
+                <key>PioneerDDJFLX4.keySyncPressed</key>
                 <status>0x97</status>
                 <midino>0x77</midino>
                 <options>
@@ -2922,9 +2922,9 @@
                 </options>
             </control>
             <control>
-                <description>PAD 8 (DECK2) KEY SHIFT MODE - press - No pitch modification</description>
+                <description>PAD 8 (DECK2) KEY SHIFT MODE - press - KEY SYNC: shift the key to match the other deck</description>
                 <group>[Channel2]</group>
-                <key>PioneerDDJFLX4.pitchPadPressed</key>
+                <key>PioneerDDJFLX4.keySyncPressed</key>
                 <status>0x99</status>
                 <midino>0x77</midino>
                 <options>

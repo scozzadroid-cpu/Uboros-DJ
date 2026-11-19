@@ -169,6 +169,9 @@ Item {
                 id: keyPill
 
                 readonly property var camelot: Harmony.fromChromaticKey(keyControl.value)
+                // Key shift in semitones: the pill then shows the shifted key ("9A +2")
+                readonly property int shiftSteps: Math.round(pitchAdjustControl.value)
+                readonly property bool shifted: shiftSteps !== 0 && camelot !== null
 
                 anchors.verticalCenter: parent.verticalCenter
                 visible: keyText.text !== ""
@@ -187,10 +190,25 @@ Item {
                     id: keyText
 
                     anchors.centerIn: parent
-                    text: root.currentTrack ? root.currentTrack.keyText : ""
+                    text: keyPill.shifted ? Harmony.camelotText(keyControl.value) + " " + (keyPill.shiftSteps > 0 ? "+" : "") + keyPill.shiftSteps : (root.currentTrack ? root.currentTrack.keyText : "")
                     font.pixelSize: 10
                     font.bold: true
                     color: Theme.white
+                }
+
+                // KEY SYNC with a tap, shift taken away with a long press (like the info bar)
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    enabled: !!root.currentTrack
+                    onClicked: {
+                        syncKeyControl.value = 1;
+                        syncKeyControl.value = 0;
+                    }
+                    onPressAndHold: {
+                        resetKeyControl.value = 1;
+                        resetKeyControl.value = 0;
+                    }
                 }
             }
 
@@ -306,6 +324,27 @@ Item {
 
         group: root.group
         key: "key"
+    }
+
+    Mixxx.ControlProxy {
+        id: pitchAdjustControl
+
+        group: root.group
+        key: "pitch_adjust"
+    }
+
+    Mixxx.ControlProxy {
+        id: syncKeyControl
+
+        group: root.group
+        key: "sync_key"
+    }
+
+    Mixxx.ControlProxy {
+        id: resetKeyControl
+
+        group: root.group
+        key: "reset_key"
     }
 
     Mixxx.ControlProxy {

@@ -15,7 +15,7 @@
 //      * Beat Loop Mode
 //      * Beat Jump Mode
 //      * Sampler Mode
-//      * Keyshift mode
+//      * Keyshift mode (pad 8 = KEY SYNC: match the key of the other deck)
 //
 //  Custom (Mixxx specific mappings):
 //      * BeatFX: Assigned Effect Unit 1
@@ -1528,6 +1528,9 @@ PioneerDDJFLX4.pitchAdjusted = function(_value, group, _control) {
         lights = 0b11111111;
     }
 
+    // Pad 8 is KEY SYNC, a button: always lit
+    lights |= 0b00000001;
+
     for (let i=0; i<8; i++) {
         let code = 0x00;
         const pad = 0b10000000 >>> i;
@@ -1575,6 +1578,17 @@ PioneerDDJFLX4.pitchPadPressed = function(_channel, control, value, _status, gro
     }
 
     engine.setValue(group, "pitch_adjust", pitch);
+};
+
+// KEY SHIFT mode, pad 8: KEY SYNC (rekordbox / Serato "Key Sync"). Shifts the
+// key of this deck to the nearest key that mixes with the key of the other
+// deck (same key, relative major/minor or one step on the Camelot wheel), the
+// size of the shift is the one of the pad lights. Does nothing without a
+// playing deck to follow or without a key on either track.
+PioneerDDJFLX4.keySyncPressed = function(_channel, _control, value, _status, group) {
+    if (value === 0) { return; } // ignore release
+    engine.setValue(group, "sync_key", 1);
+    engine.setValue(group, "sync_key", 0);
 };
 
 PioneerDDJFLX4.pitchPadShiftPressed = function(_channel, control, value, _status, group) {

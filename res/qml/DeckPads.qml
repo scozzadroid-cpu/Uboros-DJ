@@ -324,7 +324,9 @@ Item {
         }
     }
 
-    // KEY SHIFT: the semitones of the pads (0 +1 +2 +3 -3 -2 -1 0), the one in use lit
+    // KEY SHIFT: the semitones of the pads (0 +1 +2 +3 -3 -2 -1), the one in
+    // use lit; pad 8 is KEY SYNC (match the key of the other deck), lit while
+    // the deck is shifted by a sync or by hand
     Component {
         id: keyCells
 
@@ -332,18 +334,19 @@ Item {
             spacing: root.cellGap
 
             Repeater {
-                model: [0, 1, 2, 3, -3, -2, -1, 0]
+                model: [0, 1, 2, 3, -3, -2, -1, "SYNC"]
 
                 Cell {
                     id: keyCell
 
-                    required property real modelData
+                    required property var modelData
+                    readonly property bool isSync: modelData === "SYNC"
 
                     width: root.cellWidth
                     height: root.stripHeight
-                    label: (modelData > 0 ? "+" : "") + modelData
-                    tint: "#c38bff"
-                    level: root.pitchSteps === modelData ? 2 : 1
+                    label: isSync ? "SYNC" : (modelData > 0 ? "+" : "") + modelData
+                    tint: isSync ? "#4ec3ff" : "#c38bff"
+                    level: isSync ? (root.pitchSteps !== 0 ? 2 : 1) : (root.pitchSteps === modelData ? 2 : 1)
                 }
             }
         }

@@ -42,8 +42,9 @@ Rectangle {
     // Natural width (all the parts); the toolbar may give less: then the label
     // "BEAT FX" is dropped and the effect name is shortened (nothing here depends
     // on root.width, so no binding loop)
+    // ("ON" only shows while the effect is on: off is the grey frame, no word needed)
     readonly property int fullWidth: labelText.implicitWidth + nameText.implicitWidth
-            + stateText.implicitWidth + channelsText.implicitWidth + 3 * row.spacing + 20
+            + (on ? stateText.implicitWidth + row.spacing : 0) + channelsText.implicitWidth + 2 * row.spacing + 20
 
     implicitWidth: fullWidth
     implicitHeight: 30
@@ -131,7 +132,8 @@ Rectangle {
             // Shortened (with ...) only when the toolbar is too narrow
             width: Math.max(24, Math.min(implicitWidth, root.width - 20
                     - (labelText.visible ? labelText.implicitWidth + row.spacing : 0)
-                    - stateText.implicitWidth - channelsText.implicitWidth - 2 * row.spacing))
+                    - (root.on ? stateText.implicitWidth + row.spacing : 0)
+                    - channelsText.implicitWidth - row.spacing))
             elide: Text.ElideRight
             text: root.effectName
             color: root.on ? "#b9ff9e" : Theme.white
@@ -143,11 +145,12 @@ Rectangle {
         Text {
             id: stateText
 
-            text: root.on ? "ON" : "armed"
-            color: root.on ? "#4ee04e" : Theme.textMutedColor
+            visible: root.on
+            text: "ON"
+            color: "#4ee04e"
             font.family: Theme.fontFamily
             font.pixelSize: Theme.textFontPixelSize - 2
-            font.bold: root.on
+            font.bold: true
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {

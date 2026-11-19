@@ -776,12 +776,14 @@ ApplicationWindow {
                 library: library
             })
     }
-    // First run: after the startup check, once, unless it was skipped/finished
+    // First run: after the startup check, once, unless it was skipped/finished.
+    // Only in the DJ view (the steps point at the decks and the toolbar): in
+    // the Dashboard (no controller) it waits and starts when the DJ view opens
     Timer {
         interval: 3500
-        running: !Mixxx.Config.tutorialDone
+        running: !Mixxx.Config.tutorialDone && !root.dashboardMode
         repeat: false
-        onTriggered: if (!Mixxx.Config.tutorialDone && !tutorial.opened) tutorial.open()
+        onTriggered: if (!Mixxx.Config.tutorialDone && !root.dashboardMode && !tutorial.opened) tutorial.open()
     }
     Skin.ExportPopup {
         id: exportPopup

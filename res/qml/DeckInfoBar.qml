@@ -431,6 +431,10 @@ Rectangle {
         id: infoBarKey
 
         readonly property var camelot: Harmony.fromChromaticKey(keyControl.value)
+        // Semitones of key shift (the shift of less than half a semitone is a
+        // pitch fader nudge, not a shift) and whether to show the key after it
+        readonly property int shiftSteps: Math.round(pitchAdjustControl.value)
+        readonly property bool shifted: shiftSteps !== 0 && camelot !== null
 
         anchors.top: infoBarHSeparator1.top
         anchors.bottom: infoBarVSeparator.top
@@ -455,10 +459,27 @@ Rectangle {
             width: parent.width - 8
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
-            text: root.currentTrack ? root.currentTrack.keyText : ""
+            // The key after a key shift / key sync ("9A +2"), else the one of the file
+            text: infoBarKey.shifted ? Harmony.camelotText(keyControl.value) + " " + (infoBarKey.shiftSteps > 0 ? "+" : "") + infoBarKey.shiftSteps : (root.currentTrack ? root.currentTrack.keyText : "")
             font.pixelSize: 11
             font.bold: true
             color: Theme.white
+        }
+
+        // KEY SYNC (rekordbox / Serato): a tap shifts the key of the deck to
+        // a key that mixes with the other deck (the FLX4 does it with pad 8 of
+        // the KEY SHIFT mode); a long press takes the shift away
+        MouseArea {
+            anchors.fill: parent
+            enabled: !!root.currentTrack
+            onClicked: {
+                syncKeyControl.value = 1;
+                syncKeyControl.value = 0;
+            }
+            onPressAndHold: {
+                resetKeyControl.value = 1;
+                resetKeyControl.value = 0;
+            }
         }
 
         Mixxx.ControlProxy {
@@ -466,6 +487,27 @@ Rectangle {
 
             group: root.group
             key: "key"
+        }
+
+        Mixxx.ControlProxy {
+            id: pitchAdjustControl
+
+            group: root.group
+            key: "pitch_adjust"
+        }
+
+        Mixxx.ControlProxy {
+            id: syncKeyControl
+
+            group: root.group
+            key: "sync_key"
+        }
+
+        Mixxx.ControlProxy {
+            id: resetKeyControl
+
+            group: root.group
+            key: "reset_key"
         }
     }
 
