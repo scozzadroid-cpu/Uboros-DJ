@@ -30,6 +30,21 @@
 //      * Toggle quantize (Shift + channel cue)
 //      * Stems selection using PADs (using controller's Keyboard mode)
 //
+//      * BROWSE / LOAD (rekordbox / CDJ style navigation, in the XML):
+//                BROWSE turn      scroll the list or the sources (the first turn
+//                                 shows the library if it is hidden: browseRotate)
+//                BROWSE press     move the cursor between the sources and the
+//                                 track list / open the source ([Library],
+//                                 MoveFocusForward). It never loads a track
+//                SHIFT + BROWSE turn   waveform zoom
+//                SHIFT + BROWSE press  back ([Library],MoveLeft): from the list to
+//                                 the sources, on the sources close the open
+//                                 source / go up to the parent
+//                SHIFT + LOAD 1   library full screen ([Master],maximize_library)
+//                SHIFT + LOAD 2   waveform view / show-hide the library
+//                                 ([Skin],show_library; it used to be SHIFT +
+//                                 BROWSE press)
+//
 //  Not implemented (after discussion and trial attempts):
 //      * Loop Section:
 //        * -4BEAT auto loop (hacky---prefer a clean way to set a 4 beat loop
@@ -125,7 +140,7 @@ PioneerDDJFLX4.lights = {
     },
     deck2: {
         vuMeter: {
-            status: 0xB0,
+            status: 0xB1,
             data1: 0x02,
         },
         playPause: {
@@ -834,7 +849,7 @@ PioneerDDJFLX4.padFxPressed = function(_channel, control, value, status, group) 
 //
 
 PioneerDDJFLX4.toggleLoopAdjustIn = function(channel, _control, value, _status, group) {
-    if (value === 0 || engine.getValue(group, "loop_enabled" === 0)) {
+    if (value === 0 || engine.getValue(group, "loop_enabled") === 0) {
         return;
     }
     PioneerDDJFLX4.loopAdjustIn[channel] = !PioneerDDJFLX4.loopAdjustIn[channel];
@@ -842,7 +857,7 @@ PioneerDDJFLX4.toggleLoopAdjustIn = function(channel, _control, value, _status, 
 };
 
 PioneerDDJFLX4.toggleLoopAdjustOut = function(channel, _control, value, _status, group) {
-    if (value === 0 || engine.getValue(group, "loop_enabled" === 0)) {
+    if (value === 0 || engine.getValue(group, "loop_enabled") === 0) {
         return;
     }
     PioneerDDJFLX4.loopAdjustOut[channel] = !PioneerDDJFLX4.loopAdjustOut[channel];
@@ -1041,8 +1056,8 @@ PioneerDDJFLX4.shiftPressed = function(channel, _control, value, _status, _group
 
 //
 // BROWSE rotate: scrolls the track list or the sources. When the list is
-// hidden (waveform view, SHIFT + BROWSE press), the first turn shows it
-// again without moving the selection.
+// hidden (waveform view, SHIFT + LOAD 2), the first turn shows it again
+// without moving the selection.
 //
 
 PioneerDDJFLX4.browseRotate = function(_channel, _control, value) {

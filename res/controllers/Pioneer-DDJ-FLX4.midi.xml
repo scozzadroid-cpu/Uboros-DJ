@@ -46,11 +46,31 @@
                 </options>
             </control>
             <control>
-                <description>BROWSE +SHIFT - press - Toggle the library (QML skin: hide it to give the waveforms the whole height)</description>
+                <description>BROWSE +SHIFT - press - Back: from the track list to the sources; on the sources close the open source / go up to the parent</description>
+                <group>[Library]</group>
+                <key>MoveLeft</key>
+                <status>0x96</status>
+                <midino>0x42</midino>
+                <options>
+                    <Normal/>
+                </options>
+            </control>
+            <control>
+                <description>LOAD (DECK1) +SHIFT - press - Library full screen (QML skin)</description>
+                <group>[Master]</group>
+                <key>maximize_library</key>
+                <status>0x96</status>
+                <midino>0x68</midino>
+                <options>
+                    <Normal/>
+                </options>
+            </control>
+            <control>
+                <description>LOAD (DECK2) +SHIFT - press - Toggle the library (QML skin: hide it to give the waveforms the whole height)</description>
                 <group>[Skin]</group>
                 <key>show_library</key>
                 <status>0x96</status>
-                <midino>0x42</midino>
+                <midino>0x7A</midino>
                 <options>
                     <Normal/>
                 </options>
