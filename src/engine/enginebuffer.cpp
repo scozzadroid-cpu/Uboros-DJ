@@ -584,6 +584,15 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
         m_channelCount = mixxx::audio::ChannelCount::stereo();
     }
 
+    // Build the scalers for the new signal (channel count) HERE: on this loader
+    // thread and under the pause lock, where this deck is silent anyway. If it
+    // were left to prepareScalers() in the audio callback, RubberBand (one
+    // stretcher per stereo pair: SLEEF FFT set-up) and SoundTouch would be
+    // rebuilt there when the channel count changes (e.g. a stereo track after a
+    // stem track): measured ~100 ms on the audio thread, which stalls the whole
+    // master output, including the OTHER deck that is playing.
+    prepareScalers();
+
     m_pTrackSamples->set(trackNumFrame.toEngineSamplePos());
     m_pTrackSampleRate->set(trackSampleRate.toDouble());
     m_pTrackLoaded->forceSet(1);
