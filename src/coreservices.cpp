@@ -726,6 +726,11 @@ void CoreServices::initialize(QApplication* pApp) {
                 }
                 if (!items.isEmpty()) {
                     QTimer::singleShot(3500, this, [this, items]() {
+                        // Quitting within 3.5 s: finalize() runs processEvents()
+                        // (GlobalTrackCache::destroyInstance) after the PlayerManager is gone
+                        if (!m_pPlayerManager) {
+                            return;
+                        }
                         for (const Item& item : items) {
                             BaseTrackPlayer* pDeck = m_pPlayerManager->getDeck(item.deck);
                             if (!pDeck || pDeck->getLoadedTrack()) {

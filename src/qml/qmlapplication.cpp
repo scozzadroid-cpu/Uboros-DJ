@@ -197,6 +197,12 @@ struct PerfTrace {
 } // namespace
 
 void QmlApplication::setupPerfTrace() {
+    // Called by a singleShot 4 s after the start: if the app quits before, the
+    // processEvents() of CoreServices::finalize() runs it with m_pCoreServices
+    // (reset first) and m_pAppEngine already null
+    if (!m_pCoreServices || !m_pAppEngine) {
+        return;
+    }
     if (!m_pCoreServices->getSettings()->getValue(
                 ConfigKey(QStringLiteral("[Config]"), QStringLiteral("perf_trace")), false)) {
         return;
@@ -847,6 +853,10 @@ QmlApplication::~QmlApplication() {
     if (m_pPerfHint) {
         disconnect(m_pPerfHint->beginConnection);
         disconnect(m_pPerfHint->endConnection);
+        if (m_pPerfHint->pCheckTimer) {
+            // It would reopen the session during finalize()'s processEvents()
+            m_pPerfHint->pCheckTimer->stop();
+        }
         m_pPerfHint->closeSession();
     }
 #endif
@@ -894,10 +904,15 @@ void QmlApplication::loadQml(const QString& path) {
 }
 
 void QmlApplication::tryRestoreSoundConfig() {
-    if (!m_soundFallback || !m_pSavedSoundConfig) {
+    // Fired by a singleShot 1 s / 4 s after a USB change: it can run while
+    // CoreServices is being destroyed (m_pCoreServices already null)
+    if (!m_soundFallback || !m_pSavedSoundConfig || !m_pCoreServices) {
         return;
     }
     auto pSoundManager = m_pCoreServices->getSoundManager();
+    if (!pSoundManager) {
+        return;
+    }
     // The device list was made before the device was plugged in
     pSoundManager->clearAndQueryDevices();
     const bool persist = false;
