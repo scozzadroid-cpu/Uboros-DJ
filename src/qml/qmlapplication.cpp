@@ -36,6 +36,7 @@
 #include "mixer/playermanager.h"
 #include "moc_qmlapplication.cpp"
 #include "preferences/configobject.h"
+#include "plugins/pluginhost.h"
 #include "qml/asyncimageprovider.h"
 #include "qml/qmldlgpreferencesproxy.h"
 #include "soundio/soundmanager.h"
@@ -486,6 +487,8 @@ QmlApplication::QmlApplication(
     QQuickStyle::setStyle("Basic");
 
     m_pCoreServices->initialize(app);
+    // Plugins outside of this tree (nothing without UBOROS_PLUGINS_DIR)
+    plugins::PluginHost::instance().init(m_pCoreServices->getSettings());
 
     QString configVersion = m_pCoreServices->getSettings()->getValue(
             ConfigKey("[Config]", "Version"), "");

@@ -70,6 +70,9 @@ Rectangle {
         if (!index || !index.valid || index.parent.valid)
             return false;
         const label = root.model.data(index, Qt.DisplayRole);
+        // Entries of plugins that are not usable now (e.g. not signed in)
+        if (Mixxx.Plugins.hiddenLabels.indexOf(label) >= 0)
+            return true;
         if (label === root.clubOnlyLabel)
             return !Theme.isClub;
         return root.hideWhenEmpty.indexOf(label) >= 0 && !root.model.hasChildren(index);

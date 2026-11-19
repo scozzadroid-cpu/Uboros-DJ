@@ -635,4 +635,16 @@ ColumnLayout {
 
         onClicked: Mixxx.AppUpdater.install()
     }
+
+    // Sections of the plugins (src/plugins; none without UBOROS_PLUGINS_DIR): one QML file each
+    Repeater {
+        model: Mixxx.Plugins.dashboardSections
+
+        delegate: Loader {
+            required property string modelData
+
+            Layout.fillWidth: true
+            source: modelData
+        }
+    }
 }

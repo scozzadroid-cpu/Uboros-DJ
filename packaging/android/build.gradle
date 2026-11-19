@@ -116,3 +116,8 @@ android {
         ndk.abiFilters = qtTargetAbiList.split(",")
     }
 }
+
+// Plugins outside of this tree (cmake/UborosPlugins.cmake writes this file next to
+// build.gradle; it is empty without plugins)
+if (file('uboros-plugins.gradle').exists())
+    apply from: 'uboros-plugins.gradle'

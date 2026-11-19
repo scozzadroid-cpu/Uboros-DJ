@@ -3915,6 +3915,8 @@ if(QML)
       res/qml/Mixxx/PlayerDropArea.qml
   )
   target_link_libraries(mixxx-lib PRIVATE mixxx-qml-lib)
+  # Plugins outside of this tree (-DUBOROS_PLUGINS_DIR=..., PLUGINS.md): nothing without the option
+  include(cmake/UborosPlugins.cmake)
 
   # FIXME: Currently we need to add these include directories due to
   # QTBUG-87221. We should figure out a better way to fix this.
@@ -3972,6 +3974,8 @@ if(QML)
       src/qml/qmleffectsmanagerproxy.cpp
       src/qml/qmlanalysisproxy.cpp
       src/qml/qmlappupdater.cpp
+      src/qml/qmlpluginsproxy.cpp
+      src/plugins/pluginhost.cpp
       src/qml/qmlautomix.cpp
       src/qml/qmlrekordboxexport.cpp
       src/qml/qmllibraryproxy.cpp

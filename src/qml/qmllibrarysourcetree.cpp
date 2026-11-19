@@ -9,6 +9,7 @@
 #include "library/library.h"
 #include "library/librarytablemodel.h"
 #include "moc_qmllibrarysourcetree.cpp"
+#include "plugins/pluginhost.h"
 #include "qml_owned_ptr.h"
 #include "qmllibraryproxy.h"
 #include "qmllibrarytracklistmodel.h"
@@ -73,6 +74,24 @@ QQmlListProperty<QmlLibrarySource> QmlLibrarySourceTree::sources() {
 }
 
 void QmlLibrarySourceTree::componentComplete() {
+    // Entries of the plugins (src/plugins; none without UBOROS_PLUGINS_DIR),
+    // above the USB drives (the Rekordbox source)
+    const auto& plugins = plugins::PluginHost::instance().plugins();
+    if (!plugins.isEmpty()) {
+        qsizetype at = m_sources.size();
+        for (qsizetype i = 0; i < m_sources.size(); ++i) {
+            if (qobject_cast<QmlLibraryRekordboxSource*>(m_sources.at(i))) {
+                at = i;
+                break;
+            }
+        }
+        for (plugins::Plugin* pPlugin : plugins) {
+            const auto pluginSources = pPlugin->createLibrarySources(this, m_defaultColumns);
+            for (QmlLibrarySource* pSource : pluginSources) {
+                m_sources.insert(at++, pSource);
+            }
+        }
+    }
     m_model->update(m_sources);
 }
 
