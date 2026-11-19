@@ -4,6 +4,7 @@
 #include <signal.h>
 #endif
 #include <QDir>
+#include <QFile>
 #include <QPixmapCache>
 #include <QString>
 #include <QStringList>
@@ -208,6 +209,21 @@ int main(int argc, char * argv[]) {
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigemptyset(&sa.sa_mask);
         sigaction(SIGINT, &sa, nullptr);
+    }
+    // 2026-11-20: Qt for Android puts the window in a TextureView by default (a
+    // SurfaceView only when the window is alone on its screen). With a
+    // TextureView every frame wakes the Java UI thread (View.invalidate ->
+    // Choreographer, interpreted by ART) and the HWUI RenderThread composites
+    // the texture on the GPU: together 40 % of the CPU cycles of the whole
+    // process with two decks playing (simpleperf, POCO F4 GT). With a
+    // SurfaceView the frames go straight to SurfaceFlinger.
+    // QT_ANDROID_SURFACE_CONTAINER_TYPE: 0 = SurfaceView, 1 = TextureView; a
+    // value that is already set wins. To go back without a new build:
+    //   adb shell su -c "touch /data/user/0/org.mixxx/files/force_textureview"
+    if (!qEnvironmentVariableIsSet("QT_ANDROID_SURFACE_CONTAINER_TYPE")) {
+        const bool forceTextureView =
+                QFile::exists(QStringLiteral("/data/user/0/org.mixxx/files/force_textureview"));
+        qputenv("QT_ANDROID_SURFACE_CONTAINER_TYPE", forceTextureView ? "1" : "0");
     }
 #endif
 
