@@ -44,11 +44,35 @@ ApplicationWindow {
     property bool dashboardByUser: false
     readonly property int controllerCount: Mixxx.ControllerManager.knownDevices.length + Mixxx.ControllerManager.unknownDevices.length
 
+    // Phones turn when the DJ view (landscape) and the Dashboard (portrait) swap: the window
+    // is resized and laid out several times, which showed a broken frame for 1-2 s. A plain
+    // dark cover hides it until the size has been the same for a moment (nothing animated).
+    property bool orientationChanging: false
+    function beginOrientationChange() {
+        if (isAndroid && !isTablet) {
+            orientationChanging = true;
+            orientationSettle.restart();
+        }
+    }
+    onWidthChanged: if (orientationChanging)
+        orientationSettle.restart()
+    onHeightChanged: if (orientationChanging)
+        orientationSettle.restart()
+    Timer {
+        id: orientationSettle
+
+        interval: 500
+
+        onTriggered: root.orientationChanging = false
+    }
+
     function enterDjView() {
+        beginOrientationChange();
         dashboardMode = false;
         Mixxx.Config.setScreenOrientation(isTablet ? Mixxx.Config.ScreenOrientation.Any : Mixxx.Config.ScreenOrientation.Landscape);
     }
     function enterDashboard() {
+        beginOrientationChange();
         dashboardMode = true;
         Mixxx.Config.setScreenOrientation(isTablet ? Mixxx.Config.ScreenOrientation.Any : Mixxx.Config.ScreenOrientation.Portrait);
     }
@@ -667,6 +691,22 @@ ApplicationWindow {
         transform: Translate {
             x: root.orbitX
             y: root.orbitY
+        }
+    }
+    // Cover while the phone turns (see beginOrientationChange)
+    Rectangle {
+        anchors.fill: parent
+        color: "#0b0c0f"
+        visible: root.orientationChanging
+        z: 1000
+
+        Image {
+            anchors.centerIn: parent
+            fillMode: Image.PreserveAspectFit
+            height: Math.min(parent.width, parent.height) * 0.22
+            mipmap: true
+            source: "images/logo.png"
+            width: height
         }
     }
     Skin.PortraitDashboard {
