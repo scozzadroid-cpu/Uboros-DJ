@@ -74,15 +74,17 @@ Category {
                     onToggled: card.device.enabled = checked
                 }
             }
+            // The label above the selector (a phone is too narrow for label, selector and button in a row)
+            Text {
+                Layout.topMargin: 4
+                color: Theme.lightGray
+                font.pixelSize: 12
+                text: "Mapping"
+            }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
 
-                Text {
-                    color: Theme.white
-                    font.pixelSize: 14
-                    text: "Mapping"
-                }
                 ComboBox {
                     id: mappingCombo
 
