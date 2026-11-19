@@ -490,6 +490,8 @@ ApplicationWindow {
                     id: showPreferencesButton
                     Layout.rightMargin: 8
                     activeColor: Theme.white
+                    // Android: the settings are in the Dashboard (the popup and the desktop dialog do not fit a phone)
+                    visible: !root.isAndroid
                     checked: settingsPopup.opened
                     icon.height: 16
                     icon.source: "images/gear.svg"
@@ -679,7 +681,6 @@ ApplicationWindow {
             root.dashboardByUser = false;
             root.enterDjView();
         }
-        onOpenSettings: settingsPopup.open()
         onShowTutorial: tutorial.open()
     }
     Skin.StemSlowBanner {

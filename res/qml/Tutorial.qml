@@ -183,19 +183,19 @@ Item {
             view: "none",
             targets: ["showDashboardButton"],
             title: tr("Chiavetta rekordbox", "Rekordbox USB stick"),
-            text: tr("Collega una chiavetta preparata con rekordbox e usa Import USB drive nella schermata iniziale: brani, griglie, cue e crate compaiono in libreria. Senza root.", "Plug in a USB stick prepared with rekordbox and use Import USB drive on the start screen: tracks, beat grids, cues and crates appear in the library. No root needed.")
+            text: tr("Collega una chiavetta preparata con rekordbox e apri il Dashboard, Libreria e USB, e usa Importa chiavetta USB: brani, griglie, cue e crate compaiono in libreria. Senza root.", "Plug in a USB stick prepared with rekordbox and open the Dashboard, Library & USB, and use Import USB drive: tracks, beat grids, cues and crates appear in the library. No root needed.")
         },
         {
             view: "none",
-            targets: ["showPreferencesButton"],
+            targets: Qt.platform.os === "android" ? ["showDashboardButton"] : ["showPreferencesButton"],
             title: tr("Sessione e schermo", "Session and screen"),
-            text: tr("Se Mixxx si chiude, riparte dove eri. Lo schermo si spegne dopo un po' di inattività (risparmio, OLED) e si risveglia toccando o muovendo la FLX4. Opzioni in Impostazioni.", "If Mixxx closes, it restarts where you were. The screen turns off after a while of inactivity (saves power, OLED) and wakes up when you touch it or move the FLX4. Options are in Settings.")
+            text: Qt.platform.os === "android" ? tr("Se Mixxx si chiude, riparte dove eri. Lo schermo si spegne dopo un po' di inattività (risparmio, OLED) e si risveglia toccando o muovendo la FLX4. Opzioni nel Dashboard, in Schermo e consumi.", "If Mixxx closes, it restarts where you were. The screen turns off after a while of inactivity (saves power, OLED) and wakes up when you touch it or move the FLX4. Options are in the Dashboard, under Display & power.") : tr("Se Mixxx si chiude, riparte dove eri. Lo schermo si spegne dopo un po' di inattività (risparmio, OLED) e si risveglia toccando o muovendo la FLX4. Opzioni in Impostazioni.", "If Mixxx closes, it restarts where you were. The screen turns off after a while of inactivity (saves power, OLED) and wakes up when you touch it or move the FLX4. Options are in Settings.")
         },
         {
             view: "none",
-            targets: ["helpButton", "showPreferencesButton"],
+            targets: Qt.platform.os === "android" ? ["helpButton", "showDashboardButton"] : ["helpButton", "showPreferencesButton"],
             title: tr("Pronto!", "You're ready"),
-            text: tr("Il tasto ? ti rimostra questo giro quando vuoi, sempre in alto accanto all'ingranaggio. Dall'ingranaggio trovi audio, schermo e cache. Buon set!", "The ? button shows this tour again whenever you like, always at the top next to the gear icon. The gear icon has audio, screen and cache options. Have a good set!")
+            text: Qt.platform.os === "android" ? tr("Il tasto ? ti rimostra questo giro quando vuoi, sempre in alto accanto a Dashboard. Dal Dashboard trovi audio, controller, schermo, cache e aggiornamenti. Buon set!", "The ? button shows this tour again whenever you like, always at the top next to Dashboard. The Dashboard has audio, controllers, display, cache and update options. Have a good set!") : tr("Il tasto ? ti rimostra questo giro quando vuoi, sempre in alto accanto all'ingranaggio. Dall'ingranaggio trovi audio, schermo e cache. Buon set!", "The ? button shows this tour again whenever you like, always at the top next to the gear icon. The gear icon has audio, screen and cache options. Have a good set!")
         }
     ]
     readonly property bool last: step === steps.length - 1
