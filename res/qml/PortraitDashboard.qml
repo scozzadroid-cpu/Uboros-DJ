@@ -311,7 +311,9 @@ Rectangle {
                     Skin.DashboardTile {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
-                        subtitle: root.tr("BPM and key detection, analyze tracks", "Rilevamento di BPM e tonalità, analisi dei brani")
+                        // Cheap live state (no cache scan): the analysis runs in the background
+                        accent: Mixxx.Analysis.active ? Theme.green : Theme.accentColor
+                        subtitle: Mixxx.Analysis.active ? root.tr("Analysis running…", "Analisi in corso…") : root.tr("BPM and key detection, analyze tracks", "Rilevamento di BPM e tonalità, analisi dei brani")
                         title: root.tr("Analysis", "Analisi")
 
                         onClicked: root.openMaintenance(title, "analysis")
@@ -335,7 +337,11 @@ Rectangle {
                     Skin.DashboardTile {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
-                        subtitle: root.tr("Tutorial, automatic updates", "Tutorial, aggiornamenti automatici")
+                        // An update that is waiting is said here, on the home page
+                        readonly property bool updateWaiting: Mixxx.AppUpdater.supported && (Mixxx.AppUpdater.state === "available" || Mixxx.AppUpdater.state === "ready" || Mixxx.AppUpdater.state === "downloading")
+
+                        accent: updateWaiting ? Theme.yellow : Theme.accentColor
+                        subtitle: updateWaiting ? root.tr("Update %1 available", "Aggiornamento %1 disponibile").arg(Mixxx.AppUpdater.availableVersion) : root.tr("Tutorial, automatic updates", "Tutorial, aggiornamenti automatici")
                         title: root.tr("Updates & help", "Aggiornamenti e aiuto")
 
                         onClicked: root.openMaintenance(title, "updates")
