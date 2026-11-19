@@ -19,7 +19,7 @@ Rectangle {
     border.color: Qt.rgba(tint.r, tint.g, tint.b, 0.55)
     border.width: 1
     clip: true
-    color: Qt.rgba(0.07, 0.07, 0.08, 0.96)
+    color: Qt.rgba(0.07, 0.07, 0.08, 1.0)
     radius: 6
     visible: info !== null
 
@@ -92,7 +92,8 @@ Rectangle {
                 elide: Text.ElideRight
                 font.bold: true
                 font.pixelSize: 14
-                text: root.info ? root.info.title : ""
+                // The list marks tracks that cannot be downloaded with "[DRM] ": the panel says why in its own words
+                text: root.info ? String(root.info.title).replace(/^\[DRM\]\s*/, "") : ""
             }
             Text {
                 Layout.fillWidth: true
