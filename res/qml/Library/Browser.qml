@@ -305,7 +305,7 @@ Rectangle {
         anchors.topMargin: Qt.platform.os === "android" ? 4 : 7
         anchors.leftMargin: Qt.platform.os === "android" ? 4 : 7
         anchors.rightMargin: Qt.platform.os === "android" ? 6 : 25
-        anchors.bottomMargin: Qt.platform.os === "android" ? 40 : 7
+        anchors.bottomMargin: 7
         radius: 6
         color: Theme.sunkenBackgroundColor
 
@@ -593,18 +593,5 @@ Rectangle {
         }
     }
 
-    // Android: USB drives that Android does not mount (e.g. FAT32 without a
-    // partition table) are imported to the internal storage, without root
-    Skin.Button {
-        visible: Qt.platform.os === "android"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 4
-        height: 32
-        activeColor: Theme.white
-        normalColor: Theme.white
-        text: qsTr("Import USB drive")
-        onClicked: Mixxx.Library.importUsbDrives()
-    }
+    // (The "Import USB drive" button is only in the Dashboard: PortraitDashboard.qml)
 }
