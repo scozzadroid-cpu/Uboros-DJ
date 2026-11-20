@@ -110,13 +110,18 @@ ComboBox {
                     }
                 }
             }
-            DropShadow {
+            // The shadow re-renders the whole popup (ListView included) into an
+            // FBO on every scroll: skipped on Android.
+            Loader {
                 anchors.fill: parent
-                horizontalOffset: 0
-                verticalOffset: 0
-                radius: 8.0
-                color: "#000000"
-                source: content
+                active: Qt.platform.os !== "android"
+                sourceComponent: DropShadow {
+                    horizontalOffset: 0
+                    verticalOffset: 0
+                    radius: 8.0
+                    color: "#000000"
+                    source: content
+                }
             }
         }
 

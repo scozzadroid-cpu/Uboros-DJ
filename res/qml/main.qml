@@ -867,7 +867,9 @@ ApplicationWindow {
             id: overlayModal
             property real radius: 12
 
-            readonly property bool hasHardwareAcceleration: Mixxx.Config.useAcceleration()
+            // Android: no GaussianBlur behind modal popups (16-sample FBO pass over
+            // the whole window); the plain 60% dim used without acceleration instead.
+            readonly property bool hasHardwareAcceleration: !root.isAndroid && Mixxx.Config.useAcceleration()
 
             anchors.fill: parent
             color: Qt.alpha('#00000010', hasHardwareAcceleration ? 1.0 : 0.6)

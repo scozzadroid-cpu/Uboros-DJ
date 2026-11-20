@@ -30,13 +30,45 @@ MixxxControls.Slider {
         x: root.horizontal ? (root.visualPosition * (root.width - width)) : ((root.width - width) / 2)
         y: root.vertical ? (root.visualPosition * (root.height - height)) : ((root.height - height) / 2)
 
-        DropShadow {
-            source: handleImage
+        // DropShadow is a Qt5Compat ShaderEffectSource + FBO per fader. On
+        // Android draw the handle directly over an offset translucent rectangle
+        // (no offscreen pass); desktop keeps the blurred shadow.
+        Loader {
             width: parent.width + 5
             height: parent.height + 5
-            radius: 5
-            verticalOffset: 5
-            color: "#80000000"
+            sourceComponent: Qt.platform.os === "android" ? cheapShadowComponent : dropShadowComponent
+        }
+
+        Component {
+            id: dropShadowComponent
+
+            DropShadow {
+                source: handleImage
+                radius: 5
+                verticalOffset: 5
+                color: "#80000000"
+            }
+        }
+
+        Component {
+            id: cheapShadowComponent
+
+            Item {
+                Rectangle {
+                    x: 1
+                    y: 4
+                    width: parent.width - 2
+                    height: parent.height
+                    radius: 3
+                    color: "#59000000"
+                }
+
+                Image {
+                    anchors.fill: parent
+                    source: handleImage.source
+                    fillMode: Image.Stretch
+                }
+            }
         }
     }
 

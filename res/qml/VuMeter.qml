@@ -9,6 +9,10 @@ Rectangle {
     required property string group
     required property string key
 
+    // Android: no OpacityMask (two offscreen buffers re-rendered at the VU
+    // rate, 30 Hz, for every meter); the gradient is clipped by a plain Item
+    readonly property bool cheapEffects: Qt.platform.os === "android"
+
     radius: width / 2
     color: "black"
 
@@ -71,9 +75,39 @@ Rectangle {
         }
     }
 
-    OpacityMask {
+    Loader {
         anchors.fill: parent
-        source: meterGradient
-        maskSource: meterMask
+        active: !root.cheapEffects
+
+        sourceComponent: OpacityMask {
+            source: meterGradient
+            maskSource: meterMask
+        }
+    }
+
+    Item {
+        id: cheapMeter
+
+        anchors.fill: parent
+        anchors.margins: 1
+        visible: root.cheapEffects
+
+        Item {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Math.round(control.parameter * cheapMeter.height)
+            clip: true
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: cheapMeter.height
+                radius: width / 2
+                antialiasing: false
+                gradient: meterGradient.gradient
+            }
+        }
     }
 }

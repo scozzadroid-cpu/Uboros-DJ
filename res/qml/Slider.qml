@@ -73,30 +73,49 @@ RowLayout {
             y: -5
             width: 14
             height: 14
+            // Android: no InnerShadow/DropShadow (two FBO passes re-rendered
+            // while dragging); a soft halo and a dark rim approximate them.
+            readonly property bool cheapEffects: Qt.platform.os === "android"
+            Rectangle {
+                visible: parent.cheapEffects
+                anchors.centerIn: parent
+                width: parent.width + 4
+                height: parent.height + 4
+                radius: width / 2
+                color: Qt.alpha(Theme.darkGray, 0.25)
+            }
             Rectangle {
                 id: handle
                 anchors.fill: parent
                 radius: 7
                 color: Theme.accentColor
+                border.width: parent.cheapEffects ? 2 : 0
+                border.color: Qt.alpha("#0E2A54", 0.7)
             }
-            InnerShadow {
-                id: handleEffect1
+            Loader {
                 anchors.fill: parent
-                samples: 16
-                horizontalOffset: 0
-                verticalOffset: 0
-                radius: 16.0
-                color: "#0E2A54"
-                source: handle
-            }
-            DropShadow {
-                id: handleEffect2
-                anchors.fill: parent
-                source: handleEffect1
-                horizontalOffset: 0
-                verticalOffset: 0
-                radius: 12.0
-                color: Qt.alpha(Theme.darkGray, 0.25)
+                active: !parent.cheapEffects
+                sourceComponent: Item {
+                    InnerShadow {
+                        id: handleEffect1
+                        anchors.fill: parent
+                        samples: 16
+                        horizontalOffset: 0
+                        verticalOffset: 0
+                        radius: 16.0
+                        color: "#0E2A54"
+                        source: handle
+                    }
+                    DropShadow {
+                        id: handleEffect2
+                        anchors.fill: parent
+                        source: handleEffect1
+                        horizontalOffset: 0
+                        verticalOffset: 0
+                        radius: 12.0
+                        color: Qt.alpha(Theme.darkGray, 0.25)
+                    }
+                }
             }
         }
     }
