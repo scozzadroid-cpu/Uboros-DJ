@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QStyle>
+#include <QSurfaceFormat>
 #include <QTextCodec>
 #include <QThread>
 #include <QtDebug>
@@ -224,6 +225,21 @@ int main(int argc, char * argv[]) {
         const bool forceTextureView =
                 QFile::exists(QStringLiteral("/data/user/0/org.mixxx/files/force_textureview"));
         qputenv("QT_ANDROID_SURFACE_CONTAINER_TYPE", forceTextureView ? "1" : "0");
+    }
+#endif
+#ifdef Q_OS_ANDROID
+    // Opaque window: no alpha channel in the EGL surface, so the buffers are
+    // RGBX and SurfaceFlinger/HWC need not blend the full-screen layer with
+    // what is below it. The QML window color is always opaque (main.qml:
+    // Theme.backgroundColor or black) and the splash is a Java view, so
+    // nothing relies on the window being translucent. No MSAA (samples are
+    // left at Qt's default): at 3200x1440 it would cost 4 samples per pixel.
+    // Depth/stencil stay as Qt Quick sets them. To go back without a build:
+    //   adb shell su -c "touch /data/user/0/org.mixxx/files/force_alpha_surface"
+    if (!QFile::exists(QStringLiteral("/data/user/0/org.mixxx/files/force_alpha_surface"))) {
+        QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+        format.setAlphaBufferSize(0);
+        QSurfaceFormat::setDefaultFormat(format);
     }
 #endif
 

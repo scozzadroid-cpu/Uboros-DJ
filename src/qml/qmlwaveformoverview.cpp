@@ -57,6 +57,15 @@ QmlWaveformOverview::QmlWaveformOverview(QQuickItem* parent)
           m_colorHigh(0xFF0000),
           m_colorMid(0x00FF00),
           m_colorLow(0x0000FF) {
+    // Colors, renderer and channels change what is painted: repaint at once
+    // (a resize is repainted by QQuickPaintedItem itself). Summary updates
+    // during analysis are only two (start and end, analyzerwaveform.cpp), so
+    // they need no throttling.
+    connect(this, &QmlWaveformOverview::colorHighChanged, this, [this]() { update(); });
+    connect(this, &QmlWaveformOverview::colorMidChanged, this, [this]() { update(); });
+    connect(this, &QmlWaveformOverview::colorLowChanged, this, [this]() { update(); });
+    connect(this, &QmlWaveformOverview::rendererChanged, this, [this]() { update(); });
+    connect(this, &QmlWaveformOverview::channelsChanged, this, [this]() { update(); });
 }
 
 QmlTrackProxy* QmlWaveformOverview::getTrack() const {
