@@ -1,3 +1,4 @@
+import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import "Theme"
@@ -49,28 +50,13 @@ Item {
         anchors.verticalCenter: root.centered ? undefined : parent.verticalCenter
         spacing: 8
 
-        Rectangle {
+        Skin.Spinner {
             id: dot
 
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.accentColor
-            height: 8
-            radius: 4
-            width: 8
-
-            SequentialAnimation on opacity {
-                loops: Animation.Infinite
-                running: root.visible
-
-                NumberAnimation {
-                    duration: 600
-                    to: 0.25
-                }
-                NumberAnimation {
-                    duration: 600
-                    to: 1.0
-                }
-            }
+            height: 12
+            running: root.visible
+            width: 12
         }
         Text {
             id: label
@@ -81,8 +67,8 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: root.pixelSize
             text: root.statusText
-            // The dot and the gap take 16 px; never wider than the space given
-            width: Math.min(implicitWidth, Math.max(0, root.width - 16))
+            // The spinner and the gap take 20 px; never wider than the space given
+            width: Math.min(implicitWidth, Math.max(0, root.width - 20))
         }
     }
 }

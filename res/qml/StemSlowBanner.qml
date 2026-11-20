@@ -1,3 +1,4 @@
+import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Layouts
@@ -11,12 +12,44 @@ Rectangle {
 
     readonly property bool shown: slowControl.value > 0
 
-    color: "#2B2B2B"
-    border.color: Theme.yellow
+    color: Theme.cardColor
+    border.color: Qt.rgba(Theme.yellow.r, Theme.yellow.g, Theme.yellow.b, 0.55)
     border.width: 1
-    radius: 8
-    implicitHeight: row.implicitHeight + 20
-    visible: shown
+    radius: Theme.radiusLarge
+    implicitHeight: row.implicitHeight + 24
+    // Fades and slides in and out instead of popping up
+    opacity: shown ? 1 : 0
+    visible: opacity > 0
+
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 220
+            easing.type: Easing.OutQuad
+        }
+    }
+    transform: Translate {
+        y: root.shown ? 0 : -14
+
+        Behavior on y {
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutQuad
+            }
+        }
+    }
+
+    // The color stripe on the left says what kind of message this is (a warning)
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.top: parent.top
+        anchors.topMargin: 10
+        color: Theme.yellow
+        radius: 2
+        width: 4
+    }
 
     Mixxx.ControlProxy {
         id: slowControl
@@ -46,37 +79,12 @@ Rectangle {
         key: "quality"
     }
 
-    component Choice: Rectangle {
-        id: choice
-
-        property alias text: label.text
-        signal chosen
-
-        Layout.preferredHeight: 44
-        Layout.preferredWidth: label.implicitWidth + 32
-        color: tap.pressed ? "#555555" : "#3F3F3F"
-        radius: 6
-
-        Text {
-            id: label
-
-            anchors.centerIn: parent
-            color: Theme.white
-            font.bold: true
-            font.pixelSize: 15
-        }
-        TapHandler {
-            id: tap
-
-            onTapped: choice.chosen()
-        }
-    }
-
     RowLayout {
         id: row
 
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.leftMargin: 20
+        anchors.margins: 12
         spacing: 12
 
         Text {
@@ -86,18 +94,21 @@ Rectangle {
             text: qsTr("This phone is too slow for the stem quality in use: the stems arrive late or the audio drops out. Use the light quality?")
             wrapMode: Text.WordWrap
         }
-        Choice {
+        Skin.BannerButton {
+            primary: true
             text: qsTr("Light")
+            tint: Theme.yellow
 
-            onChosen: {
+            onClicked: {
                 qualityControl.value = 1;
                 slowControl.value = 0;
             }
         }
-        Choice {
+        Skin.BannerButton {
             text: qsTr("Not now")
+            tint: Theme.yellow
 
-            onChosen: slowControl.value = 0
+            onClicked: slowControl.value = 0
         }
     }
 }

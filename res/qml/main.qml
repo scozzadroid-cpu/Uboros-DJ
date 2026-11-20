@@ -734,6 +734,8 @@ ApplicationWindow {
         onShowTutorial: tutorial.open()
     }
     Skin.StemSlowBanner {
+        id: stemSlowBanner
+
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: 8
@@ -743,7 +745,8 @@ ApplicationWindow {
     Skin.UpdateBanner {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 8
+        // Under the stem banner when both are shown (they used to overlap)
+        anchors.topMargin: stemSlowBanner.shown ? stemSlowBanner.height + 16 : 8
         width: Math.min(parent.width - 16, 900)
         z: 99
     }

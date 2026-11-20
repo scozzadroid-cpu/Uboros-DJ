@@ -69,6 +69,16 @@ QtObject {
     property color toolbarBackgroundColor: pal.toolbarBackgroundColor
     property color volumeSliderBarColor: blue
     property color warningColor: "#7D3B3B"
+    // Shared look of the cards (banners, panels, empty states): one set of radii,
+    // surfaces and state colors so that the messages of the app look alike
+    readonly property int radiusSmall: 4
+    readonly property int radiusMedium: 8
+    readonly property int radiusLarge: 12
+    readonly property color cardColor: "#161a20"
+    readonly property color cardBorderColor: "#2a303a"
+    readonly property color errorColor: "#ff5d73"
+    readonly property color successColor: green
+    readonly property color infoColor: accentColor
     property color waveformBeatColor: lightGray
     property color waveformCursorColor: white
     property color waveformMarkerDefault: '#ff7a01'

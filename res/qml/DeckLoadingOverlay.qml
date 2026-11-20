@@ -1,3 +1,4 @@
+import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Layouts
@@ -29,9 +30,18 @@ Rectangle {
     border.color: Qt.rgba(tint.r, tint.g, tint.b, 0.55)
     border.width: 1
     clip: true
-    color: Qt.rgba(0.07, 0.07, 0.08, 1.0)
-    radius: 6
-    visible: info !== null || localFailure
+    color: Theme.cardColor
+    // Fades in and out (it used to pop up and vanish)
+    opacity: (info !== null || localFailure) ? 1 : 0
+    radius: Theme.radiusMedium
+    visible: opacity > 0
+
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 180
+            easing.type: Easing.OutQuad
+        }
+    }
 
     onLoadErrorChanged: {
         errorOn = loadError !== "";
@@ -66,48 +76,33 @@ Rectangle {
         anchors.topMargin: 3
         spacing: 8
 
-        // The spinner: a dot goes round a ring (a "!" when it failed)
+        // The spinner: a dot goes round a ring (a "!" in a ring when it failed)
         Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredHeight: Math.min(30, root.height - 12)
             Layout.preferredWidth: Layout.preferredHeight
 
+            Skin.Spinner {
+                anchors.fill: parent
+                running: root.visible && !root.failed
+                tint: root.tint
+                visible: !root.failed
+            }
             Rectangle {
                 anchors.fill: parent
-                border.color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.3)
-                border.width: 3
-                color: "transparent"
+                border.color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.6)
+                border.width: 2
+                color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.12)
                 radius: width / 2
-            }
-            Item {
-                id: orbit
-
-                anchors.fill: parent
-                visible: !root.failed
-
-                RotationAnimator on rotation {
-                    duration: 1100
-                    from: 0
-                    loops: Animation.Infinite
-                    running: root.visible && !root.failed
-                    to: 360
-                }
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    color: root.tint
-                    height: 7
-                    radius: 3.5
-                    width: 7
-                    y: -1
-                }
-            }
-            Text {
-                anchors.centerIn: parent
-                color: root.tint
-                font.bold: true
-                font.pixelSize: 16
-                text: "!"
                 visible: root.failed
+
+                Text {
+                    anchors.centerIn: parent
+                    color: root.tint
+                    font.bold: true
+                    font.pixelSize: 16
+                    text: "!"
+                }
             }
         }
 
@@ -150,6 +145,15 @@ Rectangle {
             font.pixelSize: 20
             text: Math.round(root.progress * 100) + "%"
             visible: !root.failed && root.progress >= 0 && !(root.info && root.info.status)
+        }
+        // A load failure goes away by itself or with a tap: the cross says so
+        Text {
+            Layout.alignment: Qt.AlignTop
+            Layout.topMargin: 2
+            color: Theme.textMutedColor
+            font.pixelSize: 22
+            text: "×"
+            visible: root.localFailure
         }
     }
 

@@ -294,10 +294,22 @@ Rectangle {
     Rectangle {
         z: 1
         anchors.fill: parent
-        color: "transparent"
+        anchors.margins: 1
+        border.color: Theme.accentColor
         border.width: 2
-        border.color: Theme.white
+        color: "transparent"
+        radius: Theme.radiusMedium
         visible: root.controllerFocus
+
+        // A thin lighter line inside the frame, for depth
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 2
+            border.color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.3)
+            border.width: 1
+            color: "transparent"
+            radius: Theme.radiusMedium - 2
+        }
     }
 
     Rectangle {

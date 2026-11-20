@@ -496,22 +496,37 @@ Rectangle {
         onTriggered: root.driveEpoch++
     }
 
-    // A search (or Matching) that finds nothing says so, instead of an empty list
-    Text {
-        id: noResults
+    // A list with nothing in it says why and what to do, instead of staying blank:
+    // a search (or Matching) that finds nothing, an empty playlist, a drive being read
+    Skin.EmptyState {
+        id: emptyState
 
+        readonly property bool empty: view.rows === 0
         readonly property bool matching: root.pathText.indexOf(qsTr("Matching")) === 0
-        visible: view.rows === 0 && (root.appliedSearch !== "" || matching)
-        anchors.horizontalCenter: view.horizontalCenter
-        anchors.top: view.top
-        anchors.topMargin: 12
-        width: view.width - 20
-        horizontalAlignment: Text.AlignHCenter
-        elide: Text.ElideRight
-        text: root.appliedSearch !== "" ? qsTr("No tracks match \"%1\"").arg(root.appliedSearch) : qsTr("No tracks match the track on the deck")
-        color: Theme.textMutedColor
-        font.family: Theme.fontFamily
-        font.pixelSize: Qt.platform.os === "android" ? 11 : 13
+        readonly property bool searching: root.appliedSearch !== ""
+        // Shown once the list has stayed empty for a moment: a playlist that is
+        // loading is empty for a few frames and must not flash this message
+        property bool settled: false
+
+        anchors.fill: view
+        anchors.topMargin: 24
+        loading: Mixxx.Analysis.deviceBusy !== ""
+        subtitle: loading ? "" : (searching ? qsTr("Try a shorter word, or clear the search.") : (matching ? "" : qsTr("Choose a playlist or a drive in the sources on the left.")))
+        symbol: searching || matching ? "?" : "♪"
+        tint: loading ? Theme.accentColor : Theme.textMutedColor
+        title: loading ? Mixxx.Analysis.deviceBusy : (searching ? qsTr("No tracks match \"%1\"").arg(root.appliedSearch) : (matching ? qsTr("No tracks match the track on the deck") : qsTr("No tracks here")))
+        visible: empty && (settled || loading)
+
+        onEmptyChanged: {
+            if (!empty)
+                settled = false;
+        }
+
+        Timer {
+            interval: 450
+            running: emptyState.empty && !emptyState.settled
+            onTriggered: emptyState.settled = true
+        }
     }
 
     // USB drive being read / prepared (Mixxx.Analysis.deviceBusy)
@@ -519,7 +534,8 @@ Rectangle {
         id: deviceBusyBanner
 
         readonly property string busyText: Mixxx.Analysis.deviceBusy
-        visible: busyText !== ""
+        // With an empty list the empty state already says it
+        visible: busyText !== "" && !(emptyState.visible && emptyState.loading)
         z: 50
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
@@ -531,30 +547,22 @@ Rectangle {
         border.width: 1
         border.color: Theme.accentColor
 
-        Rectangle {
+        Skin.Spinner {
             id: busyDot
 
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 12
             anchors.verticalCenter: parent.verticalCenter
-            width: 10
-            height: 10
-            radius: 5
-            color: Theme.accentColor
-
-            SequentialAnimation on opacity {
-                running: deviceBusyBanner.visible
-                loops: Animation.Infinite
-                NumberAnimation { to: 0.2; duration: 500 }
-                NumberAnimation { to: 1.0; duration: 500 }
-            }
+            height: 16
+            running: deviceBusyBanner.visible
+            width: 16
         }
 
         Text {
             id: busyLabel
 
             anchors.left: busyDot.right
-            anchors.leftMargin: 10
+            anchors.leftMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             text: deviceBusyBanner.busyText
             color: Theme.white

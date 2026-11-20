@@ -1,6 +1,7 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
+import Qt5Compat.GraphicalEffects
 import "Theme"
 
 // Start screen over the interface while the app starts: what it is waiting
@@ -125,13 +126,58 @@ Item {
         spacing: Math.round(root.height * 0.025)
         width: Math.min(root.width - 48, 420)
 
-        Image {
+        // The logo on a soft glow of the accent color; it breathes slowly
+        Item {
+            id: logoBox
+
             anchors.horizontalCenter: parent.horizontalCenter
-            fillMode: Image.PreserveAspectFit
             height: Math.min(root.width, root.height) * 0.22
-            mipmap: true
-            source: "images/logo.png"
             width: height
+
+            RadialGradient {
+                anchors.centerIn: parent
+                height: parent.height * 2.6
+                width: height
+
+                gradient: Gradient {
+                    GradientStop {
+                        color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.22)
+                        position: 0.0
+                    }
+                    GradientStop {
+                        color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.07)
+                        position: 0.45
+                    }
+                    GradientStop {
+                        color: "transparent"
+                        position: 1.0
+                    }
+                }
+            }
+            Image {
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+                source: "images/logo.png"
+
+                SequentialAnimation on scale {
+                    loops: Animation.Infinite
+                    running: root.visible
+
+                    NumberAnimation {
+                        duration: 1800
+                        easing.type: Easing.InOutSine
+                        from: 1.0
+                        to: 1.04
+                    }
+                    NumberAnimation {
+                        duration: 1800
+                        easing.type: Easing.InOutSine
+                        from: 1.04
+                        to: 1.0
+                    }
+                }
+            }
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -159,10 +205,22 @@ Item {
             width: parent.width
 
             Rectangle {
-                color: Theme.accentColor
                 height: parent.height
                 radius: parent.radius
                 width: parent.width * root.progress
+
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+
+                    GradientStop {
+                        color: Qt.darker(Theme.accentColor, 1.6)
+                        position: 0.0
+                    }
+                    GradientStop {
+                        color: Theme.accentColor
+                        position: 1.0
+                    }
+                }
 
                 Behavior on width {
                     NumberAnimation {
@@ -213,6 +271,12 @@ Item {
                         height: 8
                         radius: 4
                         width: 8
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 250
+                            }
+                        }
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter

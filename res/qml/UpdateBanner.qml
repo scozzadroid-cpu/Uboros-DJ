@@ -1,3 +1,4 @@
+import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
 import QtQuick.Layouts
@@ -16,46 +17,51 @@ Rectangle {
     readonly property bool shown: Mixxx.AppUpdater.supported && Mixxx.AppUpdater.state === "ready" && Mixxx.AppUpdater.availableCode !== dismissedCode
     readonly property string blockedBy: Mixxx.AppUpdater.installBlockedBy
 
-    color: "#2B2B2B"
-    border.color: Theme.accentColor
+    color: Theme.cardColor
+    border.color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.55)
     border.width: 1
-    radius: 8
-    implicitHeight: row.implicitHeight + 20
-    visible: shown
+    radius: Theme.radiusLarge
+    implicitHeight: row.implicitHeight + 24
+    // Fades and slides in and out instead of popping up
+    opacity: shown ? 1 : 0
+    visible: opacity > 0
 
-    component Choice: Rectangle {
-        id: choice
-
-        property alias text: label.text
-        signal chosen
-
-        Layout.preferredHeight: 44
-        Layout.preferredWidth: label.implicitWidth + 32
-        color: !enabled ? "#2F2F2F" : tap.pressed ? "#555555" : "#3F3F3F"
-        radius: 6
-
-        Text {
-            id: label
-
-            anchors.centerIn: parent
-            color: choice.enabled ? Theme.white : Theme.midGray
-            font.bold: true
-            font.pixelSize: 15
+    Behavior on opacity {
+        NumberAnimation {
+            duration: 220
+            easing.type: Easing.OutQuad
         }
-        TapHandler {
-            id: tap
+    }
+    transform: Translate {
+        y: root.shown ? 0 : -14
 
-            enabled: choice.enabled
-
-            onTapped: choice.chosen()
+        Behavior on y {
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutQuad
+            }
         }
+    }
+
+    // The color stripe on the left says what kind of message this is
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.top: parent.top
+        anchors.topMargin: 10
+        color: Theme.accentColor
+        radius: 2
+        width: 4
     }
 
     RowLayout {
         id: row
 
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.leftMargin: 20
+        anchors.margins: 12
         spacing: 12
 
         ColumnLayout {
@@ -89,16 +95,19 @@ Rectangle {
                 wrapMode: Text.WordWrap
             }
         }
-        Choice {
+        Skin.BannerButton {
             enabled: root.blockedBy === ""
+            primary: true
             text: root.italian ? "Installa ora" : qsTr("Install now")
+            tint: Theme.accentColor
 
-            onChosen: Mixxx.AppUpdater.install()
+            onClicked: Mixxx.AppUpdater.install()
         }
-        Choice {
+        Skin.BannerButton {
             text: root.italian ? "Più tardi" : qsTr("Later")
+            tint: Theme.accentColor
 
-            onChosen: root.dismissedCode = Mixxx.AppUpdater.availableCode
+            onClicked: root.dismissedCode = Mixxx.AppUpdater.availableCode
         }
     }
 }

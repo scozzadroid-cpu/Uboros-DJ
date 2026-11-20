@@ -388,6 +388,42 @@ QString getText(rekordbox_pdb_t::device_sql_string_t* deviceString) {
     return text.remove(QChar('\x0'));
 }
 
+// Removes every playlist of a drive (its "all tracks" playlist, named like the
+// drive path, and the ones below it, named "<path>-->..."), with their tracks.
+// The names are UNIQUE: a playlist left over from an earlier load of the same
+// drive made the next INSERT fail and the whole tree stopped there, so most
+// playlists of the drive were missing. clearDeviceTables() only reaches the
+// playlists that have tracks (an empty one such as "CUE Analysis Playlist" stays).
+void removeDevicePlaylists(QSqlDatabase& database, const QString& devicePath) {
+    if (devicePath.isEmpty()) {
+        return;
+    }
+    // Names starting with "<path>-->" are the range [prefix, upper): '?' follows '>'
+    const QString prefix = devicePath + kPLaylistPathDelimiter;
+    QString upper = prefix;
+    upper.back() = QChar(upper.back().unicode() + 1);
+    const QString where = " WHERE name=:path OR (name>=:prefix AND name<:upper)";
+
+    QSqlQuery deleteTracks(database);
+    deleteTracks.prepare("DELETE FROM " + kRekordboxPlaylistTracksTable +
+            " WHERE playlist_id IN (SELECT id FROM " + kRekordboxPlaylistsTable + where + ")");
+    deleteTracks.bindValue(":path", devicePath);
+    deleteTracks.bindValue(":prefix", prefix);
+    deleteTracks.bindValue(":upper", upper);
+    if (!deleteTracks.exec()) {
+        LOG_FAILED_QUERY(deleteTracks) << "devicePath:" << devicePath;
+    }
+
+    QSqlQuery deletePlaylists(database);
+    deletePlaylists.prepare("DELETE FROM " + kRekordboxPlaylistsTable + where);
+    deletePlaylists.bindValue(":path", devicePath);
+    deletePlaylists.bindValue(":prefix", prefix);
+    deletePlaylists.bindValue(":upper", upper);
+    if (!deletePlaylists.exec()) {
+        LOG_FAILED_QUERY(deletePlaylists) << "devicePath:" << devicePath;
+    }
+}
+
 int createDevicePlaylist(QSqlDatabase& database, const QString& devicePath) {
     int playlistID = kInvalidPlaylistId;
 
@@ -617,6 +653,9 @@ QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool,
 
     ScopedTransaction transaction(database);
 
+    // Playlists left by an earlier load of this drive would make the inserts below fail
+    removeDevicePlaylists(database, devicePath);
+
     QSqlQuery query(database);
     query.prepare("INSERT INTO " + kRekordboxLibraryTable +
             " (rb_id, artist, title, album, year,"
@@ -836,7 +875,9 @@ void buildPlaylistTree(
         if (!queryInsertIntoPlaylist.exec()) {
             LOG_FAILED_QUERY(queryInsertIntoPlaylist)
                     << "currentPath" << currentPath;
-            return;
+            // Do not give up the whole tree for one playlist: the ones after it
+            // would be missing (this was the case with a leftover "CUE Analysis Playlist")
+            continue;
         }
 
         QSqlQuery idQuery(database);
@@ -846,7 +887,7 @@ void buildPlaylistTree(
         if (!idQuery.exec()) {
             LOG_FAILED_QUERY(idQuery)
                     << "currentPath" << currentPath;
-            return;
+            continue;
         }
 
         int playlistID = kInvalidPlaylistId;

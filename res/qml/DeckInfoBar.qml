@@ -164,14 +164,27 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
+        // With the hint under it the title moves up a little
+        anchors.verticalCenterOffset: emptyDeckHint.visible ? -8 : 0
+        // The spinner of "Loading…" sits in front of the text
+        leftPadding: root.deckPlayer && root.deckPlayer.isLoading ? 24 : 0
         text: root.deckPlayer && root.deckPlayer.isLoading ? qsTr("Loading…") : (failure !== "" ? (failure.indexOf("File not") === 0 || failure.indexOf("Unsupported") === 0 ? failure : qsTr("Couldn't load track: %1").arg(failure)) : qsTr("Load a track"))
         font.family: Theme.fontFamily
         font.pixelSize: Theme.textFontPixelSize
-        font.italic: failure === ""
-        color: failure !== "" ? Theme.red : Theme.textMutedColor
+        font.bold: failure === ""
+        color: failure !== "" ? Theme.errorColor : (root.deckPlayer && root.deckPlayer.isLoading ? Theme.white : Theme.lightGray2)
         elide: Text.ElideRight
         maximumLineCount: 2
         wrapMode: Text.Wrap
+
+        Skin.Spinner {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            height: 16
+            tint: root.deckColor
+            visible: !!(root.deckPlayer && root.deckPlayer.isLoading)
+            width: 16
+        }
 
         Timer {
             id: failureTimer
@@ -193,6 +206,22 @@ Rectangle {
                 emptyDeckText.failure = "";
             }
         }
+    }
+
+    // What to do on an empty deck
+    Text {
+        id: emptyDeckHint
+
+        anchors.left: emptyDeckText.left
+        anchors.right: emptyDeckText.right
+        anchors.top: emptyDeckText.bottom
+        anchors.topMargin: 2
+        color: Theme.textMutedColor
+        elide: Text.ElideRight
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.textFontPixelSize - 2
+        text: qsTr("Pick one in the library")
+        visible: emptyDeckText.visible && emptyDeckText.failure === "" && !(root.deckPlayer && root.deckPlayer.isLoading) && root.height >= 50
     }
 
     // Track title: scrolls (marquee) when it does not fit, like a CDJ

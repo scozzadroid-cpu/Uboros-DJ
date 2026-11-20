@@ -93,7 +93,7 @@ Item {
             font.pixelSize: 11
             font.bold: root.loaded
             font.italic: !root.loaded && root.failure === ""
-            color: root.loaded ? Theme.white : (root.failure !== "" ? Theme.red : Theme.textMutedColor)
+            color: root.loaded ? Theme.white : (root.failure !== "" ? Theme.errorColor : Theme.textMutedColor)
             text: {
                 if (root.loaded)
                     return root.currentTrack ? root.currentTrack.title : "";
