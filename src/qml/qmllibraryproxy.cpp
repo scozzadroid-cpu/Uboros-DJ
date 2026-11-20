@@ -77,7 +77,10 @@ int QmlLibraryProxy::analyzeTracksWithoutBpm() const {
     }
     QSqlQuery query(s_pLibrary->trackCollectionManager()->internalCollection()->database());
     query.prepare(QStringLiteral(
-            "SELECT id FROM library WHERE mixxx_deleted=0 AND (bpm IS NULL OR bpm<=0)"));
+            // Not the tracks whose file is missing (a copy that was deleted, a drive that
+            // is not connected): analyzing them only fails, hundreds of times at every start
+            "SELECT id FROM library WHERE mixxx_deleted=0 AND (bpm IS NULL OR bpm<=0) "
+            "AND location IN (SELECT id FROM track_locations WHERE fs_deleted=0)"));
     if (!query.exec()) {
         qWarning() << "analyzeTracksWithoutBpm: query failed" << query.lastQuery();
         return 0;

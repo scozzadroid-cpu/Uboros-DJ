@@ -137,7 +137,9 @@ int countQuery(const QString& sql) {
     return query.value(0).toInt();
 }
 
-const QString kNotDeleted = QStringLiteral("library.mixxx_deleted=0");
+// Tracks whose file is missing are left out too: they cannot be analyzed
+const QString kNotDeleted = QStringLiteral(
+        "library.mixxx_deleted=0 AND track_locations.fs_deleted=0");
 const QString kHasWaveform = QStringLiteral(
         "library.id IN (SELECT track_id FROM track_analysis WHERE type=1)");
 const QString kOnDrive = QStringLiteral(
