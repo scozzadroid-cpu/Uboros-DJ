@@ -165,7 +165,10 @@ Rectangle {
 
                 text: display
                 anchors.fill: parent
-                anchors.leftMargin: 15
+                // Same start as the text of the cells (SourceTree.qml), room
+                // for the sort arrow at the end
+                anchors.leftMargin: Qt.platform.os === "android" ? 6 : 15
+                anchors.rightMargin: sortIndicator.visible ? 14 : 2
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignLeft
                 verticalAlignment: Text.AlignVCenter
@@ -174,13 +177,14 @@ Rectangle {
                 font.letterSpacing: 0.5
                 font.pixelSize: 11
                 font.weight: Font.Bold
-                color: Theme.textMutedColor
+                // The sorted column is brighter
+                color: horizontalHeader.sortingColumn == index ? Theme.white : Theme.textMutedColor
             }
 
             Item {
                 anchors {
-                    left: parent.left
-                    leftMargin: 5
+                    right: parent.right
+                    rightMargin: 9
                     top: parent.top
                     bottom: parent.bottom
                 }
@@ -200,12 +204,21 @@ Rectangle {
                     font.capitalization: Font.AllUppercase
                     font.bold: true
                     font.pixelSize: Theme.buttonFontPixelSize
-                    color: "red"
+                    // The sorted column: accent color (red read as an error)
+                    color: Theme.accentColor
                 }
+            }
+            // Line under the headers
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                color: Theme.buttonBorderColor
+                height: 1
             }
             Rectangle {
                 id: columnResizer
-                color: Theme.darkGray2
+                color: Theme.dividerColor
                 width: 1
                 anchors {
                     top: parent.top

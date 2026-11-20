@@ -30,7 +30,7 @@ Rectangle {
 
     border.width: 1
     border.color: Theme.deckLineColor
-    radius: 6
+    radius: Theme.radiusMedium
     height: 56
 
     // Deck color stripe on the left edge
@@ -305,7 +305,7 @@ Rectangle {
         anchors.right: root.right
         anchors.verticalCenter: root.verticalCenter
         anchors.margins: 5
-        height: 2
+        height: 1
         color: root.lineColor
     }
 
@@ -470,7 +470,7 @@ Rectangle {
         anchors.right: infoBarKey.left
         anchors.topMargin: 5
         anchors.bottomMargin: 5
-        width: 2
+        width: 1
         color: root.lineColor
     }
 
@@ -566,7 +566,7 @@ Rectangle {
         anchors.right: infoBarRateRatio.left
         anchors.topMargin: 5
         anchors.bottomMargin: 5
-        width: 2
+        width: 1
         color: root.lineColor
     }
 
@@ -592,6 +592,11 @@ Rectangle {
         text: displayBpm > 0 ? displayBpm.toFixed(2) + (unsure ? "?" : "") : "-"
         font.bold: true
         font.pixelSize: root.bpmFontSize
+        font.features: Theme.numericFeatures
+        // A narrow column (mixer view) makes the number smaller instead of
+        // cutting it ("118...")
+        fontSizeMode: Text.HorizontalFit
+        minimumPixelSize: 11
         color: unsure ? Theme.yellow : Theme.white
 
         Mixxx.ControlProxy {
@@ -640,6 +645,9 @@ Rectangle {
             key: "rateRange"
         }
         font.pixelSize: 11
+        font.features: Theme.numericFeatures
+        fontSizeMode: Text.HorizontalFit
+        minimumPixelSize: 10
         color: Math.abs(ratio) < 0.05 ? Theme.textMutedColor : (ratio > 0 ? "#ff9a3c" : "#4ec3ff")
 
         Mixxx.ControlProxy {
@@ -681,6 +689,9 @@ Rectangle {
         color: ending ? (blink ? Theme.white : "#ff3030") : Theme.deckTextColor
         font.bold: true
         font.pixelSize: 14
+        font.features: Theme.numericFeatures
+        fontSizeMode: Text.HorizontalFit
+        minimumPixelSize: 10
 
         Timer {
             interval: 500

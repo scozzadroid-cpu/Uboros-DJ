@@ -10,7 +10,7 @@ Rectangle {
     property string title
     signal back
 
-    color: "#0b0c0f"
+    color: Theme.toolbarBackgroundColor
     implicitHeight: 60
 
     Rectangle {
@@ -28,8 +28,16 @@ Rectangle {
         anchors.top: parent.top
         width: 72
 
-        background: Rectangle {
-            color: backButton.pressed ? Theme.accentColor : "transparent"
+        // Pressed: a round highlight behind the arrow, not the whole block
+        background: Item {
+            Rectangle {
+                anchors.centerIn: parent
+                color: Qt.darker(Theme.accentColor, 1.6)
+                height: Theme.touchTarget
+                radius: height / 2
+                visible: backButton.pressed
+                width: height
+            }
         }
         contentItem: Text {
             color: Theme.white
@@ -50,7 +58,8 @@ Rectangle {
         color: Theme.white
         elide: Text.ElideRight
         font.bold: true
-        font.pixelSize: 20
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeHeadline
         text: root.title
     }
 }

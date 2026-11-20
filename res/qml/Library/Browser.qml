@@ -318,7 +318,7 @@ Rectangle {
         anchors.leftMargin: Qt.platform.os === "android" ? 4 : 7
         anchors.rightMargin: Qt.platform.os === "android" ? 6 : 25
         anchors.bottomMargin: 7
-        radius: 6
+        radius: Theme.radiusMedium
         color: Theme.sunkenBackgroundColor
 
         ColumnLayout {
@@ -484,7 +484,7 @@ Rectangle {
                                 anchors.rightMargin: 3
                                 anchors.topMargin: 1
                                 anchors.bottomMargin: 1
-                                radius: 5
+                                radius: Theme.radiusButton
                                 color: current ? Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.35) : 'transparent'
                                 border.width: current ? 1 : 0
                                 border.color: Theme.accentColor
@@ -513,7 +513,10 @@ Rectangle {
 
                                     Image {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        visible: depth == 0 && !!icon
+                                        // Top level: the room of the icon is kept also
+                                        // without one, so that every label starts in line
+                                        visible: depth == 0
+                                        opacity: !!icon ? 1 : 0
                                         // The model gives the feature icon name (e.g. "rekordbox")
                                         source: depth == 0 && !!icon ? "../../images/library/ic_library_" + icon + ".svg" : ""
                                         height: Qt.platform.os === "android" ? 18 : 22

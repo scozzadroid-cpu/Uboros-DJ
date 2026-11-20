@@ -18,37 +18,39 @@ Rectangle {
     border.color: Theme.deckLineColor
     border.width: 1
     color: Theme.darkGray2
-    implicitHeight: column.implicitHeight + 24
-    radius: 12
+    implicitHeight: column.implicitHeight + 2 * Theme.spacingL
+    radius: Theme.radiusLarge
 
     ColumnLayout {
         id: column
 
         anchors.left: parent.left
-        anchors.margins: 14
+        anchors.margins: Theme.spacingXL
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 8
+        spacing: Theme.spacingM
 
         Text {
             Layout.fillWidth: true
             color: Theme.white
             font.bold: true
-            font.pixelSize: 16
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeTitle
             text: root.title
             wrapMode: Text.WordWrap
         }
         Text {
             Layout.fillWidth: true
-            color: Theme.midGray
-            font.pixelSize: 13
+            color: Theme.textMutedColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall + 1
             text: root.subtitle
             visible: text.length > 0
             wrapMode: Text.WordWrap
         }
         Flow {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Theme.spacingM
 
             Repeater {
                 model: root.model
@@ -59,11 +61,12 @@ Rectangle {
                     required property var modelData
                     readonly property bool selected: root.current === modelData.value
 
-                    border.color: selected ? Qt.lighter(Theme.accentColor, 1.3) : Theme.deckLineColor
+                    border.color: selected ? Qt.lighter(Theme.accentColor, 1.3) : (tap.pressed ? Theme.accentColor : Theme.buttonBorderColor)
                     border.width: 1
-                    color: selected ? Theme.accentColor : (tap.pressed ? Theme.darkGray3 : Theme.darkGray3)
-                    height: 44
-                    radius: 10
+                    // Pressed: lighter (the two branches were the same color)
+                    color: selected ? Theme.accentColor : (tap.pressed ? Theme.surfacePressedColor : Theme.darkGray3)
+                    height: Theme.touchTarget
+                    radius: Theme.radiusMedium + 2
                     width: chipLabel.implicitWidth + 28
 
                     Text {
@@ -72,7 +75,8 @@ Rectangle {
                         anchors.centerIn: parent
                         color: Theme.white
                         font.bold: chip.selected
-                        font.pixelSize: 14
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
                         text: chip.modelData.label
                     }
                     MouseArea {

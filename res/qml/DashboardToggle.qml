@@ -15,14 +15,15 @@ AbstractButton {
     signal switched(bool value)
 
     implicitHeight: Math.max(56, labels.implicitHeight + 20)
+    opacity: enabled ? 1 : Theme.disabledOpacity
 
     onClicked: root.switched(!root.on)
 
     background: Rectangle {
-        border.color: Theme.deckLineColor
+        border.color: root.pressed ? Theme.accentColor : Theme.deckLineColor
         border.width: 1
-        color: root.pressed ? Theme.darkGray2 : Theme.darkGray3
-        radius: 12
+        color: root.pressed ? Theme.surfacePressedColor : Theme.darkGray3
+        radius: Theme.radiusLarge
     }
     contentItem: RowLayout {
         spacing: 12
@@ -31,21 +32,23 @@ AbstractButton {
             id: labels
 
             Layout.fillWidth: true
-            Layout.leftMargin: 14
-            spacing: 2
+            Layout.leftMargin: Theme.spacingXL
+            spacing: Theme.spacingXS
 
             Text {
                 Layout.fillWidth: true
-                color: root.enabled ? Theme.white : Theme.midGray
+                color: Theme.white
                 font.bold: true
-                font.pixelSize: 15
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody + 1
                 text: root.title
                 wrapMode: Text.WordWrap
             }
             Text {
                 Layout.fillWidth: true
-                color: Theme.midGray
-                font.pixelSize: 12
+                color: Theme.textMutedColor
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
                 text: root.subtitle
                 visible: text.length > 0
                 wrapMode: Text.WordWrap
@@ -53,11 +56,12 @@ AbstractButton {
         }
         // Switch
         Rectangle {
-            Layout.rightMargin: 14
-            color: root.on ? Theme.accent : Theme.darkGray2
+            Layout.rightMargin: Theme.spacingXL
+            border.color: root.on ? Theme.accentColor : Theme.buttonBorderColor
+            border.width: 1
+            color: root.on ? Theme.accentColor : Theme.darkGray2
             implicitHeight: 26
             implicitWidth: 46
-            opacity: root.enabled ? 1 : 0.4
             radius: 13
 
             Rectangle {

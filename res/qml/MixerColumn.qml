@@ -15,7 +15,7 @@ Item {
         anchors.right: parent.right
         height: width
         color: Theme.knobBackgroundColor
-        radius: 5
+        radius: Theme.radiusMedium
 
         Skin.ControlKnob {
             id: gainKnob

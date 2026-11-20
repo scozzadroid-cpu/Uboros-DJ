@@ -1,9 +1,8 @@
 import "." as Skin
-import "Theme"
 
+// The flat knob of Knob.qml, smaller by default (effects, samplers)
 Skin.Knob {
     id: root
 
-    shadowSource: Theme.imgKnobMiniShadow
-    backgroundSource: Theme.imgKnobMini
+    defaultSize: 40
 }

@@ -137,9 +137,10 @@ Rectangle {
         }
     }
 
+    // Hairline between the columns
     Rectangle {
         id: border
-        color: Theme.darkGray2
+        color: Theme.dividerColor
         width: 1
         anchors {
             top: parent.top

@@ -53,7 +53,8 @@ QtObject {
     property color eqMidColor: white
     property color gainKnobColor: blue
     property color green: "#85c85b"
-    property color knobBackgroundColor: "#262626"
+    // Frame behind the knobs: the surface of the profile (was a neutral #262626)
+    property color knobBackgroundColor: darkGray2
     property color lightGray2: "#b0b0b0"
     property color lightGray: "#747474"
     property color midGray: pal.midGray
@@ -79,6 +80,37 @@ QtObject {
     readonly property color errorColor: "#ff5d73"
     readonly property color successColor: green
     readonly property color infoColor: accentColor
+    // Corner of the small buttons (toolbar, hotcues, CUE/PLAY...)
+    readonly property int radiusButton: 6
+    // One spacing scale for margins and gaps (dp)
+    readonly property int spacingXS: 2
+    readonly property int spacingS: 4
+    readonly property int spacingM: 8
+    readonly property int spacingL: 12
+    readonly property int spacingXL: 16
+    // One type scale (pixel sizes): captions and chips, secondary text, body,
+    // titles of cards, page titles
+    readonly property int fontSizeCaption: 10
+    readonly property int fontSizeSmall: 12
+    readonly property int fontSizeBody: 14
+    readonly property int fontSizeTitle: 16
+    readonly property int fontSizeHeadline: 20
+    // Numbers that change while playing (BPM, time, tempo): every digit as
+    // wide as the others, so the text does not jitter (OpenType "tnum")
+    readonly property var numericFeatures: ({
+            "tnum": 1
+        })
+    // Smallest touch target: 44 dp for a finger on Android, less with a mouse
+    readonly property int touchTarget: Qt.platform.os === "android" ? 44 : 32
+    // States of the flat controls: a lighter surface while pressed, faded when disabled
+    readonly property real disabledOpacity: 0.4
+    readonly property color surfacePressedColor: Qt.lighter(pal.buttonBackgroundColor, 1.6)
+    // Hairlines between rows and columns of lists
+    readonly property color dividerColor: Qt.rgba(1, 1, 1, 0.06)
+    // Flat knobs (Knob.qml): face, its edge and the track of the value arc
+    readonly property color knobFaceColor: Qt.lighter(pal.buttonBackgroundColor, 1.45)
+    readonly property color knobEdgeColor: Qt.lighter(pal.buttonBorderColor, 1.5)
+    readonly property color knobTrackColor: Qt.rgba(1, 1, 1, 0.14)
     property color waveformBeatColor: lightGray
     property color waveformCursorColor: white
     property color waveformMarkerDefault: '#ff7a01'

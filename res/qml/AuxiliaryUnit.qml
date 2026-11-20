@@ -25,7 +25,7 @@ Row {
         width: 52
         height: width
         color: Theme.knobBackgroundColor
-        radius: 5
+        radius: Theme.radiusMedium
 
         Skin.ControlKnob {
             id: gainKnob

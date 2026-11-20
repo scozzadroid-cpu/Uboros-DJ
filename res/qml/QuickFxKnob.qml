@@ -12,7 +12,7 @@ Rectangle {
     color: Theme.knobBackgroundColor
     width: 56
     height: 56
-    radius: 5
+    radius: Theme.radiusMedium
 
     Skin.ControlKnob {
         id: knob

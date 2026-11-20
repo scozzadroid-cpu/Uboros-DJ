@@ -17,22 +17,33 @@ AbstractButton {
     // others (hotcues, sync...) with their own color
     readonly property color activeFill: Qt.colorEqual(root.activeColor, Theme.white) ? Theme.accentColor : Qt.darker(root.activeColor, 1.7)
 
+    // Height of the drawn button when the button itself is taller (a bigger
+    // touch target in a bar, see main.qml); 0 = as tall as the button
+    property real visualHeight: 0
+
     implicitHeight: 26
     implicitWidth: Math.max(52, label.implicitWidth + 20)
+    // The background is drawn inside the insets: 2 on every side, more above
+    // and below when visualHeight is set
+    leftInset: 2
+    rightInset: 2
+    topInset: visualHeight > 0 ? Math.max(2, Math.round((height - visualHeight) / 2)) : 2
+    bottomInset: topInset
+    opacity: enabled ? 1 : Theme.disabledOpacity
 
     background: Rectangle {
         id: backgroundRect
 
-        anchors.fill: parent
-        anchors.margins: 2
-        radius: 6
+        radius: Theme.radiusButton
+        // Flat surface; pressed is clearly lighter (it was almost the same
+        // color as the normal state)
         color: {
             if (root.pressed)
-                return root.active ? Qt.lighter(root.activeFill, 1.2) : Theme.darkGray2;
+                return root.active ? Qt.lighter(root.activeFill, 1.25) : Theme.surfacePressedColor;
             return root.active ? root.activeFill : Theme.buttonBackgroundColor;
         }
         border.width: 1
-        border.color: root.active ? Qt.lighter(root.activeFill, 1.4) : Theme.buttonBorderColor
+        border.color: root.active ? Qt.lighter(root.activeFill, 1.4) : (root.hovered && !root.pressed ? Qt.lighter(Theme.buttonBorderColor, 1.5) : Theme.buttonBorderColor)
 
         Behavior on color {
             ColorAnimation {

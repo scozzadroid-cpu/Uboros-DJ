@@ -1,42 +1,65 @@
 import Mixxx.Controls 1.0 as MixxxControls
 import QtQuick 2.12
+import QtQuick.Shapes
 import "Theme"
 
+// Flat knob: a plain disc with a thin edge, the indicator line and the value
+// arc over a dim track of the whole range. No images and no shadow: the disc
+// and the track are static, only the indicator and the value arc move.
 MixxxControls.Knob {
     id: root
 
     required property color color
-    property url shadowSource: Theme.imgKnobShadow
-    property url backgroundSource: Theme.imgKnob
+    // Size when the owner sets none (MiniKnob.qml: 40)
+    property int defaultSize: 48
+    // Diameter of the disc relative to the knob (the arc runs around it)
+    property real faceScale: 0.74
 
-    implicitWidth: background.width
+    implicitWidth: defaultSize
     implicitHeight: implicitWidth
     arc: true
     arcRadius: width * 0.45
-    arcOffsetY: width * 0.01
     arcColor: root.color
-    arcWidth: 2
+    arcWidth: 2.5
     angle: 116
 
-    Image {
-        id: shadow
-
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: width * 7 / 6
-        fillMode: Image.PreserveAspectFit
-        source: root.shadowSource
-    }
-
-    background: Image {
-        id: background
-
+    background: Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         height: width
-        source: root.backgroundSource
+
+        // Track of the arc over the whole range. Curve renderer: smooth
+        // edges without multisampling (the geometry is made once)
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+
+            ShapePath {
+                capStyle: ShapePath.FlatCap
+                fillColor: "transparent"
+                strokeColor: Theme.knobTrackColor
+                strokeWidth: root.arcWidth
+
+                PathAngleArc {
+                    centerX: root.width / 2
+                    centerY: root.width / 2
+                    radiusX: root.arcRadius
+                    radiusY: root.arcRadius
+                    startAngle: -90 - root.angle
+                    sweepAngle: 2 * root.angle
+                }
+            }
+        }
+        Rectangle {
+            anchors.centerIn: parent
+            border.color: Theme.knobEdgeColor
+            border.width: 1
+            color: Theme.knobFaceColor
+            height: width
+            radius: width / 2
+            width: Math.round(root.width * root.faceScale)
+        }
     }
 
     foreground: Item {
@@ -48,8 +71,9 @@ MixxxControls.Knob {
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             width: 2
-            height: root.width / 5
-            y: height
+            height: Math.round(root.width * 0.24)
+            y: Math.round(root.width * (1 - root.faceScale) / 2) + 2
+            radius: 1
             color: root.color
         }
     }

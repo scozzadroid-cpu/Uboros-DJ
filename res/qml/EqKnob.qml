@@ -13,7 +13,7 @@ Rectangle {
     color: Theme.knobBackgroundColor
     width: 56
     height: 56
-    radius: 5
+    radius: Theme.radiusMedium
 
     Skin.ControlKnob {
         id: knob
@@ -44,8 +44,15 @@ Rectangle {
         border.color: Theme.buttonNormalColor
         color: statusControl.value ? knob.color : "transparent"
 
-        TapHandler {
-            onTapped: statusControl.value = !statusControl.value
+        // The dot is small: the tap area around it is bigger
+        Item {
+            anchors.centerIn: parent
+            height: 20
+            width: 20
+
+            TapHandler {
+                onTapped: statusControl.value = !statusControl.value
+            }
         }
     }
 }

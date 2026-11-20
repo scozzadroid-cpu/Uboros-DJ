@@ -12,21 +12,27 @@ AbstractButton {
     property string title
     property color accent: Theme.accentColor
 
-    implicitHeight: Math.max(96, labels.implicitHeight + 32)
+    implicitHeight: Math.max(96, labels.implicitHeight + 2 * Theme.spacingXL)
+    opacity: enabled ? 1 : Theme.disabledOpacity
+    // The labels sit inside the card, clear of the accent bar and of the edges
+    leftPadding: Theme.spacingXL + Theme.spacingXS
+    rightPadding: Theme.spacingL
+    topPadding: Theme.spacingL
+    bottomPadding: Theme.spacingL
 
     background: Rectangle {
-        border.color: Theme.deckLineColor
+        border.color: root.pressed ? root.accent : Theme.deckLineColor
         border.width: 1
         color: root.pressed ? Qt.darker(root.accent, 1.8) : Theme.darkGray2
-        radius: 14
+        radius: Theme.radiusLarge
 
         Rectangle {
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 14
+            anchors.bottomMargin: Theme.spacingL
             anchors.left: parent.left
             anchors.leftMargin: 1
             anchors.top: parent.top
-            anchors.topMargin: 14
+            anchors.topMargin: Theme.spacingL
             color: root.accent
             radius: 2
             width: 4
@@ -35,22 +41,22 @@ AbstractButton {
     contentItem: ColumnLayout {
         id: labels
 
-        spacing: 3
+        spacing: Theme.spacingXS
 
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 14
             color: Theme.white
             font.bold: true
-            font.pixelSize: 17
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeTitle + 1
             text: root.title
             wrapMode: Text.WordWrap
         }
         Text {
             Layout.fillWidth: true
-            Layout.leftMargin: 14
-            color: Theme.midGray
-            font.pixelSize: 12
+            color: Theme.textMutedColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
             maximumLineCount: 3
             elide: Text.ElideRight
             text: root.subtitle

@@ -161,7 +161,11 @@ Mixxx.LibrarySourceTree {
             id: value
             anchors.fill: parent
             anchors.leftMargin: Qt.platform.os === "android" ? 6 : 15
+            anchors.rightMargin: 4
+            font.family: Theme.fontFamily
             font.pixelSize: Theme.trackFontSize
+            // Columns of numbers (BPM, year, bitrate, duration) line up
+            font.features: Theme.numericFeatures
             text: display ?? ""
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -221,7 +225,7 @@ Mixxx.LibrarySourceTree {
             anchors.centerIn: parent
             width: stemsLabel.implicitWidth + 10
             height: stemsLabel.implicitHeight + 2
-            radius: 3
+            radius: Theme.radiusSmall - 1
             color: "#1f4a2a"
             border.width: 1
             border.color: "#4ee04e"
@@ -235,6 +239,7 @@ Mixxx.LibrarySourceTree {
                 font.family: Theme.fontFamily
                 font.pixelSize: Qt.platform.os === "android" ? 9 : 11
                 font.bold: true
+                font.letterSpacing: 0.4
             }
         }
     }
@@ -249,7 +254,13 @@ Mixxx.LibrarySourceTree {
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
 
             delegate: Rectangle {
-                color: cellData.decoration
+                // Track color behind the cover. No color (the model gives
+                // black for a track without one): the list shows through
+                // instead of a black block
+                color: {
+                    const c = cellData.decoration;
+                    return c && c.valid && c.r + c.g + c.b > 0 ? c : "transparent";
+                }
                 implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
                 Image {

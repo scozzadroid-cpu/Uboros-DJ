@@ -123,7 +123,7 @@ Item {
         anchors.bottom: parent.bottom
         width: effectUnitControls.width
         color: Theme.knobBackgroundColor
-        radius: 5
+        radius: Theme.radiusMedium
 
         Column {
             id: effectUnitControls
