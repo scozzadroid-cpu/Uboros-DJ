@@ -122,6 +122,8 @@ class StemSeparationService : public QObject {
     bool tuneKernels();
     /// Any thread: the speed test starts as soon as no deck plays
     void requestSpeedTest();
+    /// Worker thread: a track of a deck that may play is being separated
+    bool liveJobPending();
     bool speedTestDue() const;
     /// Main thread: stores the result, shows it, applies it to the live jobs
     void publishSpeeds(double light, double balanced, double best, bool retest);

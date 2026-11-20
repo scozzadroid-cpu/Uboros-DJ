@@ -11,8 +11,8 @@ namespace mixxx {
 
 namespace {
 
-// More than this is a damaged length field (the analyses are a few MB): let Qt decide
-constexpr quint32 kMaxExpectedSize = 1u << 30;
+// More than this is a damaged length field (the analyses are a few MB): let Qt decide (256 MiB)
+constexpr quint32 kMaxExpectedSize = 1u << 28;
 
 struct CompressorCache {
     libdeflate_compressor* pCompressor = nullptr;
@@ -95,6 +95,10 @@ QByteArray fastUncompress(const QByteArray& data) {
             out.data(),
             static_cast<size_t>(expected),
             &actual);
+    if (result == LIBDEFLATE_BAD_DATA) {
+        // Damaged data: qUncompress's answer (empty), without a second allocation
+        return QByteArray();
+    }
     if (result != LIBDEFLATE_SUCCESS || actual != expected) {
         // Wrong length field, damaged or truncated data: Qt's answer (it also
         // grows the buffer if the field is too small and logs the failure)

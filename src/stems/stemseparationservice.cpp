@@ -345,7 +345,10 @@ StemCache::Level StemSeparationService::bestLevel() const {
     if (!m_bestNetFailed.load(std::memory_order_relaxed) && !bestTooSlow) {
         return StemCache::kBest;
     }
-    return liveLevel();
+    // No best quality (failed or too slow): the passes with the decks stopped still
+    // go up to balanced, whatever the live quality is
+    return m_netFailed.load(std::memory_order_relaxed) ? StemCache::kLight
+                                                        : StemCache::kBalanced;
 }
 
 void StemSeparationService::restartLiveJobs() {
@@ -697,7 +700,7 @@ double StemSeparationService::measureSpeed(
     // The first pass only warms up (GPU kernels, memory); the last is timed
     for (int pass = warmUp ? 0 : 1; pass < 2; ++pass) {
         if (m_quitting.load(std::memory_order_relaxed) ||
-                m_anyPlaying.load(std::memory_order_relaxed)) {
+                m_anyPlaying.load(std::memory_order_relaxed) || liveJobPending()) {
             return -1;
         }
         const std::unique_ptr<Separator> pSeparator = make();
@@ -755,6 +758,14 @@ void StemSeparationService::requestSpeedTest() {
     m_wake.notify_all();
 }
 
+bool StemSeparationService::liveJobPending() {
+    // A track is being separated for a deck that may play: it goes first
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return std::any_of(m_jobs.begin(), m_jobs.end(), [](const auto& pJob) {
+        return !pJob->idle && !pJob->cancelled.load();
+    });
+}
+
 bool StemSeparationService::speedTestDue() const {
     return m_speedTestRequested.load(std::memory_order_relaxed) &&
             !m_anyPlaying.load(std::memory_order_relaxed);
@@ -783,8 +794,8 @@ void StemSeparationService::runSpeedTest() {
         if (m_quitting.load(std::memory_order_relaxed)) {
             return true;
         }
-        if (measured < 0 || m_anyPlaying.load(std::memory_order_relaxed)) {
-            kLogger.info() << "Speed test interrupted: a deck plays";
+        if (measured < 0 || m_anyPlaying.load(std::memory_order_relaxed) || liveJobPending()) {
+            kLogger.info() << "Speed test interrupted: a deck plays or a track is loading";
             m_speedTestRequested.store(true, std::memory_order_relaxed);
             return true;
         }
@@ -809,7 +820,7 @@ void StemSeparationService::runSpeedTest() {
     if (stop(0)) {
         return;
     }
-    if (ensureNet(StemCache::kBest)) {
+    if (!liveJobPending() && ensureNet(StemCache::kBest)) {
         // CPU network: one segment takes ~17 s, no warm-up pass
         best = measureSpeed([this]() { return makeSeparator(StemCache::kBest); }, false);
     }
