@@ -143,9 +143,14 @@ class EngineBuffer : public EngineObject {
     // The process methods all run in the audio callback.
     void process(CSAMPLE* pOut, const std::size_t bufferSize) override;
     /// Gives the time stretchers the output signal (allocating their buffers
-    /// when it changes). Called from the engine thread.
+    /// when it changes). Called from the engine thread for decks that are not
+    /// processed; skipped while the loader thread holds the pause lock.
     void prepareScalers();
     void processSlip(std::size_t bufferSize);
+  private:
+    /// Same as prepareScalers(), for a caller that holds m_pause.
+    void prepareScalersLocked(mixxx::audio::SampleRate sampleRate);
+  public:
     void postProcessLocalBpm();
     void postProcess(const std::size_t bufferSize);
 

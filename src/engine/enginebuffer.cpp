@@ -591,7 +591,7 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
     // rebuilt there when the channel count changes (e.g. a stereo track after a
     // stem track): measured ~100 ms on the audio thread, which stalls the whole
     // master output, including the OTHER deck that is playing.
-    prepareScalers();
+    prepareScalersLocked(mixxx::audio::SampleRate::fromDouble(m_pSampleRate->get()));
 
     m_pTrackSamples->set(trackNumFrame.toEngineSamplePos());
     m_pTrackSampleRate->set(trackSampleRate.toDouble());
@@ -1227,18 +1227,27 @@ void EngineBuffer::processTrackLocked(
 }
 
 void EngineBuffer::prepareScalers() {
-    m_sampleRate = mixxx::audio::SampleRate::fromDouble(m_pSampleRate->get());
-    if (!m_sampleRate.isValid()) {
+    // The loader thread rebuilds the scalers under m_pause (slotTrackLoaded):
+    // never touch them at the same time.
+    if (!m_pause.tryLock()) {
+        return;
+    }
+    prepareScalersLocked(mixxx::audio::SampleRate::fromDouble(m_pSampleRate->get()));
+    m_pause.unlock();
+}
+
+void EngineBuffer::prepareScalersLocked(mixxx::audio::SampleRate sampleRate) {
+    if (!sampleRate.isValid()) {
         return;
     }
 
     // If the sample rate has changed, force Rubberband to reset so that
     // it doesn't reallocate when the user engages keylock during playback.
     // We do this even if rubberband is not active.
-    m_pScaleLinear->setSignal(m_sampleRate, m_channelCount);
-    m_pScaleST->setSignal(m_sampleRate, m_channelCount);
+    m_pScaleLinear->setSignal(sampleRate, m_channelCount);
+    m_pScaleST->setSignal(sampleRate, m_channelCount);
 #ifdef __RUBBERBAND__
-    m_pScaleRB->setSignal(m_sampleRate, m_channelCount);
+    m_pScaleRB->setSignal(sampleRate, m_channelCount);
 #endif
 }
 
@@ -1258,10 +1267,13 @@ void EngineBuffer::process(CSAMPLE* pOutput, const std::size_t bufferSize) {
     // - Set last sample value (m_fLastSampleValue) so that rampOut works? Other
     //   miscellaneous upkeep issues.
 
-    prepareScalers();
+    m_sampleRate = mixxx::audio::SampleRate::fromDouble(m_pSampleRate->get());
 
     bool hasStableTrack = m_pTrackLoaded->toBool() && m_iTrackLoading.loadAcquire() == 0;
     if (hasStableTrack && m_pause.tryLock()) {
+        // Under the pause lock: the loader thread may rebuild the scalers in
+        // slotTrackLoaded() otherwise.
+        prepareScalersLocked(m_sampleRate);
         processTrackLocked(pOutput, bufferSize, m_sampleRate);
         // release the pauselock
         m_pause.unlock();

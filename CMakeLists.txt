@@ -5102,6 +5102,14 @@ if(BROADCAST)
         PRIVATE __WINDOWS__ _CRT_NONSTDC_NO_WARNINGS
       )
     endif()
+    if(RELATIVE_MACRO_PATHS AND NOT MSVC)
+      # The assert() strings of libshout would otherwise carry the absolute
+      # path of the build machine into the binary.
+      target_compile_options(
+        shout_mixxx
+        PRIVATE "-fmacro-prefix-map=${CMAKE_SOURCE_DIR}=."
+      )
+    endif()
     target_link_libraries(mixxx-lib PRIVATE shout_mixxx)
   else()
     target_link_libraries(mixxx-lib PRIVATE Shoutidjc::Shoutidjc)
