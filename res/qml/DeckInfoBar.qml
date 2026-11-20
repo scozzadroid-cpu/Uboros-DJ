@@ -415,11 +415,13 @@ Rectangle {
         }
 
         Skin.StatusChip {
-            // Key Sync on: the deck follows the key of the other deck.
-            // "KSYNC …" = waiting (no other deck has a track with a key yet),
-            // "KSYNC !" in red = the track of this deck has no key
-            text: keySyncStatusControl.value === 2 ? "KSYNC !" : (keySyncStatusControl.value === 1 ? "KSYNC …" : "KSYNC")
-            tint: keySyncStatusControl.value === 2 ? Theme.errorColor : (keySyncStatusControl.value === 1 ? "#a08a4a" : "#ffd24a")
+            // Key Sync armed: the track that comes in (a loaded deck that does not play)
+            // follows the key of the one that plays; the playing one is never shifted.
+            // "KSYNC …" = waiting (nothing plays, or no other deck has a key yet),
+            // "KSYNC !" in red = the incoming track has no key, "KSYNC ·" = armed, no
+            // incoming track, "KSYNC AUTO" = Auto Mix does it
+            text: keySyncStatusControl.value === 4 ? "KSYNC AUTO" : (keySyncStatusControl.value === 3 ? "KSYNC ·" : (keySyncStatusControl.value === 2 ? "KSYNC !" : (keySyncStatusControl.value === 1 ? "KSYNC …" : "KSYNC")))
+            tint: keySyncStatusControl.value === 2 ? Theme.errorColor : (keySyncStatusControl.value === 4 ? "#7be0a0" : (keySyncStatusControl.value === 1 || keySyncStatusControl.value === 3 ? "#a08a4a" : "#ffd24a"))
             active: keySyncControl.value > 0
         }
 

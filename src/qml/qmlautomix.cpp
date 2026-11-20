@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "control/controlobject.h"
 #include "library/library.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -85,6 +86,7 @@ struct QmlAutoMix::Deck {
               quantize(g, QStringLiteral("quantize")),
               keylock(g, QStringLiteral("keylock")),
               pitchAdjust(g, QStringLiteral("pitch_adjust")),
+              keySync(g, QStringLiteral("key_sync_enabled")),
               stemCount(g, QStringLiteral("stem_count")),
               introStart(g, QStringLiteral("intro_start_position")),
               outroStart(g, QStringLiteral("outro_start_position")),
@@ -155,6 +157,8 @@ struct QmlAutoMix::Deck {
     PollingControlProxy quantize;
     PollingControlProxy keylock;
     PollingControlProxy pitchAdjust;
+    // KSYNC (KeySyncFollower): armed, the incoming track may be shifted
+    PollingControlProxy keySync;
     PollingControlProxy stemCount;
     PollingControlProxy introStart;
     PollingControlProxy outroStart;
@@ -251,6 +255,9 @@ void QmlAutoMix::setActive(bool active) {
         m_state = State::Idle;
         setStatus(tr("Auto Mix off"));
     }
+    // KeySyncFollower stays out of the way while Auto Mix runs
+    ControlObject::set(ConfigKey(QStringLiteral("[AutoMix]"), QStringLiteral("active")),
+            active ? 1.0 : 0.0);
     emit activeChanged(active);
 }
 
@@ -285,6 +292,15 @@ void QmlAutoMix::startPlaybackIfIdle() {
     }
 }
 
+bool QmlAutoMix::keySyncArmed() const {
+    for (const auto& pDeck : m_decks) {
+        if (pDeck->keySync.toBool()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool QmlAutoMix::loadNextTrack(Deck* pPlaying, Deck* pNext) {
     struct Choice {
         QString location;
@@ -315,6 +331,7 @@ bool QmlAutoMix::loadNextTrack(Deck* pPlaying, Deck* pNext) {
         return false;
     }
     QList<Choice> choices;
+    const int maxKeyShift = keySyncArmed() ? kMaxKeyShift : 0;
     while (query.next()) {
         const QString location = query.value(0).toString();
         if (m_usedLocations.contains(location)) {
@@ -345,7 +362,9 @@ bool QmlAutoMix::loadNextTrack(Deck* pPlaying, Deck* pNext) {
                 const QList<track::io::key::ChromaticKey> compatible =
                         KeyUtils::getCompatibleKeys(refKey);
                 int bestShift = 99;
-                for (int shift = -kMaxKeyShift; shift <= kMaxKeyShift; ++shift) {
+                // A key shift is made only when KSYNC is armed: without it only the
+                // tracks that are compatible as they are come in
+                for (int shift = -maxKeyShift; shift <= maxKeyShift; ++shift) {
                     if (compatible.contains(KeyUtils::scaleKeySteps(key, shift)) &&
                             std::abs(shift) < std::abs(bestShift)) {
                         bestShift = shift;

@@ -20,9 +20,9 @@ namespace qml {
 /// It plays deck 1 and 2 in turn. While one deck plays, it chooses the next
 /// track and loads it on the other deck: a track not played in this session,
 /// from the same drive/folder tree as the playing one when possible, with a
-/// key compatible on the Camelot wheel (or one that becomes compatible with
-/// a key shift of at most 2 semitones, applied with keylock) and a BPM close
-/// to the current tempo. Near the end of the playing track (at its outro
+/// key compatible on the Camelot wheel (or, when KSYNC is armed, one that
+/// becomes compatible with a key shift of at most 2 semitones, applied to the
+/// incoming track only, with keylock) and a BPM close to the current tempo. Near the end of the playing track (at its outro
 /// cue, or 32 beats before its last beat) it starts the next one on a phrase
 /// boundary with sync and quantize, and mixes over 32 beats:
 ///  - both tracks with stems: drums in first, bass swap at beat 16 with the
@@ -68,6 +68,7 @@ class QmlAutoMix : public QObject {
 
     void tick();
     void startPlaybackIfIdle();
+    bool keySyncArmed() const;
     bool loadNextTrack(Deck* pPlaying, Deck* pNext);
     bool prepareNextDeck(Deck* pPlaying, Deck* pNext);
     void startTransition(Deck* pPlaying, Deck* pNext);

@@ -20,15 +20,11 @@ KeySyncFollower::KeySyncFollower(QObject* parent)
         : QObject(parent) {
     m_timer.setSingleShot(true);
     m_timer.setInterval(kGatherMs);
-    connect(&m_timer, &QTimer::timeout, this, [this]() {
-        const int pending = std::exchange(m_pending, 0);
-        for (int deck = 0; deck < kDecks; ++deck) {
-            if (pending & (1 << deck)) {
-                syncNow(deck);
-            }
-        }
-    });
+    connect(&m_timer, &QTimer::timeout, this, [this]() { reconcile(); });
 
+    // Auto Mix says here when it runs (it shifts its own incoming track)
+    m_pAutoMixActive = std::make_unique<ControlObject>(
+            ConfigKey(QStringLiteral("[AutoMix]"), QStringLiteral("active")));
     for (int deck = 0; deck < kDecks; ++deck) {
         // The switch exists for every deck (the QML of a 4 deck interface asks for it)
         Deck& d = m_decks[deck];
@@ -71,40 +67,37 @@ void KeySyncFollower::watchDeck(int deck) {
             ConfigKey(group, QStringLiteral("key")), this);
     d.loaded = std::make_unique<ControlProxy>(
             ConfigKey(group, QStringLiteral("track_loaded")), this);
-    // A track loaded on this deck (its file key, or "loaded", changes)
-    d.fileKey->connectValueChanged(this, [this, deck](double) {
-        if (isEnabled(deck)) {
-            schedule(deck);
-        }
-    });
-    d.loaded->connectValueChanged(this, [this, deck](double value) {
-        if (value > 0 && isEnabled(deck)) {
-            schedule(deck);
-        }
-        // A track loaded on, or ejected from, another deck: the deck that follows
-        // has a new target (or none), also when the key of the new track is the same
-        for (int other = 0; other < kDecks; ++other) {
-            if (other != deck && isEnabled(other)) {
-                schedule(other);
-            }
-        }
-    });
-    // The key of this deck changed: the decks that follow have to follow it
-    d.key->connectValueChanged(this, [this, deck](double) {
-        for (int other = 0; other < kDecks; ++other) {
-            if (other != deck && isEnabled(other)) {
-                schedule(other);
-            }
-        }
-    });
+    // A track loaded on (or ejected from) any deck, or a key that changed: the
+    // incoming track may have to follow. Changes of play do not matter: a track
+    // that starts to play keeps the shift it has.
+    const auto changed = [this](double) { schedule(); };
+    d.fileKey->connectValueChanged(this, changed);
+    d.loaded->connectValueChanged(this, changed);
+    d.key->connectValueChanged(this, changed);
 }
 
 bool KeySyncFollower::isEnabled(int deck) const {
     return m_decks[deck].enabled->toBool();
 }
 
+int KeySyncFollower::armedDeck() const {
+    for (int deck = 0; deck < kDecks; ++deck) {
+        if (isEnabled(deck)) {
+            return deck;
+        }
+    }
+    return -1;
+}
+
+bool KeySyncFollower::deckHasKey(int deck) const {
+    const Deck& d = m_decks[deck];
+    return d.loaded && d.key && d.loaded->toBool() &&
+            KeyUtils::keyFromNumericValue(d.key->get()) != mixxx::track::io::key::INVALID;
+}
+
 void KeySyncFollower::onEnabledChanged(int deck, double value) {
     if (value <= 0) {
+        setStatus(deck, 0);
         return;
     }
     // One deck at a time
@@ -113,32 +106,30 @@ void KeySyncFollower::onEnabledChanged(int deck, double value) {
             m_decks[other].enabled->set(0);
         }
     }
-    syncNow(deck);
+    reconcile();
 }
 
-void KeySyncFollower::schedule(int deck) {
-    m_pending |= 1 << deck;
-    m_timer.start();
+void KeySyncFollower::schedule() {
+    if (armedDeck() >= 0) {
+        m_timer.start();
+    }
 }
 
-int KeySyncFollower::pickTarget(int deck) const {
+int KeySyncFollower::pickReference(int incoming, bool allowStopped) const {
     const int decks = std::min(kDecks, static_cast<int>(m_pNumDecks->get()));
-    int first = -1;
+    int stopped = -1;
     for (int other = 0; other < decks; ++other) {
-        const Deck& o = m_decks[other];
-        if (other == deck || !o.loaded || !o.key || !o.loaded->toBool() ||
-                KeyUtils::keyFromNumericValue(o.key->get()) ==
-                        mixxx::track::io::key::INVALID) {
+        if (other == incoming || !deckHasKey(other)) {
             continue;
         }
-        if (o.play && o.play->toBool()) {
-            return other; // the one that is playing is the one to follow
+        if (m_decks[other].play && m_decks[other].play->toBool()) {
+            return other; // the track that plays is the one to follow
         }
-        if (first < 0) {
-            first = other;
+        if (allowStopped && stopped < 0) {
+            stopped = other;
         }
     }
-    return first;
+    return stopped;
 }
 
 void KeySyncFollower::setStatus(int deck, int status) {
@@ -146,41 +137,62 @@ void KeySyncFollower::setStatus(int deck, int status) {
     if (d.status && static_cast<int>(d.status->get()) != status) {
         d.status->set(status);
         kLogger.info() << "deck" << (deck + 1) << "status" << status
-                       << "(0 following, 1 waiting for another deck with a key, 2 no key on this track)";
+                       << "(0 following, 1 waiting, 2 no key on the incoming track, 3 armed with no"
+                          " incoming track, 4 Auto Mix)";
     }
 }
 
-void KeySyncFollower::syncNow(int deck) {
-    const Deck& d = m_decks[deck];
-    if (!isEnabled(deck) || !d.loaded || !d.fileKey || !d.pitch || !d.loaded->toBool()) {
-        setStatus(deck, 0);
+void KeySyncFollower::reconcile() {
+    const int armed = armedDeck();
+    if (armed < 0) {
         return;
     }
-    const auto thisKey = KeyUtils::keyFromNumericValue(d.fileKey->get());
-    if (thisKey == mixxx::track::io::key::INVALID) {
-        setStatus(deck, 2);
+    if (m_pAutoMixActive->toBool()) {
+        // Auto Mix chooses and shifts its incoming track itself
+        setStatus(armed, 4);
         return;
     }
-    const int target = pickTarget(deck);
-    if (target < 0) {
-        // Nothing to follow yet: the shift that is there stays, and the next
-        // track (or key) loaded on another deck takes it from here
-        setStatus(deck, 1);
-        return;
+    const int decks = std::min(kDecks, static_cast<int>(m_pNumDecks->get()));
+    bool followed = false;
+    bool noKey = false;
+    bool waiting = false;
+    bool anyIncoming = false;
+    for (int incoming = 0; incoming < decks; ++incoming) {
+        const Deck& d = m_decks[incoming];
+        if (!d.loaded || !d.fileKey || !d.pitch || !d.loaded->toBool()) {
+            continue;
+        }
+        if (d.play && d.play->toBool()) {
+            continue; // playing: never shifted, whatever the switch says
+        }
+        anyIncoming = true;
+        if (KeyUtils::keyFromNumericValue(d.fileKey->get()) == mixxx::track::io::key::INVALID) {
+            noKey = true;
+            continue;
+        }
+        // With a deck that plays every incoming deck follows it; with nothing
+        // playing only the deck that holds the switch follows the other one
+        const int reference = pickReference(incoming, incoming == armed);
+        if (reference < 0) {
+            waiting = true;
+            continue;
+        }
+        const Deck& t = m_decks[reference];
+        const auto thisKey = KeyUtils::keyFromNumericValue(d.fileKey->get());
+        // What sync_key of the engine does: the reference's effective key (after
+        // its own shift) and its fraction of a semitone
+        const auto targetKey = KeyUtils::keyFromNumericValue(t.key->get());
+        const int steps = KeyUtils::shortestStepsToCompatibleKey(thisKey, targetKey);
+        const double pitch = steps + t.distance->get();
+        if (std::abs(d.pitch->get() - pitch) > 1e-6) {
+            d.pitch->set(pitch);
+            kLogger.info() << "incoming deck" << (incoming + 1) << "follows deck"
+                           << (reference + 1) << "key" << KeyUtils::keyToString(targetKey)
+                           << "- shift" << pitch << "semitones";
+        }
+        followed = true;
     }
-    const Deck& t = m_decks[target];
-    // What sync_key of the engine does, with this target: the other deck's
-    // effective key (after its own shift) and its fraction of a semitone
-    const auto targetKey = KeyUtils::keyFromNumericValue(t.key->get());
-    const int steps = KeyUtils::shortestStepsToCompatibleKey(thisKey, targetKey);
-    const double pitch = steps + t.distance->get();
-    if (std::abs(d.pitch->get() - pitch) > 1e-6) {
-        d.pitch->set(pitch);
-        kLogger.info() << "deck" << (deck + 1) << "follows deck" << (target + 1)
-                       << "key" << KeyUtils::keyToString(targetKey) << "- shift" << pitch
-                       << "semitones";
-    }
-    setStatus(deck, 0);
+    setStatus(armed, followed ? 0 : (noKey ? 2 : (waiting ? 1 : (anyIncoming ? 1 : 3))));
 }
 
 } // namespace qml
