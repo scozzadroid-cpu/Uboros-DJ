@@ -221,9 +221,22 @@ int main(int argc, char * argv[]) {
     // QT_ANDROID_SURFACE_CONTAINER_TYPE: 0 = SurfaceView, 1 = TextureView; a
     // value that is already set wins. To go back without a new build:
     //   adb shell su -c "touch /data/user/0/org.mixxx/files/force_textureview"
+    // Escape files live in the app's own files dir; the package name (it
+    // differs per build: org.mixxx, private, Play) is the process name.
+    const auto androidEscapeFileExists = [](const char* name) {
+        QFile cmdline(QStringLiteral("/proc/self/cmdline"));
+        QString package = QStringLiteral("org.mixxx");
+        if (cmdline.open(QIODevice::ReadOnly)) {
+            const QByteArray process = cmdline.readAll().split('\0').value(0).split(':').value(0);
+            if (!process.isEmpty()) {
+                package = QString::fromUtf8(process);
+            }
+        }
+        return QFile::exists(QStringLiteral("/data/user/0/%1/files/%2")
+                        .arg(package, QString::fromUtf8(name)));
+    };
     if (!qEnvironmentVariableIsSet("QT_ANDROID_SURFACE_CONTAINER_TYPE")) {
-        const bool forceTextureView =
-                QFile::exists(QStringLiteral("/data/user/0/org.mixxx/files/force_textureview"));
+        const bool forceTextureView = androidEscapeFileExists("force_textureview");
         qputenv("QT_ANDROID_SURFACE_CONTAINER_TYPE", forceTextureView ? "1" : "0");
     }
 #endif
@@ -236,7 +249,7 @@ int main(int argc, char * argv[]) {
     // left at Qt's default): at 3200x1440 it would cost 4 samples per pixel.
     // Depth/stencil stay as Qt Quick sets them. To go back without a build:
     //   adb shell su -c "touch /data/user/0/org.mixxx/files/force_alpha_surface"
-    if (!QFile::exists(QStringLiteral("/data/user/0/org.mixxx/files/force_alpha_surface"))) {
+    if (!androidEscapeFileExists("force_alpha_surface")) {
         QSurfaceFormat format = QSurfaceFormat::defaultFormat();
         format.setAlphaBufferSize(0);
         QSurfaceFormat::setDefaultFormat(format);

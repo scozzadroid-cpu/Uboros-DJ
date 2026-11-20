@@ -57,8 +57,8 @@ MixxxControls.Slider {
                 Rectangle {
                     x: 1
                     y: 4
-                    width: parent.width - 2
-                    height: parent.height
+                    width: parent.width - 7
+                    height: parent.height - 5
                     radius: 3
                     color: "#59000000"
                 }
