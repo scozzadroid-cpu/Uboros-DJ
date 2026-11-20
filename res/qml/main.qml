@@ -124,9 +124,18 @@ ApplicationWindow {
     readonly property real waveformHeight: {
         if (!compact)
             return large ? Math.min(220, Math.floor(height * 0.12)) : 120;
-        // The on-screen mixer needs the whole height on a phone
-        if (showMixer)
-            return 0;
+        // On-screen mixer on a phone: the library is hidden, so the height the
+        // mixer leaves free goes to the waveforms (it was an empty band); none
+        // when there is not enough left for them
+        if (showMixer) {
+            const used = toolbar.height + decks12.height
+                    + (crossfader.visible ? crossfader.height : 0)
+                    + (decks34.visible ? decks34.height : 0)
+                    + (samplers.visible ? samplers.height : 0)
+                    + (effects.visible ? effects.height : 0);
+            const each = Math.floor((height - used) / waveformCount);
+            return each >= 48 ? each : 0;
+        }
         if (waveformView) {
             // Everything in the Column except the waveforms themselves
             const others = toolbar.height + (deckRowsHidden ? 0 : decks12.height)
