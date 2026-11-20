@@ -224,6 +224,7 @@ StemSeparationService::StemSeparationService(
 }
 
 StemSeparationService::~StemSeparationService() {
+    m_quitting.store(true, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_quit = true;
@@ -423,17 +424,13 @@ void StemSeparationService::slotUpdateControls() {
         m_secondsSinceStart += 0.2;
         if (m_secondsSinceStart >= kSpeedTestDelaySeconds && !anyPlaying) {
             m_autoTestChecked = true;
-            // A marker written before the test and removed when it ends: if the
-            // test ever crashed the app, it is not started by itself again
-            QFile marker(speedTestMarkerPath());
-            if (marker.exists()) {
+            // runSpeedTest() leaves a marker while it runs and removes it when it
+            // stops for any reason but a crash: if the test ever crashed the app,
+            // it is not started by itself again
+            if (QFile::exists(speedTestMarkerPath())) {
                 kLogger.warning() << "The last automatic speed test did not finish: "
                                      "not started again (the Dashboard button does it)";
             } else {
-                QDir().mkpath(QFileInfo(marker).absolutePath());
-                if (marker.open(QIODevice::WriteOnly)) {
-                    marker.close();
-                }
                 m_pSpeedTest->set(1);
             }
         }
@@ -691,13 +688,17 @@ std::vector<float> syntheticAudio(long frames) {
 } // namespace
 
 double StemSeparationService::measureSpeed(
-        const std::function<std::unique_ptr<Separator>()>& make) {
+        const std::function<std::unique_ptr<Separator>()>& make, bool warmUp) {
     // 12 s: a whole segment of every model (7.8 s, 11 s, 11.9 s)
     constexpr long kFrames = 12L * kSampleRate;
     const std::vector<float> audio = syntheticAudio(kFrames);
     double speed = 0;
-    // The first pass only warms up (GPU kernels, memory); the second is timed
-    for (int pass = 0; pass < 2; ++pass) {
+    // The first pass only warms up (GPU kernels, memory); the last is timed
+    for (int pass = warmUp ? 0 : 1; pass < 2; ++pass) {
+        if (m_quitting.load(std::memory_order_relaxed) ||
+                m_anyPlaying.load(std::memory_order_relaxed)) {
+            return -1;
+        }
         const std::unique_ptr<Separator> pSeparator = make();
         if (!pSeparator) {
             return 0;
@@ -754,10 +755,27 @@ bool StemSeparationService::speedTestDue() const {
 void StemSeparationService::runSpeedTest() {
     m_speedTestRequested.store(false, std::memory_order_relaxed);
     const auto start = std::chrono::steady_clock::now();
+    // A marker that only a crash leaves behind (see slotUpdateControls())
+    QDir().mkpath(stemsDataDir());
+    {
+        QFile marker(speedTestMarkerPath());
+        if (marker.open(QIODevice::WriteOnly)) {
+            marker.close();
+        }
+    }
+    struct MarkerRemover {
+        ~MarkerRemover() {
+            QFile::remove(speedTestMarkerPath());
+        }
+    } markerRemover;
     kLogger.info() << "Speed test started";
-    const auto interrupted = [this]() {
-        // A deck started: the test goes on when they stop again
-        if (m_anyPlaying.load(std::memory_order_relaxed)) {
+    // True: the test stops here. A deck that started playing: it goes on when
+    // the decks stop again; the app quitting: it ends
+    const auto stop = [this](double measured) {
+        if (m_quitting.load(std::memory_order_relaxed)) {
+            return true;
+        }
+        if (measured < 0 || m_anyPlaying.load(std::memory_order_relaxed)) {
             kLogger.info() << "Speed test interrupted: a deck plays";
             m_speedTestRequested.store(true, std::memory_order_relaxed);
             return true;
@@ -768,23 +786,27 @@ void StemSeparationService::runSpeedTest() {
     double balanced = 0;
     double best = 0;
     if (ensureNet(StemCache::kLight)) {
-        light = measureSpeed([this]() { return makeSeparator(StemCache::kLight); });
+        light = measureSpeed([this]() { return makeSeparator(StemCache::kLight); }, true);
     }
-    if (interrupted()) {
+    if (stop(light)) {
         return;
     }
     if (ensureNet(StemCache::kBalanced)) {
-        balanced = measureSpeed([this]() { return makeSeparator(StemCache::kBalanced); });
+        balanced = measureSpeed([this]() { return makeSeparator(StemCache::kBalanced); }, true);
     }
-    if (interrupted()) {
+    if (stop(balanced)) {
         return;
     }
     const bool tuned = tuneKernels();
-    if (interrupted()) {
+    if (stop(0)) {
         return;
     }
     if (ensureNet(StemCache::kBest)) {
-        best = measureSpeed([this]() { return makeSeparator(StemCache::kBest); });
+        // CPU network: one segment takes ~17 s, no warm-up pass
+        best = measureSpeed([this]() { return makeSeparator(StemCache::kBest); }, false);
+    }
+    if (stop(best)) {
+        return;
     }
     kLogger.info() << "Speed test: light" << light << "x, balanced" << balanced << "x, best"
                    << best << "x real time, in"
@@ -809,7 +831,6 @@ void StemSeparationService::publishSpeeds(double light, double balanced, double 
     m_measuredBalanced.store(balanced, std::memory_order_relaxed);
     m_measuredBest.store(best, std::memory_order_relaxed);
     m_pSpeedTest->set(0);
-    QFile::remove(speedTestMarkerPath());
     kLogger.info() << "Automatic quality: live" << static_cast<int>(liveLevel()) << ", best"
                    << static_cast<int>(bestLevel());
     // The automatic level may have changed

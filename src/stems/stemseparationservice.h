@@ -111,9 +111,10 @@ class StemSeparationService : public QObject {
     bool ensureNet(StemCache::Level level);
     std::unique_ptr<Separator> makeSeparator(StemCache::Level level);
     /// Worker thread: seconds of audio separated per second by this phone
-    /// (multiple of real time, 0 = cannot be measured), on a synthetic signal:
-    /// one warm-up segment, then the timed one
-    double measureSpeed(const std::function<std::unique_ptr<Separator>()>& make);
+    /// (multiple of real time, 0 = cannot be measured, -1 = stopped because a deck
+    /// plays or the app quits), on a synthetic signal: one warm-up segment (not for
+    /// the CPU network, whose segment lasts ~17 s), then the timed one
+    double measureSpeed(const std::function<std::unique_ptr<Separator>()>& make, bool warmUp);
     /// Worker thread: the speed test of every quality; tunes the GPU kernels
     /// once if that was never done
     void runSpeedTest();
@@ -149,6 +150,8 @@ class StemSeparationService : public QObject {
     // stop), back to 0 when it is done
     ControlObject* m_pSpeedTest = nullptr;
     std::atomic<bool> m_speedTestRequested{false};
+    // Set by the destructor: the speed test does not hold the exit up
+    std::atomic<bool> m_quitting{false};
     // Measured speeds read by liveLevel() / bestLevel() (any thread)
     std::atomic<double> m_measuredBalanced{0};
     std::atomic<double> m_measuredBest{0};
