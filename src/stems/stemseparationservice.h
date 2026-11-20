@@ -120,6 +120,8 @@ class StemSeparationService : public QObject {
     void runSpeedTest();
     /// Worker thread: true if the GPU kernels were tuned now (next start is faster)
     bool tuneKernels();
+    /// Any thread: the speed test starts as soon as no deck plays
+    void requestSpeedTest();
     bool speedTestDue() const;
     /// Main thread: stores the result, shows it, applies it to the live jobs
     void publishSpeeds(double light, double balanced, double best, bool retest);

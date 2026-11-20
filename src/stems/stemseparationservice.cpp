@@ -45,7 +45,7 @@ const ConfigKey kSpeedLightKey(kStemsGroup, QStringLiteral("SpeedLight"));
 const ConfigKey kSpeedBalancedKey(kStemsGroup, QStringLiteral("SpeedBalanced"));
 const ConfigKey kSpeedBestKey(kStemsGroup, QStringLiteral("SpeedBest"));
 const ConfigKey kSpeedRevisionKey(kStemsGroup, QStringLiteral("SpeedRevision"));
-constexpr int kSpeedRevision = 1;
+constexpr int kSpeedRevision = 2; // 2: the automatic start of revision 1 never reached the worker
 // The test of a new revision starts this long after the start, if no deck plays
 constexpr double kSpeedTestDelaySeconds = 45.0;
 // The automatic quality is the balanced one (htdemucs) unless the test measured
@@ -177,12 +177,12 @@ StemSeparationService::StemSeparationService(
     m_measuredBest.store(m_pSpeedBest->get(), std::memory_order_relaxed);
     m_pSpeedTest = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("speed_test")));
     m_pSpeedTest->setParent(this);
+    // From the Dashboard button (a ControlProxy). A set() on this object does not
+    // emit valueChanged() (ControlObject::privateValueChanged skips its own
+    // changes): the automatic start calls requestSpeedTest() itself
     connect(m_pSpeedTest, &ControlObject::valueChanged, this, [this](double value) {
         if (value > 0) {
-            kLogger.info() << "Speed test requested";
-            m_speedTestRequested.store(true, std::memory_order_relaxed);
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_wake.notify_all();
+            requestSpeedTest();
         }
     });
     // Never measured with this revision: the test starts by itself (see slotUpdateControls)
@@ -432,6 +432,7 @@ void StemSeparationService::slotUpdateControls() {
                                      "not started again (the Dashboard button does it)";
             } else {
                 m_pSpeedTest->set(1);
+                requestSpeedTest();
             }
         }
     }
@@ -745,6 +746,13 @@ bool StemSeparationService::tuneKernels() {
                    << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
                    << "s, cache saved:" << saved;
     return saved;
+}
+
+void StemSeparationService::requestSpeedTest() {
+    kLogger.info() << "Speed test requested";
+    m_speedTestRequested.store(true, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_wake.notify_all();
 }
 
 bool StemSeparationService::speedTestDue() const {
