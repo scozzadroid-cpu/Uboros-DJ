@@ -96,6 +96,16 @@ bool KeySyncFollower::deckHasKey(int deck) const {
 }
 
 void KeySyncFollower::onEnabledChanged(int deck, double value) {
+    {
+        const Deck& d = m_decks[deck];
+        kLogger.info() << "deck" << (deck + 1) << (value > 0 ? "switched on" : "switched off")
+                       << "- playing" << (d.play ? d.play->toBool() : false)
+                       << "- file key"
+                       << (d.fileKey ? KeyUtils::keyToString(KeyUtils::keyFromNumericValue(
+                                               d.fileKey->get()))
+                                     : QString())
+                       << "- shift" << (d.pitch ? d.pitch->get() : 0.0);
+    }
     if (value <= 0) {
         setStatus(deck, 0);
         return;
