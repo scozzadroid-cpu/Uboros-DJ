@@ -6,7 +6,7 @@
 
 namespace mixxx {
 
-/// The name of the removable drive ("4AC1-4E1A") of a file that lives on
+/// The name of the removable drive ("1234-ABCD") of a file that lives on
 /// "/storage/<name>/..." when that drive is not mounted right now, otherwise an
 /// empty string. The internal storage ("/storage/emulated/...", "/storage/self")
 /// is never reported. One stat of the volume folder.
