@@ -7,6 +7,25 @@ Rectangle {
     id: root
 
     readonly property var dragImage: dragImageLoader.item ? dragImageLoader.item.effect : null
+    // The drag image is made when the cell is pressed (desktop only, see
+    // grabDragImage), not for every cell of the table; TrackList.qml resets
+    // it when the cell is put back in the pool.
+    property bool dragImageWanted: false
+
+    // Makes the drag image of the track (cover, title, artist) and gives it
+    // to the drag. Taken again when the cover arrives (it is loaded in the
+    // background).
+    function grabDragImage() {
+        if (Qt.platform.os === "android")
+            return;
+        root.dragImageWanted = true;
+        const image = root.dragImage;
+        if (!image)
+            return;
+        image.grabToImage((result) => {
+            root.Drag.imageSource = result.url;
+        }, Qt.size(image.width, image.height));
+    }
 
     anchors.fill: parent
 
@@ -24,11 +43,12 @@ Rectangle {
         "text/uri-list": file_url.toString(),
         "text/plain": file_url.toString(),
     }
-    // Drag image (cover + title + shadow): desktop drag and drop only, not
-    // created on touch screens (one per cell in the track table).
+    // Drag image (cover + title + shadow): desktop drag and drop only, made
+    // on demand (one per cell in the track table was a large cost, and it
+    // read the track and the cover of every row).
     Loader {
         id: dragImageLoader
-        active: Qt.platform.os !== "android"
+        active: Qt.platform.os !== "android" && root.dragImageWanted
         sourceComponent: Item {
             readonly property alias effect: dragImageEffect
             width: dragImageSource.width
@@ -54,23 +74,29 @@ Rectangle {
                         Image {
                             id: cover
                             Layout.fillHeight: true
-                            Layout.preferredWidth: cover_art ? 75 : 0
+                            Layout.preferredWidth: cellData.cover_art ? 75 : 0
                             fillMode: Image.PreserveAspectFit
-                            source: cover_art
+                            source: cellData.cover_art
                             sourceSize.width: 150
                             sourceSize.height: 150
                             clip: true
                             asynchronous: true
+                            onStatusChanged: {
+                                if (status === Image.Ready)
+                                    root.grabDragImage();
+                            }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            // (the track is read when the drag image is made)
+                            readonly property var track: cellData.track
                             Text {
-                                text: track ? track.title : 'Unknown title'
+                                text: parent.track ? parent.track.title : 'Unknown title'
                                 color: Theme.textColor
                             }
                             Text {
-                                text: track ? track.artist : 'Unknown artist'
+                                text: parent.track ? parent.track.artist : 'Unknown artist'
                                 color: Theme.midGray
                             }
                         }

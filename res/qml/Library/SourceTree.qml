@@ -148,9 +148,7 @@ Mixxx.LibrarySourceTree {
                     // No drag and drop on touch screens: skip the costly grab
                     if (Qt.platform.os === "android")
                         return;
-                    parent.dragImage.grabToImage((result) => {
-                            parent.Drag.imageSource = result.url;
-                        }, Qt.size(parent.dragImage.width, parent.dragImage.height));
+                    cell.grabDragImage();
                 }
             }
             onDoubleClicked: {
@@ -218,7 +216,8 @@ Mixxx.LibrarySourceTree {
             }
         }
         Rectangle {
-            visible: has_stems
+            // (read for the cells of this column only)
+            visible: cellData.has_stems
             anchors.centerIn: parent
             width: stemsLabel.implicitWidth + 10
             height: stemsLabel.implicitHeight + 2
@@ -250,13 +249,13 @@ Mixxx.LibrarySourceTree {
             columnIdx: Mixxx.TrackListColumn.SQLColumns.Album
 
             delegate: Rectangle {
-                color: decoration
+                color: cellData.decoration
                 implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
                 Image {
                     anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
-                    source: cover_art
+                    source: cellData.cover_art
                     // Decode a thumbnail, not the full size embedded cover
                     sourceSize.width: 96
                     sourceSize.height: 96

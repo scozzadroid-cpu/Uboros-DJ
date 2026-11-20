@@ -427,17 +427,23 @@ Rectangle {
             model: view.model
         }
 
+        // What the cells of every column need, read for each cell
+        // (required properties). The roles only some columns use (track,
+        // cover_art, has_stems, decoration) are read through cellData by the
+        // cells that show them: a required property is fetched from the model
+        // for every cell, and the track role loads the whole track.
+        readonly property var trackCapabilities: model ? model.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+
         delegate: Item {
             id: item
             required property bool selected
-            required property color decoration
             required property var display
-            required property var track
             required property string file_url
-            required property url cover_art
             required property int row
             required property bool played
-            required property bool has_stems
+            // The model item: its roles are read from the model when a
+            // binding uses them (cellData.track, cellData.cover_art...)
+            required property var model
             // On a removable drive that is not mounted now: the row says so, loading it fails
             readonly property bool driveMissing: Mixxx.Library.isDriveMissing(file_url, root.driveEpoch)
 
@@ -447,16 +453,13 @@ Rectangle {
                 id: loader
                 anchors.fill: parent
                 property bool selected: item.selected
-                property color decoration: item.decoration
                 property var display: item.display
-                property var track: item.track
                 property url file_url: item.file_url
-                property url cover_art: item.cover_art
                 property int row: item.row
                 property bool played: item.played
-                property bool has_stems: item.has_stems
+                property var cellData: item.model
                 property var tableView: view
-                property var capabilities: root.model ? root.model.getCapabilities() : Mixxx.LibraryTrackListModel.Capability.None
+                property var capabilities: view.trackCapabilities
                 sourceComponent: delegate
                 focus: true
 
@@ -465,6 +468,11 @@ Rectangle {
                 //     if (track)
                 //         Mixxx.Library.analyze(track)
                 }
+            }
+            // A drag image made for the previous row is dropped (Cell.qml)
+            TableView.onPooled: {
+                if (loader.item && loader.item.dragImageWanted)
+                    loader.item.dragImageWanted = false;
             }
             // Workaround needed for WaveformOverview column to load the data
             // TableView.onReused: {

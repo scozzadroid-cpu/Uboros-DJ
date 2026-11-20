@@ -63,7 +63,7 @@ MouseArea {
                         model: 4
                         delegate: MenuItem {
                             text: qsTr("Deck %1").arg(modelData+1)
-                            onTriggered: Mixxx.PlayerManager.getPlayer(`[Channel${modelData+1}]`).loadTrack(track ?? tableView.model.getTrack(row))
+                            onTriggered: Mixxx.PlayerManager.getPlayer(`[Channel${modelData+1}]`).loadTrack(cellData.track ?? tableView.model.getTrack(row))
                         }
 
                         onObjectAdded: (index, object) => loadToDeckMenu.insertItem(index, object)
@@ -129,7 +129,7 @@ MouseArea {
                 MenuItem {
                     text: qsTr("Analyze")
                     onTriggered: {
-                        library.analyze(track)
+                        library.analyze(cellData.track)
                     }
                 }
                 MenuItem {
