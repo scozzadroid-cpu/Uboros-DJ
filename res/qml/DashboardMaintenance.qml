@@ -464,8 +464,8 @@ ColumnLayout {
             on: perfMode.value > 0
             readonly property bool italian: Qt.locale().name.startsWith("it")
 
-            subtitle: italian ? "Waveform ridisegnate a ogni frame anche a deck fermo (niente scatto al play), niente analisi in background né rifinitura stem, schermo sempre acceso. Più batteria; sempre spenta all'avvio. Anche il bottone con il simbolo prestazioni/fuoco della toolbar" : qsTr("Waveforms redrawn at every frame also while stopped (no hitch when you press play), no background analysis or stem refinement, screen always on. Uses more battery; always off at start. Also the toolbar button with the performance/flame symbol")
-            title: italian ? "Modalità prestazioni" : qsTr("Performance mode")
+            subtitle: italian ? "Waveform ridisegnate a ogni frame anche a deck fermo (niente scatto al play), niente analisi in background né rifinitura stem, schermo sempre acceso. Più batteria; sempre spente all'avvio. Anche il bottone con il simbolo tachimetro/fuoco della toolbar" : qsTr("Waveforms redrawn at every frame also while stopped (no hitch when you press play), no background analysis or stem refinement, screen always on. Uses more battery; always off at start. Also the toolbar button with the speedometer/flame symbol")
+            title: italian ? "Massime prestazioni" : qsTr("Full speed")
 
             onSwitched: value => perfMode.value = value ? 1 : 0
         }
@@ -714,7 +714,7 @@ ColumnLayout {
         Skin.DashboardToggle {
             Layout.fillWidth: true
             on: Mixxx.AppUpdater.autoUpdate
-            subtitle: root.updIt ? "Controlla il sito all'avvio (dopo circa un minuto) e poi ogni 24 ore di uso, e scarica la nuova versione da sola solo su una rete non a consumo (Wi-Fi o Ethernet), mai mentre un deck suona o con la modalità prestazioni accesa. Non installa mai da sola: chiede sempre conferma (l'installazione ferma l'audio e chiude l'app)" : qsTr("Checks the website at startup (after about a minute) and then every 24 hours of use, and downloads the new version by itself only on an unmetered network (Wi-Fi or Ethernet), never while a deck is playing or performance mode is on. It never installs by itself: it always asks (installing stops the audio and closes the app)")
+            subtitle: root.updIt ? "Controlla il sito all'avvio (dopo circa un minuto) e poi ogni 24 ore di uso, e scarica la nuova versione da sola solo su una rete non a consumo (Wi-Fi o Ethernet), mai mentre un deck suona o con le massime prestazioni accese. Non installa mai da sola: chiede sempre conferma (l'installazione ferma l'audio e chiude l'app)" : qsTr("Checks the website at startup (after about a minute) and then every 24 hours of use, and downloads the new version by itself only on an unmetered network (Wi-Fi or Ethernet), never while a deck is playing or full speed is on. It never installs by itself: it always asks (installing stops the audio and closes the app)")
             title: root.updIt ? "Aggiornamenti automatici" : qsTr("Automatic updates")
             visible: Mixxx.AppUpdater.supported
 
@@ -747,7 +747,7 @@ ColumnLayout {
         Skin.DashboardAction {
             Layout.fillWidth: true
             enabled: Mixxx.AppUpdater.installBlockedBy === ""
-            subtitle: Mixxx.AppUpdater.installBlockedBy === "playing" ? (root.updIt ? "Un deck sta suonando: ferma la musica per installare" : qsTr("A deck is playing: stop the music to install")) : Mixxx.AppUpdater.installBlockedBy === "performance" ? (root.updIt ? "Modalità prestazioni accesa: spegnila per installare" : qsTr("Performance mode is on: turn it off to install")) : (root.updIt ? "Ferma l'audio e chiude l'app" : qsTr("Stops the audio and closes the app"))
+            subtitle: Mixxx.AppUpdater.installBlockedBy === "playing" ? (root.updIt ? "Un deck sta suonando: ferma la musica per installare" : qsTr("A deck is playing: stop the music to install")) : Mixxx.AppUpdater.installBlockedBy === "performance" ? (root.updIt ? "Massime prestazioni accese: spegnile per installare" : qsTr("Full speed is on: turn it off to install")) : (root.updIt ? "Ferma l'audio e chiude l'app" : qsTr("Stops the audio and closes the app"))
             title: root.updIt ? "Installa l'aggiornamento" : qsTr("Install the update")
             visible: Mixxx.AppUpdater.supported && Mixxx.AppUpdater.state === "ready"
 

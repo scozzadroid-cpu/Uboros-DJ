@@ -455,7 +455,7 @@ Mixxx.LibrarySourceTree {
     // USB drives exported with Rekordbox. The devices are searched when the
     // entry is selected.
     Mixxx.LibraryRekordboxSource {
-        label: qsTr("Rekordbox")
+        label: qsTr("rekordbox")
         columns: root.defaultColumns
     }
     // Folders: quick links, removable devices (USB drives) and the local

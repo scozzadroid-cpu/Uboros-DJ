@@ -90,7 +90,7 @@ Rectangle {
                 Layout.fillWidth: true
                 color: Theme.yellow
                 font.pixelSize: 13
-                text: root.blockedBy === "playing" ? (root.italian ? "Un deck sta suonando: l'installazione ferma l'audio e chiude l'app" : qsTr("A deck is playing: installing stops the audio and closes the app")) : (root.italian ? "Modalità prestazioni accesa: spegnila per installare" : qsTr("Performance mode is on: turn it off to install"))
+                text: root.blockedBy === "playing" ? (root.italian ? "Un deck sta suonando: l'installazione ferma l'audio e chiude l'app" : qsTr("A deck is playing: installing stops the audio and closes the app")) : (root.italian ? "Massime prestazioni accese: spegnile per installare" : qsTr("Full speed is on: turn it off to install"))
                 visible: root.blockedBy !== ""
                 wrapMode: Text.WordWrap
             }

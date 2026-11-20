@@ -387,9 +387,9 @@ ApplicationWindow {
                     // drawn SVGs, no font/emoji needed). The warm active color
                     // gives the ember-colored button fill, see Button.qml
                     Accessible.description: "Waveforms at full rate, no background analysis"
-                    Accessible.name: "Performance mode"
+                    Accessible.name: "Full speed"
                     ToolTip.delay: 600
-                    ToolTip.text: "Performance mode"
+                    ToolTip.text: "Full speed"
                     ToolTip.visible: hovered && !root.isAndroid
                     activeColor: "#ff7a1a"
                     checkable: true
