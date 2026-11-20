@@ -19,6 +19,7 @@
 #include <rekordbox_pdb.h>
 
 #include <QMap>
+#include <QCryptographicHash>
 #include <QScopeGuard>
 #include <QMessageBox>
 #include <QSettings>
@@ -1772,6 +1773,34 @@ void RekordboxPlaylistModel::initSortColumnMapping() {
     }
 }
 
+QString RekordboxPlaylistModel::preparedStamp(const QModelIndex& index) const {
+    const QString location = getFieldVariant(
+            index, ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION)
+                                     .toString();
+    const QFileInfo audio(location);
+    if (location.isEmpty() || !audio.exists()) {
+        return QString();
+    }
+    const QString anlzPath =
+            getFieldVariant(index, ColumnCache::COLUMN_REKORDBOX_ANALYZE_PATH).toString();
+    const auto part = [](const QString& path) {
+        const QFileInfo info(path);
+        return info.exists()
+                ? QStringLiteral("%1:%2").arg(info.size()).arg(info.lastModified().toSecsSinceEpoch())
+                : QStringLiteral("-");
+    };
+    // Also the timing table (beatsSubversion changes with it) and the key and the
+    // color of the export, which are set on the track when it is imported
+    return QStringLiteral("v1|%1|%2|%3|%4|%5|%6|%7")
+            .arg(mixxx::rekordboxconstants::beatsSubversion,
+                    part(location),
+                    part(anlzPath),
+                    part(anlzPath.left(anlzPath.length() - 3) + QStringLiteral("EXT")),
+                    getFieldVariant(index, ColumnCache::COLUMN_LIBRARYTABLE_KEY).toString(),
+                    getFieldVariant(index, ColumnCache::COLUMN_LIBRARYTABLE_COLOR).toString(),
+                    QString::number(audio.size()));
+}
+
 TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
     qDebug() << "RekordboxTrackModel::getTrack";
 
@@ -2547,6 +2576,19 @@ void RekordboxFeature::preanalyzeNextBatchImpl() {
     for (int i = 0; m_preanalysisRow < rowCount && (i == 0 || budget.elapsed() < kBudgetMs);
             ++i, ++m_preanalysisRow) {
         const QModelIndex index = m_pPreanalysisModel->index(m_preanalysisRow, 0);
+        // A track prepared before, whose files and export data did not change, is
+        // not read from the drive again: reading its tags and the two analysis
+        // files takes ~0.2 s per track from a USB stick (half a minute for 150
+        // tracks) and gives the same result
+        const QString preparedStamp = m_pPreanalysisModel->preparedStamp(index);
+        const ConfigKey preparedKey(QStringLiteral("[RekordboxPrepared]"),
+                QString::fromLatin1(QCryptographicHash::hash(
+                        m_pPreanalysisModel->getTrackLocation(index).toUtf8(),
+                        QCryptographicHash::Md5)
+                                            .toHex()));
+        if (!preparedStamp.isEmpty() && m_pConfig->getValueString(preparedKey) == preparedStamp) {
+            continue;
+        }
         TrackPointer pTrack = m_pPreanalysisModel->getTrack(index);
         if (pTrack && pTrack->getId().isValid()) {
             AnalysisDao& analysisDao = m_pLibrary->trackCollectionManager()
@@ -2571,6 +2613,15 @@ void RekordboxFeature::preanalyzeNextBatchImpl() {
                 }
             }
             m_preanalysisTracks.append(AnalyzerScheduledTrack(pTrack->getId()));
+            // Prepared: its waveform is in the library and nothing waits to be stored
+            // on the drive. The next start leaves it alone (see above).
+            if (!preparedStamp.isEmpty() && !m_exportQueue.contains(pTrack->getId()) &&
+                    !analysisDao
+                             .getAnalysisFileRefsForTrackByType(
+                                     pTrack->getId(), AnalysisDao::TYPE_WAVEFORM)
+                             .isEmpty()) {
+                m_pConfig->setValue(preparedKey, preparedStamp);
+            }
         }
     }
     if (m_preanalysisRow < rowCount) {

@@ -1,7 +1,6 @@
 import "." as Skin
 import Mixxx 1.0 as Mixxx
 import QtQuick
-import Qt5Compat.GraphicalEffects
 import "Theme"
 
 // Start screen over the interface while the app starts: what it is waiting
@@ -200,24 +199,19 @@ Item {
             height: Math.min(root.width, root.height) * 0.22
             width: height
 
-            RadialGradient {
-                anchors.centerIn: parent
-                height: parent.height * 2.6
-                width: height
+            // The glow: circles of the accent color, one over the other (a radial
+            // gradient item showed its square edge on this dark background)
+            Repeater {
+                model: 14
 
-                gradient: Gradient {
-                    GradientStop {
-                        color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.22)
-                        position: 0.0
-                    }
-                    GradientStop {
-                        color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.07)
-                        position: 0.45
-                    }
-                    GradientStop {
-                        color: "transparent"
-                        position: 1.0
-                    }
+                Rectangle {
+                    required property int index
+
+                    anchors.centerIn: parent
+                    color: Qt.rgba(Theme.accentColor.r, Theme.accentColor.g, Theme.accentColor.b, 0.014)
+                    height: width
+                    radius: width / 2
+                    width: logoBox.height * (1.15 + index * 0.1)
                 }
             }
             Image {

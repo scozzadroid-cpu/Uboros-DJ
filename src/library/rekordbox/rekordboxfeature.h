@@ -87,6 +87,12 @@ class RekordboxPlaylistModel : public BaseExternalPlaylistModel {
     TrackPointer getTrack(const QModelIndex& index) const override;
     bool isColumnHiddenByDefault(int column) override;
     bool isColumnInternal(int column) override;
+    /// What the import of the track at `index` read from the drive, as a short
+    /// text: the audio file, the two analysis files and the key and color of the
+    /// export, with their sizes and times. The same text = nothing changed since
+    /// the track was prepared, no need to read the drive again. Empty when the
+    /// audio file is not there.
+    QString preparedStamp(const QModelIndex& index) const;
 
   protected:
     void initSortColumnMapping() override;
