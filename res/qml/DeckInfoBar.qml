@@ -415,10 +415,19 @@ Rectangle {
         }
 
         Skin.StatusChip {
-            // Key Sync on: the deck follows the key of the other deck
-            text: "KSYNC"
-            tint: "#ffd24a"
+            // Key Sync on: the deck follows the key of the other deck.
+            // "KSYNC …" = waiting (no other deck has a track with a key yet),
+            // "KSYNC !" in red = the track of this deck has no key
+            text: keySyncStatusControl.value === 2 ? "KSYNC !" : (keySyncStatusControl.value === 1 ? "KSYNC …" : "KSYNC")
+            tint: keySyncStatusControl.value === 2 ? Theme.errorColor : (keySyncStatusControl.value === 1 ? "#a08a4a" : "#ffd24a")
             active: keySyncControl.value > 0
+        }
+
+        Mixxx.ControlProxy {
+            id: keySyncStatusControl
+
+            group: root.group
+            key: "key_sync_status"
         }
 
         Mixxx.ControlProxy {
