@@ -411,8 +411,9 @@ Item {
 
                     group: root.group
                     key: "playposition"
-                    // Android: playposition changes on every audio callback; text only (mm:ss.d)
-                    updateInterval: Qt.platform.os === "android" ? 100 : 0
+                    // Android: playposition changes on every audio callback; text only (mm:ss.d).
+                    // Hidden: at most once a second; caught up as soon as shown
+                    updateInterval: !waveformBarPosition.visible ? 1000 : (Qt.platform.os === "android" ? 100 : 0)
                 }
 
                 Mixxx.ControlProxy {

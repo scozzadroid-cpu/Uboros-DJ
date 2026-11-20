@@ -21,6 +21,9 @@ Rectangle {
 
         group: root.group
         key: root.key
+        // Hidden meter (mixer closed, screen asleep): at most once a second
+        // instead of at the VU rate; caught up as soon as it is shown
+        updateInterval: root.visible ? 0 : 1000
     }
 
     Item {

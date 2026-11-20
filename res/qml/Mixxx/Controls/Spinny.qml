@@ -32,6 +32,9 @@ Item {
 
         group: root.group
         key: "playposition"
+        // Every audio callback while shown; hidden (or indicator faded out):
+        // at most once a second, caught up as soon as it is shown
+        updateInterval: indicatorContainer.visible ? 0 : 1000
     }
 
     Control {

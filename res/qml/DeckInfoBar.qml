@@ -250,20 +250,21 @@ Rectangle {
             color: Theme.white
             x: 0
 
-            onTextChanged: {
-                titleScroll.stop();
-                x = 0;
-                if (infoBarTitle.overflow > 0)
-                    titleScroll.restart();
-            }
+            onTextChanged: infoBarTitle.resetScroll()
         }
 
-        onOverflowChanged: {
+        // The marquee runs only while the title is shown (not with the DJ view
+        // hidden or the screen asleep: an endless animation keeps the window
+        // rendering every frame)
+        function resetScroll() {
             titleScroll.stop();
             titleText.x = 0;
-            if (overflow > 0)
+            if (overflow > 0 && visible)
                 titleScroll.restart();
         }
+
+        onOverflowChanged: resetScroll()
+        onVisibleChanged: resetScroll()
 
         SequentialAnimation {
             id: titleScroll
@@ -684,7 +685,7 @@ Rectangle {
         Timer {
             interval: 500
             repeat: true
-            running: infoBarTime.ending
+            running: infoBarTime.ending && infoBarTime.visible
             onTriggered: infoBarTime.blink = !infoBarTime.blink
             onRunningChanged: infoBarTime.blink = false
         }
@@ -701,8 +702,9 @@ Rectangle {
 
             group: root.group
             key: "playposition"
-            // Android: playposition changes on every audio callback; feeds only the remaining-time text
-            updateInterval: Qt.platform.os === "android" ? 100 : 0
+            // Android: playposition changes on every audio callback; feeds only the remaining-time text.
+            // Hidden (DJ view off, screen asleep): at most once a second; caught up as soon as shown
+            updateInterval: !infoBarTime.visible ? 1000 : (Qt.platform.os === "android" ? 100 : 0)
         }
 
         Mixxx.ControlProxy {
