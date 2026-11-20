@@ -545,7 +545,7 @@ ColumnLayout {
         Skin.DashboardAction {
             readonly property var names: [qsTr("automatic"), qsTr("light"), qsTr("balanced")]
             readonly property var descriptions: [
-                qsTr("Balanced, and the phone proposes the light quality if the stems arrive late or the audio drops out"),
+                qsTr("Chosen from the speed test of this phone (balanced, or light if the phone is slow); it also proposes the light quality if the stems arrive late or the audio drops out"),
                 qsTr("For less powerful phones: fast, a bit less clean"),
                 qsTr("Clean stems; needs a recent phone")]
 
@@ -554,6 +554,41 @@ ColumnLayout {
             title: qsTr("Stem quality while playing: %1").arg(names[Math.round(stemQuality.value)] || names[0])
 
             onClicked: stemQuality.value = (Math.round(stemQuality.value) + 1) % 3
+        }
+        Mixxx.ControlProxy {
+            id: stemSpeedLight
+
+            group: "[Stems]"
+            key: "speed_light"
+        }
+        Mixxx.ControlProxy {
+            id: stemSpeedBalanced
+
+            group: "[Stems]"
+            key: "speed_balanced"
+        }
+        Mixxx.ControlProxy {
+            id: stemSpeedBest
+
+            group: "[Stems]"
+            key: "speed_best"
+        }
+        Mixxx.ControlProxy {
+            id: stemSpeedTest
+
+            group: "[Stems]"
+            key: "speed_test"
+        }
+        Skin.DashboardAction {
+            Layout.fillWidth: true
+            enabled: stemSpeedTest.value < 1
+            subtitle: (stemSpeedBalanced.value > 0 || stemSpeedLight.value > 0
+                    ? qsTr("Light %1×, balanced %2×, best %3× real time. ").arg(stemSpeedLight.value.toFixed(1)).arg(stemSpeedBalanced.value.toFixed(1)).arg(stemSpeedBest.value.toFixed(1))
+                    : qsTr("Not measured yet. "))
+                + qsTr("The automatic quality follows it: balanced if the phone does at least 1.6×, light otherwise. It runs by itself once, while no deck plays, and takes about a minute")
+            title: stemSpeedTest.value > 0 ? qsTr("Measuring the stem speed of this phone…") : qsTr("Test the stem speed of this phone")
+
+            onClicked: stemSpeedTest.value = 1
         }
         Mixxx.ControlProxy {
             id: stemLiveStems

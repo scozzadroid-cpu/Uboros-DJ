@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <memory>
+
 // Instant stems: separation on the device of the tracks loaded in the decks,
 // started by the user (SMART CFX of the DDJ-FLX4, or the "stem_separate"
 // control) and done from the play position onwards, so the stems near the
@@ -28,6 +31,7 @@
 
 #include "control/controlproxy.h"
 #include "preferences/usersettings.h"
+#include "stems/separator.h"
 #include "stems/stemcache.h"
 #include "track/steminfo.h"
 #include "track/track_decl.h"
@@ -105,6 +109,19 @@ class StemSeparationService : public QObject {
     void reportSlow(const char* reason);
     void workerLoop();
     bool ensureNet(StemCache::Level level);
+    std::unique_ptr<Separator> makeSeparator(StemCache::Level level);
+    /// Worker thread: seconds of audio separated per second by this phone
+    /// (multiple of real time, 0 = cannot be measured), on a synthetic signal:
+    /// one warm-up segment, then the timed one
+    double measureSpeed(const std::function<std::unique_ptr<Separator>()>& make);
+    /// Worker thread: the speed test of every quality; tunes the GPU kernels
+    /// once if that was never done
+    void runSpeedTest();
+    /// Worker thread: true if the GPU kernels were tuned now (next start is faster)
+    bool tuneKernels();
+    bool speedTestDue() const;
+    /// Main thread: stores the result, shows it, applies it to the live jobs
+    void publishSpeeds(double light, double balanced, double best, bool retest);
     bool prepareJob(Job* pJob);
     std::shared_ptr<Job> pickJob(int* pSegment);
 
@@ -122,6 +139,21 @@ class StemSeparationService : public QObject {
     ControlObject* m_pLiveStems = nullptr;
     // [Stems],speed: separation speed as a multiple of real time (0 = unknown)
     ControlObject* m_pSpeed = nullptr;
+    // [Stems],speed_light / speed_balanced / speed_best: speed measured by the
+    // speed test, multiple of real time (0 = not measured); the automatic
+    // quality follows them
+    ControlObject* m_pSpeedLight = nullptr;
+    ControlObject* m_pSpeedBalanced = nullptr;
+    ControlObject* m_pSpeedBest = nullptr;
+    // [Stems],speed_test: set to 1 to measure (the test waits for the decks to
+    // stop), back to 0 when it is done
+    ControlObject* m_pSpeedTest = nullptr;
+    std::atomic<bool> m_speedTestRequested{false};
+    // Measured speeds read by liveLevel() / bestLevel() (any thread)
+    std::atomic<double> m_measuredBalanced{0};
+    std::atomic<double> m_measuredBest{0};
+    bool m_autoTestChecked = false;
+    double m_secondsSinceStart = 0;
     bool m_slowReported = false; // once per session
     quint32 m_overBudgetMark = 0;
     int m_overBudgetTicks = 0;

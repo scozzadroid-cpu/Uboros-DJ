@@ -11,6 +11,8 @@
 #include <QDir>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <vector>
 
 #include "control/controlobject.h"
 #include "control/controlpushbutton.h"
@@ -37,6 +39,23 @@ const ConfigKey kInstantStemsKey(kStemsGroup, QStringLiteral("InstantStems"));
 const ConfigKey kQualityKey(kStemsGroup, QStringLiteral("Quality"));
 const ConfigKey kBestWhenIdleKey(kStemsGroup, QStringLiteral("BestWhenIdle"));
 const ConfigKey kLiveStemsKey(kStemsGroup, QStringLiteral("LiveStems"));
+// Speed test (multiple of real time, 0 = not measured) and the revision of the
+// test they come from: raised when models or kernels change, the test then runs again
+const ConfigKey kSpeedLightKey(kStemsGroup, QStringLiteral("SpeedLight"));
+const ConfigKey kSpeedBalancedKey(kStemsGroup, QStringLiteral("SpeedBalanced"));
+const ConfigKey kSpeedBestKey(kStemsGroup, QStringLiteral("SpeedBest"));
+const ConfigKey kSpeedRevisionKey(kStemsGroup, QStringLiteral("SpeedRevision"));
+constexpr int kSpeedRevision = 1;
+// The test of a new revision starts this long after the start, if no deck plays
+constexpr double kSpeedTestDelaySeconds = 45.0;
+// The automatic quality is the balanced one (htdemucs) unless the test measured
+// less than this: a phone below it cannot keep ahead of two playing decks
+// (each needs kMinSpeed). Measured on the POCO F4 GT: 2.0x without kernel
+// tuning, ~3x tuned
+constexpr double kAutoMinBalancedSpeed = 1.6;
+// The best quality (SCNet, only while no deck plays) is skipped below this: a
+// track would take more than 2.5 times its length. POCO F4 GT: ~0.65x
+constexpr double kBestMinSpeed = 0.4;
 
 // The separation of a playing deck must stay ahead of the play position.
 // Below this multiple of real time, measured over a few segments while the
@@ -60,6 +79,10 @@ QPointer<StemSeparationService> s_pInstance;
 QString stemsDataDir() {
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
             QStringLiteral("/stems");
+}
+
+QString speedTestMarkerPath() {
+    return stemsDataDir() + QStringLiteral("/speedtest_running_rev%1").arg(kSpeedRevision);
 }
 
 } // namespace
@@ -138,6 +161,32 @@ StemSeparationService::StemSeparationService(
     m_pSpeed = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("speed")));
     m_pSpeed->setParent(this);
     m_pSpeed->setReadOnly();
+    // The speed test: results of the last one (kept in the settings)
+    const bool currentRevision = m_pConfig->getValue(kSpeedRevisionKey, 0) == kSpeedRevision;
+    const auto makeSpeedControl = [this, currentRevision](const char* name, const ConfigKey& key) {
+        auto* pControl = new ControlObject(ConfigKey(kStemsGroup, QString::fromLatin1(name)));
+        pControl->setParent(this);
+        pControl->setReadOnly();
+        pControl->forceSet(currentRevision ? m_pConfig->getValue(key, 0.0) : 0.0);
+        return pControl;
+    };
+    m_pSpeedLight = makeSpeedControl("speed_light", kSpeedLightKey);
+    m_pSpeedBalanced = makeSpeedControl("speed_balanced", kSpeedBalancedKey);
+    m_pSpeedBest = makeSpeedControl("speed_best", kSpeedBestKey);
+    m_measuredBalanced.store(m_pSpeedBalanced->get(), std::memory_order_relaxed);
+    m_measuredBest.store(m_pSpeedBest->get(), std::memory_order_relaxed);
+    m_pSpeedTest = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("speed_test")));
+    m_pSpeedTest->setParent(this);
+    connect(m_pSpeedTest, &ControlObject::valueChanged, this, [this](double value) {
+        if (value > 0) {
+            kLogger.info() << "Speed test requested";
+            m_speedTestRequested.store(true, std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_wake.notify_all();
+        }
+    });
+    // Never measured with this revision: the test starts by itself (see slotUpdateControls)
+    m_autoTestChecked = currentRevision;
     for (int i = 1; i <= deckCount; ++i) {
         auto pDeck = std::make_unique<Deck>();
         pDeck->group = QStringLiteral("[Channel%1]").arg(i);
@@ -270,9 +319,16 @@ void StemSeparationService::requestSeparation(Deck* pDeck) {
 }
 
 StemCache::Level StemSeparationService::liveLevel() const {
-    if (static_cast<int>(m_pQuality->get()) == 1 ||
-            m_netFailed.load(std::memory_order_relaxed)) {
+    const int quality = static_cast<int>(m_pQuality->get());
+    if (quality == 1 || m_netFailed.load(std::memory_order_relaxed)) {
         return StemCache::kLight;
+    }
+    if (quality == 0) {
+        // Automatic: what the speed test measured on this phone
+        const double balanced = m_measuredBalanced.load(std::memory_order_relaxed);
+        if (balanced > 0 && balanced < kAutoMinBalancedSpeed) {
+            return StemCache::kLight;
+        }
     }
     return StemCache::kBalanced;
 }
@@ -283,11 +339,12 @@ StemCache::Level StemSeparationService::liveLevelForWorker() const {
 }
 
 StemCache::Level StemSeparationService::bestLevel() const {
-    if (!m_bestNetFailed.load(std::memory_order_relaxed)) {
+    const double best = m_measuredBest.load(std::memory_order_relaxed);
+    const bool bestTooSlow = best > 0 && best < kBestMinSpeed;
+    if (!m_bestNetFailed.load(std::memory_order_relaxed) && !bestTooSlow) {
         return StemCache::kBest;
     }
-    return m_netFailed.load(std::memory_order_relaxed) ? StemCache::kLight
-                                                        : StemCache::kBalanced;
+    return liveLevel();
 }
 
 void StemSeparationService::restartLiveJobs() {
@@ -358,6 +415,27 @@ void StemSeparationService::slotUpdateControls() {
             // Idle jobs waiting for the decks to stop
             std::lock_guard<std::mutex> lock(m_mutex);
             m_wake.notify_all();
+        }
+    }
+    // The speed test of this phone: once per revision, a while after the start,
+    // with no deck playing
+    if (!m_autoTestChecked) {
+        m_secondsSinceStart += 0.2;
+        if (m_secondsSinceStart >= kSpeedTestDelaySeconds && !anyPlaying) {
+            m_autoTestChecked = true;
+            // A marker written before the test and removed when it ends: if the
+            // test ever crashed the app, it is not started by itself again
+            QFile marker(speedTestMarkerPath());
+            if (marker.exists()) {
+                kLogger.warning() << "The last automatic speed test did not finish: "
+                                     "not started again (the Dashboard button does it)";
+            } else {
+                QDir().mkpath(QFileInfo(marker).absolutePath());
+                if (marker.open(QIODevice::WriteOnly)) {
+                    marker.close();
+                }
+                m_pSpeedTest->set(1);
+            }
         }
     }
     m_idleSeconds = anyPlaying ? 0.0 : m_idleSeconds + 0.2;
@@ -438,6 +516,26 @@ void StemSeparationService::reportSlow(const char* reason) {
 }
 
 // ------------------------------------------------------------ worker thread
+
+/// htdemucs configuration with the best OpenCL kernel tuning already done
+static HtdemucsNet::Config htdemucsConfig() {
+    const QString dir = stemsDataDir();
+    HtdemucsNet::Config config;
+    config.modelPath = QString(dir + QStringLiteral("/htdemucs3.mnn")).toStdString();
+    config.cacheDir = dir.toStdString();
+    config.backend = HtdemucsNet::Backend::OpenCl;
+    config.lowPrecision = true;
+    // Use the best kernel tuning already done; tuning now would take minutes
+    // (see tuneKernels(), which does it once while no deck plays)
+    config.tuning = HtdemucsNet::Config::Tuning::Wide;
+    if (!QFile::exists(QString::fromStdString(HtdemucsNet::cacheFile(config)))) {
+        config.tuning = HtdemucsNet::Config::Tuning::Fast;
+        if (!QFile::exists(QString::fromStdString(HtdemucsNet::cacheFile(config)))) {
+            config.tuning = HtdemucsNet::Config::Tuning::None;
+        }
+    }
+    return config;
+}
 
 bool StemSeparationService::ensureNet(StemCache::Level level) {
     if (level == StemCache::kBest) {
@@ -534,19 +632,7 @@ bool StemSeparationService::ensureNet(StemCache::Level level) {
         }
     }
 #endif
-    HtdemucsNet::Config config;
-    config.modelPath = model.toStdString();
-    config.cacheDir = dir.toStdString();
-    config.backend = HtdemucsNet::Backend::OpenCl;
-    config.lowPrecision = true;
-    // Use the best kernel tuning already done; tuning now would take minutes
-    config.tuning = HtdemucsNet::Config::Tuning::Wide;
-    if (!QFile::exists(QString::fromStdString(HtdemucsNet::cacheFile(config)))) {
-        config.tuning = HtdemucsNet::Config::Tuning::Fast;
-        if (!QFile::exists(QString::fromStdString(HtdemucsNet::cacheFile(config)))) {
-            config.tuning = HtdemucsNet::Config::Tuning::None;
-        }
-    }
+    HtdemucsNet::Config config = htdemucsConfig();
     const auto start = std::chrono::steady_clock::now();
     auto pNet = std::make_unique<HtdemucsNet>();
     if (!pNet->init(config)) {
@@ -568,6 +654,166 @@ bool StemSeparationService::ensureNet(StemCache::Level level) {
                    << "s, cache" << QString::fromStdString(HtdemucsNet::cacheFile(config));
     m_pNet = std::move(pNet);
     return true;
+}
+
+std::unique_ptr<Separator> StemSeparationService::makeSeparator(StemCache::Level level) {
+    if (level == StemCache::kLight) {
+        return std::make_unique<SpleeterSeparator>(m_pLightNet.get());
+    }
+    if (level == StemCache::kBest) {
+        return std::make_unique<TrackSeparator>(
+                static_cast<SegmentNet*>(m_pBestNet.get()), kOverlap);
+    }
+    return std::make_unique<TrackSeparator>(m_pNet.get(), kOverlap);
+}
+
+namespace {
+
+/// Pseudo music for the speed test: tones and noise. The speed of the networks
+/// does not depend on what is played, but the audio must not be constant (the
+/// normalization of a track divides by its standard deviation)
+std::vector<float> syntheticAudio(long frames) {
+    std::vector<float> audio(static_cast<size_t>(frames) * 2);
+    uint32_t state = 12345u;
+    for (long i = 0; i < frames; ++i) {
+        const double t = static_cast<double>(i) / kSampleRate;
+        state = state * 1664525u + 1013904223u;
+        const float noise = (static_cast<int>(state >> 16) - 32768) / 32768.0f;
+        const float tone = 0.25f * static_cast<float>(std::sin(6.2831853 * 110.0 * t)) +
+                0.15f * static_cast<float>(std::sin(6.2831853 * 440.0 * t)) +
+                0.08f * static_cast<float>(std::sin(6.2831853 * 3520.0 * t * (1.0 + 0.1 * std::sin(t))));
+        audio[2 * i] = tone + 0.05f * noise;
+        audio[2 * i + 1] = 0.9f * tone - 0.05f * noise;
+    }
+    return audio;
+}
+
+} // namespace
+
+double StemSeparationService::measureSpeed(
+        const std::function<std::unique_ptr<Separator>()>& make) {
+    // 12 s: a whole segment of every model (7.8 s, 11 s, 11.9 s)
+    constexpr long kFrames = 12L * kSampleRate;
+    const std::vector<float> audio = syntheticAudio(kFrames);
+    double speed = 0;
+    // The first pass only warms up (GPU kernels, memory); the second is timed
+    for (int pass = 0; pass < 2; ++pass) {
+        const std::unique_ptr<Separator> pSeparator = make();
+        if (!pSeparator) {
+            return 0;
+        }
+        pSeparator->setTrack(audio.data(), kFrames);
+        const auto start = std::chrono::steady_clock::now();
+        if (!pSeparator->processSegment(0, [](long, long, const float*) {})) {
+            return 0;
+        }
+        const double seconds = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - start)
+                                       .count();
+        speed = seconds > 0 ? pSeparator->segmentSeconds() / seconds : 0;
+    }
+    return speed;
+}
+
+bool StemSeparationService::tuneKernels() {
+    // Kernel tuning of the GPU, once per phone: the first run of the network
+    // with it takes ~25 s (FAST) and leaves a cache that the next starts use:
+    // 3.3 -> 2.2 s per segment on the POCO F4 GT
+    if (!m_pNet || m_pNet->backend() != HtdemucsNet::Backend::OpenCl) {
+        return false;
+    }
+    HtdemucsNet::Config config = htdemucsConfig();
+    if (config.tuning != HtdemucsNet::Config::Tuning::None) {
+        return false; // already tuned
+    }
+    config.tuning = HtdemucsNet::Config::Tuning::Fast;
+    const auto start = std::chrono::steady_clock::now();
+    HtdemucsNet net;
+    if (!net.init(config) || net.backend() != HtdemucsNet::Backend::OpenCl) {
+        return false;
+    }
+    const std::vector<float> audio = syntheticAudio(kSegmentFrames);
+    TrackSeparator separator(&net, kOverlap);
+    separator.setTrack(audio.data(), kSegmentFrames);
+    // The cache file is written after the first run
+    if (!separator.processSegment(0, [](long, long, const float*) {})) {
+        return false;
+    }
+    const bool saved = QFile::exists(QString::fromStdString(HtdemucsNet::cacheFile(config)));
+    kLogger.info() << "GPU kernels tuned in"
+                   << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
+                   << "s, cache saved:" << saved;
+    return saved;
+}
+
+bool StemSeparationService::speedTestDue() const {
+    return m_speedTestRequested.load(std::memory_order_relaxed) &&
+            !m_anyPlaying.load(std::memory_order_relaxed);
+}
+
+void StemSeparationService::runSpeedTest() {
+    m_speedTestRequested.store(false, std::memory_order_relaxed);
+    const auto start = std::chrono::steady_clock::now();
+    kLogger.info() << "Speed test started";
+    const auto interrupted = [this]() {
+        // A deck started: the test goes on when they stop again
+        if (m_anyPlaying.load(std::memory_order_relaxed)) {
+            kLogger.info() << "Speed test interrupted: a deck plays";
+            m_speedTestRequested.store(true, std::memory_order_relaxed);
+            return true;
+        }
+        return false;
+    };
+    double light = 0;
+    double balanced = 0;
+    double best = 0;
+    if (ensureNet(StemCache::kLight)) {
+        light = measureSpeed([this]() { return makeSeparator(StemCache::kLight); });
+    }
+    if (interrupted()) {
+        return;
+    }
+    if (ensureNet(StemCache::kBalanced)) {
+        balanced = measureSpeed([this]() { return makeSeparator(StemCache::kBalanced); });
+    }
+    if (interrupted()) {
+        return;
+    }
+    const bool tuned = tuneKernels();
+    if (interrupted()) {
+        return;
+    }
+    if (ensureNet(StemCache::kBest)) {
+        best = measureSpeed([this]() { return makeSeparator(StemCache::kBest); });
+    }
+    kLogger.info() << "Speed test: light" << light << "x, balanced" << balanced << "x, best"
+                   << best << "x real time, in"
+                   << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
+                   << "s" << (tuned ? "(GPU kernels tuned: faster from the next start)" : "");
+    QMetaObject::invokeMethod(
+            this,
+            [this, light, balanced, best, tuned]() { publishSpeeds(light, balanced, best, tuned); },
+            Qt::QueuedConnection);
+}
+
+void StemSeparationService::publishSpeeds(double light, double balanced, double best, bool retest) {
+    m_pConfig->setValue(kSpeedLightKey, light);
+    m_pConfig->setValue(kSpeedBalancedKey, balanced);
+    m_pConfig->setValue(kSpeedBestKey, best);
+    // With the GPU kernels tuned now the next start is faster than what was
+    // measured: it measures again
+    m_pConfig->setValue(kSpeedRevisionKey, retest ? 0 : kSpeedRevision);
+    m_pSpeedLight->forceSet(light);
+    m_pSpeedBalanced->forceSet(balanced);
+    m_pSpeedBest->forceSet(best);
+    m_measuredBalanced.store(balanced, std::memory_order_relaxed);
+    m_measuredBest.store(best, std::memory_order_relaxed);
+    m_pSpeedTest->set(0);
+    QFile::remove(speedTestMarkerPath());
+    kLogger.info() << "Automatic quality: live" << static_cast<int>(liveLevel()) << ", best"
+                   << static_cast<int>(bestLevel());
+    // The automatic level may have changed
+    restartLiveJobs();
 }
 
 bool StemSeparationService::prepareJob(Job* pJob) {
@@ -603,14 +849,7 @@ bool StemSeparationService::prepareJob(Job* pJob) {
     if (pJob->cancelled) {
         return false;
     }
-    if (pJob->level == StemCache::kLight) {
-        pJob->pSeparator = std::make_unique<SpleeterSeparator>(m_pLightNet.get());
-    } else if (pJob->level == StemCache::kBest) {
-        pJob->pSeparator = std::make_unique<TrackSeparator>(
-                static_cast<SegmentNet*>(m_pBestNet.get()), kOverlap);
-    } else {
-        pJob->pSeparator = std::make_unique<TrackSeparator>(m_pNet.get(), kOverlap);
-    }
+    pJob->pSeparator = makeSeparator(pJob->level);
     pJob->pSeparator->setTrack(audio.data(), frames);
     if (pJob->idle) {
         // Everything is separated again; the chunks keep their current
@@ -712,9 +951,24 @@ void StemSeparationService::workerLoop() {
         int segment = -1;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_wake.wait(lock, [this] { return m_quit || m_preloadNet || hasRunnableJob(); });
+            // The speed test waits while a track is being separated for a deck
+            // that may play (it runs between the segments of the idle passes)
+            const auto speedTestNow = [this]() {
+                return speedTestDue() &&
+                        std::all_of(m_jobs.begin(), m_jobs.end(), [](const auto& pJob) {
+                            return pJob->idle || pJob->cancelled.load();
+                        });
+            };
+            m_wake.wait(lock, [this, &speedTestNow] {
+                return m_quit || m_preloadNet || hasRunnableJob() || speedTestNow();
+            });
             if (m_quit) {
                 return;
+            }
+            if (speedTestNow()) {
+                lock.unlock();
+                runSpeedTest();
+                continue;
             }
             const bool preload = std::exchange(m_preloadNet, false);
             pJob = pickJob(&segment);
