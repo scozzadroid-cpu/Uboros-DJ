@@ -24,6 +24,10 @@ class QmlPlayerProxy : public QObject {
     // Analysis of the loaded track (waveform, beats, key) in 0..1, or -1
     // when the track is not being analyzed
     Q_PROPERTY(double analysisProgress READ analysisProgress NOTIFY analysisProgressChanged)
+    // Why the last track could not be loaded ("File not found: drive \"X\" is not
+    // connected", ...), and which track; empty until the next load starts
+    Q_PROPERTY(QString loadError READ loadError NOTIFY loadErrorChanged)
+    Q_PROPERTY(QString loadErrorTrack READ loadErrorTrack NOTIFY loadErrorChanged)
     QML_NAMED_ELEMENT(Player)
     QML_UNCREATABLE("Only accessible via Mixxx.PlayerManager.getPlayer(group)")
 
@@ -36,6 +40,12 @@ class QmlPlayerProxy : public QObject {
     }
     double analysisProgress() const {
         return m_analysisProgress;
+    }
+    QString loadError() const {
+        return m_loadError;
+    }
+    QString loadErrorTrack() const {
+        return m_loadErrorTrack;
     }
     /// Needed for interacting with the raw track player object.
     BaseTrackPlayer* internalTrackPlayer() const {
@@ -59,6 +69,7 @@ class QmlPlayerProxy : public QObject {
     void trackChanged();
     void loadFailed(const QString& reason);
     void isLoadingChanged();
+    void loadErrorChanged();
     void analysisProgressChanged();
     void cloneFromGroup(const QString& group);
 
@@ -80,6 +91,10 @@ class QmlPlayerProxy : public QObject {
     // One proxy per loaded track, shared by every QML reader: each proxy
     // builds the beat, cue and stem models of the whole track
     QPointer<QmlTrackProxy> m_pCurrentTrackProxy;
+    void setLoadError(const QString& reason, const QString& trackName = QString());
+
+    QString m_loadError;
+    QString m_loadErrorTrack;
     bool m_isLoading{false};
     double m_analysisProgress{-1.0};
 };

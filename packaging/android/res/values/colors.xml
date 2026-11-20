@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark background of the app: the same #0b0c0f as the rotation cover of
+         res/qml/main.qml, so splash -> first frame -> rotation show one colour -->
+    <color name="splash_background">#0b0c0f</color>
+</resources>

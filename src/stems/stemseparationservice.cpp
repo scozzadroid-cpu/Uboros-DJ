@@ -175,6 +175,9 @@ StemSeparationService::StemSeparationService(
     m_pSpeedBest = makeSpeedControl("speed_best", kSpeedBestKey);
     m_measuredBalanced.store(m_pSpeedBalanced->get(), std::memory_order_relaxed);
     m_measuredBest.store(m_pSpeedBest->get(), std::memory_order_relaxed);
+    m_pBusy = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("busy")));
+    m_pBusy->setParent(this);
+    m_pBusy->setReadOnly();
     m_pSpeedTest = new ControlObject(ConfigKey(kStemsGroup, QStringLiteral("speed_test")));
     m_pSpeedTest->setParent(this);
     // From the Dashboard button (a ControlProxy). A set() on this object does not
@@ -419,6 +422,30 @@ void StemSeparationService::slotUpdateControls() {
             // Idle jobs waiting for the decks to stop
             std::lock_guard<std::mutex> lock(m_mutex);
             m_wake.notify_all();
+        }
+    }
+    // What the separation does now (the status strip of the interface)
+    {
+        double busy = 0;
+        if (m_speedTestRunning.load(std::memory_order_relaxed)) {
+            busy = 2;
+        } else {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for (const auto& pJob : m_jobs) {
+                if (pJob->cancelled.load() || pJob->finished.load()) {
+                    continue;
+                }
+                if (!pJob->idle) {
+                    busy = 1;
+                    break;
+                }
+                if (!anyPlaying) {
+                    busy = 3;
+                }
+            }
+        }
+        if (m_pBusy->get() != busy) {
+            m_pBusy->forceSet(busy);
         }
     }
     // The speed test of this phone: once per revision, a while after the start,
@@ -782,11 +809,14 @@ void StemSeparationService::runSpeedTest() {
             marker.close();
         }
     }
+    m_speedTestRunning.store(true, std::memory_order_relaxed);
     struct MarkerRemover {
+        std::atomic<bool>* pRunning;
         ~MarkerRemover() {
+            pRunning->store(false, std::memory_order_relaxed);
             QFile::remove(speedTestMarkerPath());
         }
-    } markerRemover;
+    } markerRemover{&m_speedTestRunning};
     kLogger.info() << "Speed test started";
     // True: the test stops here. A deck that started playing: it goes on when
     // the decks stop again; the app quitting: it ends

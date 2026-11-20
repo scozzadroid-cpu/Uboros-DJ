@@ -3,6 +3,7 @@
 #include <QAbstractItemModel>
 #include <QQmlEngine>
 #include <QSqlQuery>
+#include <QUrl>
 
 #include "analyzer/analyzerscheduledtrack.h"
 #include "library/trackcollection.h"
@@ -19,6 +20,7 @@
 #include "qml/qmllibrarytracklistmodel.h"
 #include "qmltrackproxy.h"
 #include "track/track.h"
+#include "util/storagevolume.h"
 #include "util/assert.h"
 
 namespace mixxx {
@@ -26,6 +28,7 @@ namespace qml {
 
 QmlLibraryProxy::QmlLibraryProxy(QObject* parent)
         : QObject(parent) {
+    m_driveClock.start();
 }
 
 QmlLibraryTrackListModel* QmlLibraryProxy::model() const {
@@ -39,6 +42,33 @@ void QmlLibraryProxy::analyze(const QmlTrackProxy* track) const {
         return;
     }
     emit s_pLibrary->analyzeTracks({track->internal()->getId()});
+}
+
+bool QmlLibraryProxy::isDriveMissing(const QString& fileUrl, int epoch) const {
+    Q_UNUSED(epoch);
+    const QString path = fileUrl.startsWith(QLatin1String("file:"))
+            ? QUrl(fileUrl).toLocalFile()
+            : fileUrl;
+    const QLatin1String prefix("/storage/");
+    if (!path.startsWith(prefix)) {
+        return false;
+    }
+    const QString volume = path.mid(prefix.size()).section(QLatin1Char('/'), 0, 0);
+    if (volume.isEmpty()) {
+        return false;
+    }
+    constexpr qint64 kValidMs = 3000;
+    const qint64 now = m_driveClock.isValid() ? m_driveClock.elapsed() : 0;
+    const auto it = m_driveStates.constFind(volume);
+    if (it != m_driveStates.constEnd() && m_driveClock.isValid() &&
+            now - it->checkedAtMs < kValidMs) {
+        return it->missing;
+    }
+    DriveState state;
+    state.missing = !mixxx::missingStorageVolume(prefix + volume + QLatin1Char('/')).isEmpty();
+    state.checkedAtMs = now;
+    m_driveStates.insert(volume, state);
+    return state.missing;
 }
 
 int QmlLibraryProxy::analyzeTracksWithoutBpm() const {

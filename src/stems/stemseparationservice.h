@@ -154,6 +154,12 @@ class StemSeparationService : public QObject {
     // stop), back to 0 when it is done
     ControlObject* m_pSpeedTest = nullptr;
     std::atomic<bool> m_speedTestRequested{false};
+    /// True while runSpeedTest() runs (for the status strip, [Stems],busy)
+    std::atomic<bool> m_speedTestRunning{false};
+    /// [Stems],busy: what the separation does now, for the interface (read
+    /// only): 0 nothing, 1 separating the track of a deck, 2 speed test,
+    /// 3 best quality pass with the decks stopped
+    ControlObject* m_pBusy = nullptr;
     // Set by the destructor: the speed test does not hold the exit up
     std::atomic<bool> m_quitting{false};
     // Measured speeds read by liveLevel() / bestLevel() (any thread)

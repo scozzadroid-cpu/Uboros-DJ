@@ -6,13 +6,23 @@ import "Theme"
 // Over the info bar of a deck while a plugin gets the track that was loaded into it:
 // the title and the artist, what is happening (connecting, downloading with the percentage) and a
 // progress bar along the bottom edge. A failure stays on for a few seconds, with its reason.
+// The same panel says why a track of the library could not be loaded (the drive is not
+// connected, the file is missing or damaged) for six seconds; a tap closes it.
 // Nothing is drawn, and no animation runs, when the deck waits for nothing.
 Rectangle {
     id: root
 
     required property string group
     readonly property var info: Mixxx.Plugins.loadingInfo[group] || null
-    readonly property bool failed: info !== null && info.state === "error"
+    // The engine could not open the file of the track that was loaded (set by the player)
+    readonly property var deckPlayer: Mixxx.PlayerManager.getPlayer(group)
+    readonly property string loadError: deckPlayer && deckPlayer.loadError ? String(deckPlayer.loadError) : ""
+    readonly property string loadErrorTrack: deckPlayer && deckPlayer.loadErrorTrack ? String(deckPlayer.loadErrorTrack) : ""
+    // On for six seconds from the failure (or until a tap)
+    property bool errorOn: false
+    // A plugin's own panel has the word first
+    readonly property bool localFailure: info === null && errorOn && loadError !== ""
+    readonly property bool failed: localFailure || (info !== null && info.state === "error")
     readonly property real progress: info !== null && info.progress !== undefined ? info.progress : -1
     readonly property color tint: failed ? Theme.yellow : "#ff5500"
 
@@ -21,11 +31,31 @@ Rectangle {
     clip: true
     color: Qt.rgba(0.07, 0.07, 0.08, 1.0)
     radius: 6
-    visible: info !== null
+    visible: info !== null || localFailure
+
+    onLoadErrorChanged: {
+        errorOn = loadError !== "";
+        if (errorOn)
+            errorTimer.restart();
+        else
+            errorTimer.stop();
+    }
+
+    Timer {
+        id: errorTimer
+
+        interval: 6000
+        onTriggered: root.errorOn = false
+    }
 
     // Takes the touches: a tap on the panel must not reach the deck below
+    // (a tap on a load failure closes it)
     MouseArea {
         anchors.fill: parent
+        onClicked: {
+            if (root.localFailure)
+                root.errorOn = false;
+        }
     }
 
     RowLayout {
@@ -93,14 +123,14 @@ Rectangle {
                 font.bold: true
                 font.pixelSize: 14
                 // The list marks tracks that cannot be downloaded with "[DRM] ": the panel says why in its own words
-                text: root.info ? String(root.info.title).replace(/^\[DRM\]\s*/, "") : ""
+                text: root.localFailure ? qsTr("Couldn't load the track") : (root.info ? String(root.info.title).replace(/^\[DRM\]\s*/, "") : "")
             }
             Text {
                 Layout.fillWidth: true
                 color: Theme.midGray
                 elide: Text.ElideRight
                 font.pixelSize: 11
-                text: root.info ? root.info.artist : ""
+                text: root.localFailure ? root.loadErrorTrack : (root.info ? root.info.artist : "")
                 visible: text.length > 0 && root.height >= 52
             }
             Text {
@@ -109,7 +139,7 @@ Rectangle {
                 elide: Text.ElideRight
                 font.bold: true
                 font.pixelSize: 11
-                text: root.failed ? (root.info.message || "") : (root.info && root.info.status ? root.info.status : (root.progress < 0 ? qsTr("Connecting…") : qsTr("Downloading…")))
+                text: root.localFailure ? root.loadError : (root.failed ? (root.info.message || "") : (root.info && root.info.status ? root.info.status : (root.progress < 0 ? qsTr("Connecting…") : qsTr("Downloading…"))))
             }
         }
 

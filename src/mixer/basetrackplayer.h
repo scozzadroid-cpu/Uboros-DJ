@@ -72,7 +72,9 @@ class BaseTrackPlayer : public BasePlayer {
 #endif
     void playerEmpty();
     /// The track could not be opened; reason is user-visible text
-    void loadFailed(const QString& reason);
+    // reason: what the deck shows ("File not found: drive ... is not connected");
+    // trackName: "Title (Artist)" or the file name
+    void loadFailed(const QString& reason, const QString& trackName = QString());
     void noVinylControlInputConfigured();
     void trackRatingChanged(int rating);
     void trackMenuChangeRequest(bool show);

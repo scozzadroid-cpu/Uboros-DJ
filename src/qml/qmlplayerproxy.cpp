@@ -34,8 +34,9 @@ QmlPlayerProxy::QmlPlayerProxy(BaseTrackPlayer* pTrackPlayer, QObject* parent)
     connect(m_pTrackPlayer,
             &BaseTrackPlayer::loadFailed,
             this,
-            [this](const QString& reason) {
+            [this](const QString& reason, const QString& trackName) {
                 setLoading(false);
+                setLoadError(reason, trackName);
                 emit loadFailed(reason);
             });
     if (m_pTrackPlayer && m_pTrackPlayer->getLoadedTrack()) {
@@ -64,6 +65,15 @@ void QmlPlayerProxy::loadTrackFromLocationUrl(const QUrl& trackLocationUrl, bool
     } else {
         qWarning() << "QmlPlayerProxy: URL" << trackLocationUrl << "is not a local file!";
     }
+}
+
+void QmlPlayerProxy::setLoadError(const QString& reason, const QString& trackName) {
+    if (m_loadError == reason && m_loadErrorTrack == trackName) {
+        return;
+    }
+    m_loadError = reason;
+    m_loadErrorTrack = trackName;
+    emit loadErrorChanged();
 }
 
 void QmlPlayerProxy::setLoading(bool loading) {
@@ -102,6 +112,9 @@ void QmlPlayerProxy::slotTrackAnalyzerProgress(
 
 void QmlPlayerProxy::slotTrackLoaded(TrackPointer pTrack) {
     setLoading(false);
+    if (pTrack) {
+        setLoadError(QString());
+    }
     m_pCurrentTrack = pTrack;
     emit trackChanged();
     emit trackLoaded();
@@ -137,6 +150,10 @@ QmlTrackProxy* QmlPlayerProxy::currentTrack() {
 }
 
 void QmlPlayerProxy::slotLoadingTrack(TrackPointer pNewTrack, TrackPointer pOldTrack) {
+    if (pNewTrack) {
+        // A new load starts: the last failure is old news
+        setLoadError(QString());
+    }
     if (pNewTrack.get() == m_pCurrentTrack.get()) {
         emit trackLoading();
         return;

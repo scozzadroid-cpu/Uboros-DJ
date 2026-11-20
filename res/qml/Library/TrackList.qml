@@ -15,6 +15,10 @@ Rectangle {
     color: Theme.darkGray
 
     required property var model
+    // Rows of tracks on a drive that is not connected are dimmed (Library.isDriveMissing,
+    // cached per drive); the counter makes the visible rows ask again when the list is on
+    // screen (a drive mounted later lights its tracks up within a few seconds)
+    property int driveEpoch: 0
     // Path of the source whose tracks are shown (set by Library.qml from
     // Browser.qml), e.g. "Rekordbox > Playlists > House"
     property string pathText: ""
@@ -434,6 +438,8 @@ Rectangle {
             required property int row
             required property bool played
             required property bool has_stems
+            // On a removable drive that is not mounted now: the row says so, loading it fails
+            readonly property bool driveMissing: Mixxx.Library.isDriveMissing(file_url, root.driveEpoch)
 
             implicitHeight: Qt.platform.os === "android" ? 22 : 30
 
@@ -465,7 +471,29 @@ Rectangle {
             //     if (track)
             //         Mixxx.Library.analyze(track)
             // }
+
+            // The drive of this track is not connected: veil and a mark at the start of the row
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.rgba(Theme.darkGray.r, Theme.darkGray.g, Theme.darkGray.b, 0.62)
+                visible: item.driveMissing
+                z: 1
+            }
+            Rectangle {
+                color: Theme.yellow
+                height: parent.height
+                visible: item.driveMissing
+                width: 3
+                z: 2
+            }
         }
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        running: root.visible
+        onTriggered: root.driveEpoch++
     }
 
     // A search (or Matching) that finds nothing says so, instead of an empty list

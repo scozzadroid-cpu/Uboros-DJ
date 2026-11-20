@@ -1,5 +1,7 @@
 #include "mixer/basetrackplayer.h"
 
+#include <QCoreApplication>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QMetaMethod>
 #include <QPointer>
@@ -20,6 +22,7 @@
 #include "track/track.h"
 #include "util/cmdlineargs.h"
 #include "util/sandbox.h"
+#include "util/storagevolume.h"
 #include "vinylcontrol/defs_vinylcontrol.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
 
@@ -630,13 +633,61 @@ void BaseTrackPlayerImpl::slotLoadTrack(TrackPointer pNewTrack,
 #endif
 }
 
+namespace {
+
+// What the deck says when a track could not be loaded: the engine's reason is a
+// sentence about one file; the player wants to know what to do about it
+// (connect the drive, check the file)
+QString describeLoadFailure(const TrackPointer& pTrack, const QString& reason) {
+    if (!pTrack) {
+        return reason;
+    }
+    const QString location = pTrack->getLocation();
+    if (location.isEmpty()) {
+        return reason;
+    }
+    const QFileInfo fileInfo(location);
+    const QString name = fileInfo.fileName();
+    if (!fileInfo.exists()) {
+        const QString volume = mixxx::missingStorageVolume(location);
+        if (!volume.isEmpty()) {
+            return QCoreApplication::translate("BaseTrackPlayerImpl",
+                    "File not found: drive \"%1\" is not connected")
+                    .arg(volume);
+        }
+        return QCoreApplication::translate("BaseTrackPlayerImpl", "File not found: %1").arg(name);
+    }
+    if (!fileInfo.isReadable()) {
+        return QCoreApplication::translate("BaseTrackPlayerImpl", "File not readable: %1").arg(name);
+    }
+    return QCoreApplication::translate("BaseTrackPlayerImpl", "Unsupported or damaged file: %1")
+            .arg(name);
+}
+
+QString loadFailureTrackName(const TrackPointer& pTrack) {
+    if (!pTrack) {
+        return QString();
+    }
+    const QString title = pTrack->getTitle();
+    const QString artist = pTrack->getArtist();
+    if (title.isEmpty()) {
+        return pTrack->getFileInfo().fileName();
+    }
+    return artist.isEmpty() ? title : title + QStringLiteral(" (") + artist + QLatin1Char(')');
+}
+
+} // namespace
+
 void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& reason) {
     // Note: This slot can be a load failure from the current track or a
     // a delayed signal from a previous load.
     // We have probably received a slotTrackLoaded signal, of an old track that
     // was loaded before. Here we must unload the
     // We must unload the track m_pLoadedTrack as well
-    if (pTrack == m_pLoadedTrack) {
+    // Decided here: slotTrackLoaded() below empties m_pLoadedTrack, so the check for
+    // loadFailed at the end never held and the deck said nothing about the failure
+    const bool failedTrackIsCurrent = pTrack && pTrack == m_pLoadedTrack;
+    if (failedTrackIsCurrent) {
         qDebug() << "Failed to load track" << pTrack->getFileInfo() << reason;
         slotTrackLoaded(TrackPointer(), pTrack);
     } else if (pTrack) {
@@ -646,8 +697,8 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
     }
     m_pChannelToCloneFrom = nullptr;
 
-    if (pTrack == m_pLoadedTrack || !pTrack) {
-        emit loadFailed(reason);
+    if (failedTrackIsCurrent || !pTrack) {
+        emit loadFailed(describeLoadFailure(pTrack, reason), loadFailureTrackName(pTrack));
     }
     // The QML interface shows the reason on the deck (loadFailed). A widget
     // message box there has no parent window: on Android it freezes the GUI.

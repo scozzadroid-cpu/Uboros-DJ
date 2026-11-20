@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown by Qt (android.app.splash_screen_drawable, an ImageView with FIT_XY) from
+     the creation of the activity until the first QML frame. FIT_XY stretches the
+     intrinsic size of the drawable over the screen, so the intrinsic size is set to
+     the landscape screen of the POCO F4 GT (2400x1080 px at 440 dpi = 873x393 dp)
+     and the logo (288 dp, as in the system splash screen that comes just before)
+     is not distorted. On other screens it is only stretched a little. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <!-- only gives the layer list its intrinsic size and aspect ratio -->
+    <item
+        android:width="873dp"
+        android:height="393dp"
+        android:gravity="center">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+    <item
+        android:width="288dp"
+        android:height="288dp"
+        android:gravity="center">
+        <bitmap
+            android:gravity="fill"
+            android:src="@drawable/ic_launcher_foreground" />
+    </item>
+</layer-list>

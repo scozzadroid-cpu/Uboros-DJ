@@ -449,8 +449,18 @@ ApplicationWindow {
                     verticalAlignment: Text.AlignVCenter
                 }
                 Item {
+                    // Spare space of the toolbar: what the app does in the
+                    // background (USB drive, analysis, stems), see BackgroundStatus
+                    Layout.fillHeight: true
                     Layout.fillWidth: true
                     visible: !Mixxx.AutoMix.active
+
+                    Skin.BackgroundStatus {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 8
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
                 Skin.BeatFxIndicator {
                     id: beatFxIndicator
@@ -736,6 +746,16 @@ ApplicationWindow {
         anchors.topMargin: 8
         width: Math.min(parent.width - 16, 900)
         z: 99
+    }
+    // Start screen: phases of the start, goes away by itself (a tap closes it)
+    Skin.StartupSplash {
+        id: startupSplash
+
+        anchors.fill: parent
+        // Where there is no controller grace period (desktop) it is always over
+        controllerCount: root.controllerCount
+        controllerSearchDone: !root.isAndroid || startupCheck.done
+        z: 2000
     }
     // Tutorial: the interface is prepared per step and put back at the end
     property var tutorialSaved: null

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme of the app and of the Qt activity: the platform fullscreen theme the
+         app has always used (Qt draws everything itself), plus:
+         - a dark window background (Qt reads android:windowBackground and sets it
+           on the window, so no white/black flash while the surface is created or
+           the screen rotates);
+         - the system splash screen of Android 12+ (minSdk is 34): the logo on the
+           dark background from the very first frame of the cold start, until the
+           activity draws; Qt's own splash (@drawable/splash) takes over from there
+           until the QML window is shown -->
+    <style name="UborosTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+    </style>
+</resources>
