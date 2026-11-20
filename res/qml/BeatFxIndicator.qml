@@ -43,8 +43,10 @@ Rectangle {
     // "BEAT FX" is dropped and the effect name is shortened (nothing here depends
     // on root.width, so no binding loop)
     // ("ON" only shows while the effect is on: off is the grey frame, no word needed)
-    readonly property int fullWidth: labelText.implicitWidth + nameText.implicitWidth
-            + (on ? stateText.implicitWidth + row.spacing : 0) + channelsText.implicitWidth + 2 * row.spacing + 20
+    // Rounded up with 2 px to spare: an int that drops a fraction of a pixel
+    // made the name a hair too narrow and "Echo" became "Ec…"
+    readonly property int fullWidth: Math.ceil(labelText.implicitWidth + Math.ceil(nameMetrics.advanceWidth)
+            + (on ? stateText.implicitWidth + row.spacing : 0) + channelsText.implicitWidth + 2 * row.spacing + 20) + 2
 
     implicitWidth: fullWidth
     implicitHeight: 30
@@ -109,6 +111,15 @@ Rectangle {
         key: "enabled"
     }
 
+    // Natural width of the effect name, measured apart: the Text below has an
+    // explicit width and elides, so its implicitWidth can follow the shortened text
+    TextMetrics {
+        id: nameMetrics
+
+        font: nameText.font
+        text: root.effectName
+    }
+
     Row {
         id: row
 
@@ -130,7 +141,7 @@ Rectangle {
             id: nameText
 
             // Shortened (with ...) only when the toolbar is too narrow
-            width: Math.max(24, Math.min(implicitWidth, root.width - 20
+            width: Math.max(24, Math.min(Math.ceil(nameMetrics.advanceWidth), root.width - 20
                     - (labelText.visible ? labelText.implicitWidth + row.spacing : 0)
                     - (root.on ? stateText.implicitWidth + row.spacing : 0)
                     - channelsText.implicitWidth - row.spacing))

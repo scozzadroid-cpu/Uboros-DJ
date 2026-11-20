@@ -250,11 +250,24 @@ ApplicationWindow {
             radius: 1
             width: parent.width
 
+            // Hairline under the bar: separates it from the decks without a bevel
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                color: Theme.dividerColor
+                height: 1
+            }
+
             RowLayout {
                 anchors.fill: parent
 
                 Skin.Button {
                     id: show4DecksButton
+                    // Toolbar: the whole height of the bar is the touch target,
+                    // the drawn button is a little smaller
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     text: "4 Decks"
@@ -263,6 +276,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: maximizeLibraryButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     text: "Library"
@@ -277,6 +292,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: showEffectsButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     text: "Effects"
@@ -285,6 +302,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: showSamplersButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     text: "Sampler"
@@ -293,6 +312,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: showMixerButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     text: "Mixer"
@@ -307,6 +328,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: waveformViewButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checked: root.waveformView
                     text: "Waves"
@@ -316,6 +339,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: autoMixButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: "#4ee04e"
                     checkable: true
                     checked: Mixxx.AutoMix.active
@@ -325,6 +350,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: liveStemsButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     // Separate the stems of every track without stems as
                     // soon as it is loaded (not only on SMART CFX)
                     activeColor: "#c77dff"
@@ -343,6 +370,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: perfModeButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     // Performance mode: waveforms always at full rate, clocks
                     // kept warm, no background analysis. Always off at start.
                     // No text: a speedometer when off, a flame when on (hand
@@ -466,14 +495,18 @@ ApplicationWindow {
                     id: beatFxIndicator
 
                     // Shrinks (down to a minimum) when the toolbar is full, so that the
-                    // "?" and the gear at the right end never go off screen
-                    Layout.fillWidth: true
+                    // "?" and the gear at the right end never go off screen. Not
+                    // fillWidth: the free space of the bar is given up first, so the
+                    // effect name is only shortened when the bar is really full
+                    Layout.preferredWidth: implicitWidth
                     Layout.maximumWidth: implicitWidth
                     Layout.minimumWidth: 120
                     Layout.rightMargin: 6
                 }
                 Skin.Button {
                     id: showDevToolsButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     checkable: true
                     checked: devToolsWindow.visible
@@ -495,6 +528,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: exportButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     text: "Export"
 
@@ -502,6 +537,8 @@ ApplicationWindow {
                 }
                 Skin.Button {
                     id: showDashboardButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
                     text: "Dashboard"
                     visible: root.isAndroid
@@ -514,14 +551,18 @@ ApplicationWindow {
                 // Help: the guided tour again, always visible
                 Skin.Button {
                     id: helpButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     activeColor: Theme.white
-                    implicitWidth: implicitHeight
+                    implicitWidth: 36
                     text: "?"
 
                     onClicked: tutorial.open()
                 }
                 Skin.Button {
                     id: showPreferencesButton
+                    Layout.fillHeight: true
+                    visualHeight: 28
                     Layout.rightMargin: 8
                     activeColor: Theme.white
                     // Android: the settings are in the Dashboard (the popup and the desktop dialog do not fit a phone)
@@ -530,7 +571,7 @@ ApplicationWindow {
                     icon.height: 16
                     icon.source: "images/gear.svg"
                     icon.width: 16
-                    implicitWidth: implicitHeight
+                    implicitWidth: 36
 
                     onClicked: {
                         if (!settingsPopup.opened) {
