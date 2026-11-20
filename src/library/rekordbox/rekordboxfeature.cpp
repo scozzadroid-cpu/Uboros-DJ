@@ -2007,6 +2007,26 @@ RekordboxFeature::RekordboxFeature(
 }
 
 void RekordboxFeature::autoScanDevices() {
+    // A volume (USB stick, SD card) that came or went, rekordbox or not: the
+    // tracks on it are there or not (the library lists leave out the missing ones)
+    {
+        QStringList volumes;
+        for (const QStorageInfo& volume : QStorageInfo::mountedVolumes()) {
+            if (volume.isValid() && volume.isReady()) {
+                volumes << volume.rootPath();
+            }
+        }
+        volumes.sort();
+        if (m_volumes != volumes) {
+            const bool first = m_volumes.isEmpty();
+            m_volumes = volumes;
+            if (!first) {
+                if (auto* pAvailability = TrackAvailability::instance()) {
+                    pAvailability->verify();
+                }
+            }
+        }
+    }
     if (m_devicesFuture.isRunning() || m_tracksFuture.isRunning()) {
         return;
     }
@@ -2519,7 +2539,10 @@ void RekordboxFeature::preanalyzeNextBatchImpl() {
     // interface draw (4 tracks per turn made it stutter for a minute)
     QElapsedTimer budget;
     budget.start();
-    constexpr qint64 kBudgetMs = 5;
+    // While the start screen covers the interface there is nothing to keep smooth:
+    // work in long slices (the drive is ready in seconds instead of half a minute)
+    const bool startup = m_startupBusy;
+    const qint64 kBudgetMs = startup ? 40 : 5;
     const int rowCount = m_pPreanalysisModel->rowCount();
     for (int i = 0; m_preanalysisRow < rowCount && (i == 0 || budget.elapsed() < kBudgetMs);
             ++i, ++m_preanalysisRow) {
@@ -2552,7 +2575,7 @@ void RekordboxFeature::preanalyzeNextBatchImpl() {
     }
     if (m_preanalysisRow < rowCount) {
         setBusyText(tr("Preparing USB drive… %1/%2").arg(m_preanalysisRow).arg(rowCount));
-        m_preanalysisTimer.start(25);
+        m_preanalysisTimer.start(startup ? 2 : 25);
         return;
     }
     setBusyText(QString());

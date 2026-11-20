@@ -168,6 +168,7 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     QString m_busyText;
     void setBusyText(const QString& text);
     bool m_startupBusy = true;
+    QStringList m_volumes; // the mounted volumes at the last look (autoScanDevices)
     int m_scansDone = 0;
     // A slot that changes several things one after the other: the start is not
     // over in between
