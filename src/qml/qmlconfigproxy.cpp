@@ -2,6 +2,7 @@
 
 #include "moc_qmlconfigproxy.cpp"
 #include "preferences/colorpalettesettings.h"
+#include "control/controlobject.h"
 #include "preferences/constants.h"
 
 #include <QCoreApplication>
@@ -95,6 +96,10 @@ bool detectWaveformGpuSupport() {
 namespace mixxx {
 namespace qml {
 
+namespace {
+void applyNormalizeLevel(bool enabled);
+} // namespace
+
 QmlConfigProxy::QmlConfigProxy(
         UserSettingsPointer pConfig, QObject* parent)
         : QObject(parent), m_pConfig(pConfig) {
@@ -107,6 +112,9 @@ QmlConfigProxy::QmlConfigProxy(
             &QmlConfigProxy::userActivity,
             Qt::QueuedConnection);
     QCoreApplication::instance()->installEventFilter(this);
+    // The ReplayGain controls of the engine start at their own defaults: bring
+    // them to what was chosen (off unless the DJ turned it on)
+    applyNormalizeLevel(normalizeLevel());
 }
 
 QVariantList QmlConfigProxy::getHotcueColorPalette() {
@@ -194,6 +202,35 @@ void QmlConfigProxy::setTutorialDone(bool done) {
     m_pConfig->setValue(ConfigKey(kTutorialGroup, kTutorialDoneKey), done);
     m_pConfig->save();
     emit tutorialDoneChanged(done);
+}
+
+namespace {
+const ConfigKey kNormalizeLevelKey(QStringLiteral("[Audio]"), QStringLiteral("NormalizeLevel"));
+
+// Sets the engine's ReplayGain controls (EnginePregain): on, a track is played at
+// its measured loudness (a track not measured yet at -6 dB, until its analysis
+// is done); off, the pregain stays at what the knob says, nothing is added.
+void applyNormalizeLevel(bool enabled) {
+    ControlObject::set(ConfigKey(QStringLiteral("[ReplayGain]"), QStringLiteral("ReplayGainEnabled")),
+            enabled ? 1.0 : 0.0);
+    ControlObject::set(ConfigKey(QStringLiteral("[ReplayGain]"), QStringLiteral("ReplayGainBoost")), 1.0);
+    ControlObject::set(ConfigKey(QStringLiteral("[ReplayGain]"), QStringLiteral("DefaultBoost")),
+            enabled ? 0.5012 : 1.0); // -6 dB
+}
+} // namespace
+
+bool QmlConfigProxy::normalizeLevel() const {
+    return m_pConfig->getValue(kNormalizeLevelKey, false);
+}
+
+void QmlConfigProxy::setNormalizeLevel(bool enabled) {
+    if (enabled == normalizeLevel()) {
+        return;
+    }
+    m_pConfig->setValue(kNormalizeLevelKey, enabled);
+    m_pConfig->save();
+    applyNormalizeLevel(enabled);
+    emit normalizeLevelChanged(enabled);
 }
 
 bool QmlConfigProxy::burnInProtection() const {

@@ -213,6 +213,19 @@ ColumnLayout {
             spacing: 10
             width: parent ? parent.width : implicitWidth
 
+        // ------------------------------------------------------------------ Volume
+        SectionTitle {
+            text: qsTr("Volume")
+        }
+        Skin.DashboardToggle {
+            Layout.fillWidth: true
+            on: Mixxx.Config.normalizeLevel
+            subtitle: qsTr("Brings every track to the same level, using the loudness measured by the analysis: loud tracks are lowered, quiet ones raised by up to 6 dB. A track not measured yet plays 6 dB lower until its analysis is done. Off: every track plays at its own level, untouched")
+            title: qsTr("Normalize volume")
+
+            onSwitched: value => Mixxx.Config.normalizeLevel = value
+        }
+
         // ---------------------------------------------------------------- Analysis
         SectionTitle {
             text: qsTr("Track analysis")

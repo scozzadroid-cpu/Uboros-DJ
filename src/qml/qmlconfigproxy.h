@@ -25,6 +25,10 @@ class QmlConfigProxy : public QObject {
     // First-run tutorial: true once finished or skipped, never shown again
     Q_PROPERTY(bool tutorialDone READ tutorialDone WRITE setTutorialDone NOTIFY tutorialDoneChanged)
     Q_PROPERTY(bool burnInProtection READ burnInProtection WRITE setBurnInProtection NOTIFY burnInProtectionChanged)
+    // "Normalize volume": every track is played at the same level (the loudness
+    // measured by the analysis: ReplayGain). Off by default: tracks play at their
+    // own level, untouched. Takes effect at once, also on the tracks that are playing.
+    Q_PROPERTY(bool normalizeLevel READ normalizeLevel WRITE setNormalizeLevel NOTIFY normalizeLevelChanged)
     // Screen turned black (nothing drawn, audio goes on) after these minutes
     // without DJ controller input or touches; 0 = never
     Q_PROPERTY(int screenOffMinutes READ screenOffMinutes WRITE setScreenOffMinutes NOTIFY screenOffMinutesChanged)
@@ -74,6 +78,8 @@ class QmlConfigProxy : public QObject {
     void setTutorialDone(bool done);
     bool burnInProtection() const;
     void setBurnInProtection(bool enabled);
+    bool normalizeLevel() const;
+    void setNormalizeLevel(bool enabled);
     int screenOffMinutes() const;
     void setScreenOffMinutes(int minutes);
     int logMaxFileSizeMb() const;
@@ -100,6 +106,7 @@ class QmlConfigProxy : public QObject {
     void waveformGpuChanged(bool enabled);
     void tutorialDoneChanged(bool done);
     void burnInProtectionChanged(bool enabled);
+    void normalizeLevelChanged(bool enabled);
     void screenOffMinutesChanged(int minutes);
     void logLimitsChanged();
     void screenAsleepChanged(bool asleep);

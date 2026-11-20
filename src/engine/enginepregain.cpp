@@ -14,6 +14,8 @@ namespace {
 constexpr CSAMPLE_GAIN kSpeedGainMultiplier = 4.0f;
 // -1 dB to not risk any clipping even for lossy track that may have samples above 1.0
 constexpr CSAMPLE_GAIN kMaxTotalGainBySpeed = 0.9f;
+// Largest gain the normalization may add to a quiet track (+6 dB)
+constexpr CSAMPLE_GAIN kMaxNormalizeGain = 2.0f;
 // value to normalize gain to 1 at speed one
 const CSAMPLE_GAIN kSpeedOneDiv = std::log10((1 * kSpeedGainMultiplier) + 1);
 } // anonymous namespace
@@ -88,8 +90,12 @@ void EnginePregain::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
         // full process for one second.
         // So we need to alter gain each time ::process is called.
 
-        const CSAMPLE_GAIN fullReplayGainBoost =
-                fReplayGain * static_cast<CSAMPLE_GAIN>(s_pReplayGainBoost->get());
+        // "Normalize volume": a quiet track is raised by at most +6 dB, so that a
+        // track with high peaks does not run into the clipping of the master. Louder
+        // tracks are only ever lowered (a ratio below 1), without limit.
+        const CSAMPLE_GAIN fullReplayGainBoost = math_min(
+                fReplayGain * static_cast<CSAMPLE_GAIN>(s_pReplayGainBoost->get()),
+                kMaxNormalizeGain);
 
         // This means that a ReplayGain value has been calculated after the
         // track has been loaded
