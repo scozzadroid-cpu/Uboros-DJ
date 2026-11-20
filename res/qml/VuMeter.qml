@@ -88,28 +88,32 @@ Rectangle {
         }
     }
 
-    Item {
-        id: cheapMeter
-
+    Loader {
         anchors.fill: parent
         anchors.margins: 1
-        visible: root.cheapEffects
+        active: root.cheapEffects
 
-        Item {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: Math.round(control.parameter * cheapMeter.height)
-            clip: true
+        sourceComponent: Item {
+            id: cheapMeter
 
-            Rectangle {
+            anchors.fill: parent
+
+            Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                height: cheapMeter.height
-                radius: width / 2
-                antialiasing: false
-                gradient: meterGradient.gradient
+                height: Math.round(control.parameter * cheapMeter.height)
+                clip: true
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: cheapMeter.height
+                    radius: width / 2
+                    antialiasing: false
+                    gradient: meterGradient.gradient
+                }
             }
         }
     }
