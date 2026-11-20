@@ -23,9 +23,7 @@
 #include <QScopeGuard>
 #include <QMessageBox>
 #include <QSettings>
-#ifdef __ANDROID__
 #include <QStorageInfo>
-#endif
 #include <QString>
 #include <QTextCodec>
 #include <QtDebug>
