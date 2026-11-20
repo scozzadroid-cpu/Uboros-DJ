@@ -103,10 +103,14 @@ void KeySyncFollower::onEnabledChanged(int deck, double value) {
     // One deck at a time
     for (int other = 0; other < kDecks; ++other) {
         if (other != deck && isEnabled(other)) {
+            // set() from this object does not call onEnabledChanged() back
             m_decks[other].enabled->set(0);
+            setStatus(other, 0);
         }
     }
-    reconcile();
+    // Switched on by hand (pill, pad 8): this deck follows now, also when it
+    // is already playing, like KEY SYNC of rekordbox
+    reconcile(true);
 }
 
 void KeySyncFollower::schedule() {
@@ -142,7 +146,7 @@ void KeySyncFollower::setStatus(int deck, int status) {
     }
 }
 
-void KeySyncFollower::reconcile() {
+void KeySyncFollower::reconcile(bool shiftArmedNow) {
     const int armed = armedDeck();
     if (armed < 0) {
         return;
@@ -162,8 +166,11 @@ void KeySyncFollower::reconcile() {
         if (!d.loaded || !d.fileKey || !d.pitch || !d.loaded->toBool()) {
             continue;
         }
-        if (d.play && d.play->toBool()) {
-            continue; // playing: never shifted, whatever the switch says
+        const bool playing = d.play && d.play->toBool();
+        if (playing && !(shiftArmedNow && incoming == armed)) {
+            // A playing deck is never shifted on its own (a new track on the
+            // other deck, a key change there): only when its switch is pressed
+            continue;
         }
         anyIncoming = true;
         if (KeyUtils::keyFromNumericValue(d.fileKey->get()) == mixxx::track::io::key::INVALID) {
@@ -173,6 +180,9 @@ void KeySyncFollower::reconcile() {
         // With a deck that plays every incoming deck follows it; with nothing
         // playing only the deck that holds the switch follows the other one
         const int reference = pickReference(incoming, incoming == armed);
+        if (playing && reference < 0) {
+            continue;
+        }
         if (reference < 0) {
             waiting = true;
             continue;

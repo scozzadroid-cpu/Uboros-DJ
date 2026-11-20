@@ -59,7 +59,7 @@ class KeySyncFollower : public QObject {
     void onEnabledChanged(int deck, double value);
     void schedule();
     /// Looks at the decks and shifts the incoming one if it has to
-    void reconcile();
+    void reconcile(bool shiftArmedNow = false);
     /// The deck whose key `incoming` follows: the playing one (any loaded deck
     /// with a key when allowStopped); -1 when there is none
     int pickReference(int incoming, bool allowStopped) const;
