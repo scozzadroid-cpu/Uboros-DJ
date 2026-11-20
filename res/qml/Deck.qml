@@ -411,6 +411,8 @@ Item {
 
                     group: root.group
                     key: "playposition"
+                    // Android: playposition changes on every audio callback; text only (mm:ss.d)
+                    updateInterval: Qt.platform.os === "android" ? 100 : 0
                 }
 
                 Mixxx.ControlProxy {

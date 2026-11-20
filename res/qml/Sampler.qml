@@ -120,6 +120,8 @@ Rectangle {
 
                 group: root.group
                 key: "playposition"
+                // Android: playposition changes on every audio callback; 5 px progress bar: ~30 fps is enough
+                updateInterval: Qt.platform.os === "android" ? 33 : 0
             }
         }
 
