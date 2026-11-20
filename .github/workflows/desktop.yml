@@ -1,0 +1,139 @@
+# Desktop builds of Ubøros DJ (Windows x64 MSI, macOS arm64 DMG, Linux).
+# Derived from the upstream Mixxx build.yml, without signing/publishing.
+name: Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [desktop-build]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 MSI
+            os: windows-2022
+            cmake_args: >-
+              -DBULK=ON -DHSS1394=ON -DLOCALECOMPARE=ON -DMAD=ON -DMEDIAFOUNDATION=ON
+              -DMODPLUG=ON -DQT6=ON -DQML=ON -DWAVPACK=ON
+              -DVCPKG_TARGET_TRIPLET=x64-windows-release
+            cc: cl
+            cxx: cl
+            cpack_generator: WIX
+            buildenv_basepath: C:\buildenv
+            buildenv_script: tools/windows_buildenv.bat
+            arch: x64
+            artifacts_name: windows-x64-msi
+            artifacts_path: build/*.msi
+          - name: macOS arm64 DMG
+            os: macos-15-intel
+            cmake_args: >-
+              -DBULK=ON -DCOREAUDIO=ON -DHSS1394=ON -DMACOS_BUNDLE=ON -DMODPLUG=ON
+              -DQT6=ON -DQML=ON -DWAVPACK=ON
+              -DVCPKG_TARGET_TRIPLET=arm64-osx-min1100-release
+            crosscompile: true
+            cpack_generator: DragNDrop
+            buildenv_basepath: /Users/runner/buildenv
+            buildenv_script: tools/macos_arm64-cross-release_buildenv.sh
+            artifacts_name: macos-arm64-dmg
+            artifacts_path: build/*.dmg
+          - name: Linux (Ubuntu 24.04)
+            os: ubuntu-24.04
+            cmake_args: >-
+              -DQT6=ON -DQML=ON -DBULK=ON -DFFMPEG=ON -DMODPLUG=ON -DWAVPACK=ON
+            cpack_generator: DEB
+            artifacts_name: linux-deb
+            artifacts_path: build/*.deb
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "[Windows] CMake"
+        if: runner.os == 'Windows'
+        uses: jwlawson/actions-setup-cmake@v2.0
+        with:
+          cmake-version: "3.30.x"
+
+      - name: "[Windows] MSVC environment"
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: "[macOS] ccache and make"
+        if: runner.os == 'macOS'
+        run: brew install ccache make
+
+      - name: "[Windows/macOS] Build environment name"
+        if: runner.os != 'Linux'
+        run: ${{ matrix.buildenv_script }} name
+
+      - name: "[Windows/macOS] Build environment cache"
+        if: runner.os != 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.buildenv_basepath }}
+          key: ${{ runner.os }}-buildenv-${{ env.BUILDENV_NAME }}
+
+      - name: "[Windows] Set up build environment"
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: ${{ matrix.buildenv_script }} setup
+        env:
+          BUILDENV_BASEPATH: ${{ matrix.buildenv_basepath }}
+          BUILDENV_RELEASE: TRUE
+
+      - name: "[macOS] Set up build environment"
+        if: runner.os == 'macOS'
+        run: ${{ matrix.buildenv_script }} setup
+        env:
+          BUILDENV_BASEPATH: ${{ matrix.buildenv_basepath }}
+
+      - name: "[Linux] Install dependencies"
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          tools/debian_buildenv.sh setup
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure
+        run: >-
+          cmake ${{ matrix.cmake_args }} ${{ env.CMAKE_ARGS_EXTRA }}
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_PREFIX_PATH="${{ env.CMAKE_PREFIX_PATH }}"
+          -DBATTERY=ON -DBROADCAST=ON -DHID=ON -DKEYFINDER=ON -DOPUS=ON -DQTKEYCHAIN=ON
+          -DBUILD_TESTING=OFF -DBUILD_BENCH=OFF
+          -L ..
+        working-directory: build
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build . --config RelWithDebInfo
+        working-directory: build
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+          CCACHE_NOCOMPRESS: true
+
+      - name: Package
+        run: cpack -G ${{ matrix.cpack_generator }} -V
+        working-directory: build
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifacts_name }}
+          path: ${{ matrix.artifacts_path }}
+          if-no-files-found: error
