@@ -11,6 +11,7 @@
 #include "library/library.h"
 #include "library/rekordbox/deviceanalysisstore.h"
 #include "library/rekordbox/rekordboxfeature.h"
+#include "library/trackavailability.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "mixer/playerinfo.h"
@@ -182,6 +183,28 @@ QmlAnalysisProxy::QmlAnalysisProxy(QObject* parent)
                     m_deviceBusy = text;
                     emit deviceBusyChanged();
                 });
+        connect(pRekordbox,
+                &RekordboxFeature::startupBusyChanged,
+                this,
+                &QmlAnalysisProxy::updateStartupBusy);
+    }
+    if (TrackAvailability* pAvailability = TrackAvailability::instance()) {
+        connect(pAvailability,
+                &TrackAvailability::finished,
+                this,
+                &QmlAnalysisProxy::updateStartupBusy);
+    }
+    updateStartupBusy();
+}
+
+void QmlAnalysisProxy::updateStartupBusy() {
+    RekordboxFeature* pRekordbox = RekordboxFeature::instance();
+    TrackAvailability* pAvailability = TrackAvailability::instance();
+    const bool busy = (pRekordbox && pRekordbox->startupBusy()) ||
+            (pAvailability && !pAvailability->hasRun());
+    if (busy != m_startupBusy) {
+        m_startupBusy = busy;
+        emit startupBusyChanged();
     }
 }
 

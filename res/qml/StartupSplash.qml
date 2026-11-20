@@ -8,11 +8,13 @@ import "Theme"
 // for (interface, audio engine, DJ controller) with a progress bar, and the
 // work that goes on in the background (USB drive, analysis, stems).
 //
-// It never holds the use of the app up: it goes away with a short fade as
-// soon as the interface has been drawn, the audio engine runs and the search
-// for the controller is over, but not before minVisibleMs (no flash) and at
-// the latest after maxVisibleMs; a tap on it closes it at once. The
-// hardware controller works under it all the time.
+// It stays up until everything the app loads at the start is loaded: the
+// interface, the audio engine, the search for the controller and the library
+// (the files of the tracks are checked and every USB drive that is plugged in
+// is read and prepared: doing that with the interface in use made it stutter).
+// It goes away with a short fade, not before minVisibleMs (no flash), at once
+// when a deck starts playing (the hardware controller works under it all the
+// time) and at the latest after maxVisibleMs; after skipAfterMs a tap closes it.
 Item {
     id: root
 
@@ -21,7 +23,11 @@ Item {
     property int controllerCount: 0
     property bool controllerSearchDone: true
     property int minVisibleMs: 700
-    property int maxVisibleMs: 8000
+    // A drive with thousands of tracks takes a while: this is only the net under
+    // a start that never finishes
+    property int maxVisibleMs: 120000
+    // From then on a tap closes the screen (before that a stray tap must not)
+    property int skipAfterMs: 20000
 
     // The interface under the splash exists and has drawn some frames
     property bool completed: false
@@ -30,15 +36,30 @@ Item {
     // [App],samplerate is set when the audio device is open
     readonly property bool audioReady: sampleRateControl.value > 0
     readonly property bool controllerReady: controllerCount > 0 || controllerSearchDone
+    // The files of the library are checked and the drives are read and prepared
+    readonly property bool libraryReady: !Mixxx.Analysis.startupBusy
+    readonly property string driveText: Mixxx.Analysis.deviceBusy
+    // How far the library is: "Preparing USB drive… 34/156" gives the fraction
+    readonly property real libraryFraction: {
+        if (libraryReady)
+            return 1.0;
+        const m = /(\d+)\/(\d+)\s*$/.exec(driveText);
+        if (m && parseInt(m[2]) > 0)
+            return 0.3 + 0.65 * Math.min(1, parseInt(m[1]) / parseInt(m[2]));
+        return driveText !== "" ? 0.15 : 0.05;
+    }
+    // A deck plays (started from the controller): the screen must not hide the decks
+    property bool anyPlaying: false
     property bool minElapsed: false
     property bool dismissed: false
     property real elapsedMs: 0
 
-    readonly property real progress: dismissed ? 1.0 : Math.min(1.0, 0.08
-            + (completed ? 0.12 : 0)
-            + (interfaceReady ? 0.3 : 0)
-            + (audioReady ? 0.25 : 0)
-            + (controllerReady ? 0.25 : 0))
+    readonly property real progress: dismissed ? 1.0 : Math.min(1.0, 0.05
+            + (completed ? 0.05 : 0)
+            + (interfaceReady ? 0.15 : 0)
+            + (audioReady ? 0.12 : 0)
+            + (controllerReady ? 0.13 : 0)
+            + 0.5 * libraryFraction)
     readonly property string phaseText: {
         if (!interfaceReady)
             return qsTr("Loading the interface…");
@@ -46,6 +67,8 @@ Item {
             return qsTr("Starting the audio engine…");
         if (!controllerReady)
             return qsTr("Looking for your DJ controller…");
+        if (!libraryReady)
+            return driveText !== "" ? driveText : qsTr("Checking the library and the USB drives…");
         return controllerCount > 0 ? qsTr("DJ controller connected") : qsTr("Ready");
     }
     readonly property string version: Mixxx.AppUpdater.installedVersion
@@ -73,12 +96,17 @@ Item {
     onInterfaceReadyChanged: root.closeIfReady()
     onAudioReadyChanged: root.closeIfReady()
     onControllerReadyChanged: root.closeIfReady()
+    onLibraryReadyChanged: root.closeIfReady()
+    onAnyPlayingChanged: {
+        if (anyPlaying)
+            root.dismiss();
+    }
     onMinElapsedChanged: root.closeIfReady()
 
     property real startedAt: 0
 
     function closeIfReady() {
-        if (interfaceReady && audioReady && controllerReady && minElapsed)
+        if (interfaceReady && audioReady && controllerReady && libraryReady && minElapsed)
             dismiss();
     }
 
@@ -87,6 +115,44 @@ Item {
 
         group: "[App]"
         key: "samplerate"
+    }
+    // The decks: playing one of them closes the screen
+    Mixxx.ControlProxy {
+        id: numDecksControl
+
+        group: "[App]"
+        key: "num_decks"
+    }
+    Repeater {
+        id: playProxies
+
+        model: Math.max(2, Math.min(4, Math.round(numDecksControl.value)))
+
+        delegate: Item {
+            id: deckProxy
+
+            required property int index
+
+            visible: false
+
+            Mixxx.ControlProxy {
+                id: playControl
+
+                group: "[Channel" + (deckProxy.index + 1) + "]"
+                key: "play"
+
+                onValueChanged: {
+                    let playing = false;
+                    for (let i = 0; i < playProxies.count; i++) {
+                        const item = playProxies.itemAt(i);
+                        if (item && item.playing)
+                            playing = true;
+                    }
+                    root.anyPlaying = playing;
+                }
+            }
+            readonly property bool playing: playControl.value > 0
+        }
     }
     // Frames drawn by the window under the splash (null without a window: the
     // 1.5 s fallback of interfaceReady applies)
@@ -255,6 +321,10 @@ Item {
                     {
                         "label": root.controllerCount > 0 || !root.controllerReady ? qsTr("Controller") : qsTr("No controller"),
                         "done": root.controllerReady
+                    },
+                    {
+                        "label": qsTr("Library"),
+                        "done": root.libraryReady
                     }
                 ]
 
@@ -293,13 +363,29 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             centered: true
             pixelSize: 12
+            // The drive has its own line above
+            showUsb: false
             width: parent.width
         }
     }
-    // Tap: skip the splash (and nothing under it gets the touch meanwhile)
+    // After skipAfterMs a tap closes the screen; before that it only takes the
+    // touch (nothing under the splash must get it)
     MouseArea {
         anchors.fill: parent
 
-        onClicked: root.dismiss()
+        onClicked: {
+            if (root.elapsedMs >= root.skipAfterMs)
+                root.dismiss();
+        }
+    }
+    Text {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 16
+        anchors.horizontalCenter: parent.horizontalCenter
+        color: Theme.textMutedColor
+        font.family: Theme.fontFamily
+        font.pixelSize: 12
+        text: qsTr("Tap to skip")
+        visible: root.elapsedMs >= root.skipAfterMs
     }
 }

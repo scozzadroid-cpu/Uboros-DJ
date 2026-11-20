@@ -20,6 +20,10 @@ class QmlAnalysisProxy : public QObject {
     Q_PROPERTY(QVariantMap options READ options NOTIFY optionsChanged)
     /// "Loading USB drive…" / "Preparing USB drive… N/M", "" when idle
     Q_PROPERTY(QString deviceBusy READ deviceBusy NOTIFY deviceBusyChanged)
+    /// True from the start until the library is ready: the files of the library
+    /// were checked and every USB drive found at the start has been read and
+    /// prepared. The start screen stays up while it is true.
+    Q_PROPERTY(bool startupBusy READ startupBusy NOTIFY startupBusyChanged)
     QML_NAMED_ELEMENT(Analysis)
     QML_SINGLETON
 
@@ -50,6 +54,9 @@ class QmlAnalysisProxy : public QObject {
     QString deviceBusy() const {
         return m_deviceBusy;
     }
+    bool startupBusy() const {
+        return m_startupBusy;
+    }
 
     /// Options: bpmDetection, bpmFixedTempo, bpmFast, bpmReanalyzeOnChange,
     /// bpmReanalyzeImported, bpmFromDrums, keyDetection, keyFast,
@@ -71,12 +78,15 @@ class QmlAnalysisProxy : public QObject {
 
   signals:
     void deviceBusyChanged();
+    void startupBusyChanged();
     void progressChanged();
     void optionsChanged();
     void cacheChanged();
 
   private:
     QString m_deviceBusy;
+    bool m_startupBusy{true};
+    void updateStartupBusy();
     void onBatchProgress(double currentTrackProgress, int currentTrackNumber, int totalTracksCount);
 
     bool m_active{false};

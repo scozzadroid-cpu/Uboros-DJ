@@ -176,7 +176,9 @@ void PlaylistTableModel::selectPlaylist(int playlistId) {
             "CREATE TEMPORARY VIEW IF NOT EXISTS %1 AS "
             "SELECT %2 FROM PlaylistTracks "
             "INNER JOIN library ON library.id = PlaylistTracks.track_id "
-            "WHERE PlaylistTracks.playlist_id = %3")
+            // Leave out the tracks whose file is not there (see TrackAvailability)
+            "WHERE PlaylistTracks.playlist_id = %3 "
+            "AND library.location IN (SELECT id FROM track_locations WHERE fs_deleted=0)")
                                   .arg(escaper.escapeString(playlistTableName),
                                           columns.join(","),
                                           QString::number(playlistId));

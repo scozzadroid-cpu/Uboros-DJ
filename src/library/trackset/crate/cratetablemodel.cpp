@@ -58,7 +58,9 @@ void CrateTableModel::selectCrate(CrateId crateId) {
             QString("CREATE TEMPORARY VIEW IF NOT EXISTS %1 AS "
                     "SELECT %2 FROM %3 "
                     "WHERE %4 IN (%5) "
-                    "AND %6=0")
+                    "AND %6=0 "
+                    // Leave out the tracks whose file is not there (see TrackAvailability)
+                    "AND location IN (SELECT id FROM track_locations WHERE fs_deleted=0)")
                     .arg(tableName,
                             columns.join(","),
                             LIBRARY_TABLE,

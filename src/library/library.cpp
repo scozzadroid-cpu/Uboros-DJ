@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QMessageBox>
+#include <QTimer>
 
 #include "control/controlobject.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
@@ -14,6 +15,7 @@
 #include "library/export/libraryexporter.h"
 #endif
 #include "library/externaltrackcollection.h"
+#include "library/trackavailability.h"
 #include "library/itunes/itunesfeature.h"
 #include "library/library_prefs.h"
 #include "library/librarycontrol.h"
@@ -201,6 +203,14 @@ Library::Library(
             m_pConfig->getValue(
                     ConfigKey(kConfigGroup, "ShowTraktorLibrary"), true)) {
         addFeature(new TraktorFeature(this, m_pConfig));
+    }
+
+    // Tracks whose file is not there (a drive that is not connected, a deleted
+    // copy) are left out of the lists: checked once at the start, again
+    // whenever a drive appears or goes away (RekordboxFeature)
+    {
+        auto* pAvailability = new TrackAvailability(m_pDbConnectionPool, this);
+        QTimer::singleShot(100, pAvailability, &TrackAvailability::verify);
     }
 
     // TODO(XXX) Rekordbox feature added persistently as the only way to enable it to

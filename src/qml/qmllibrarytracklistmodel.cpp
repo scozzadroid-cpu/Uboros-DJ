@@ -3,6 +3,7 @@
 #include <qnamespace.h>
 
 #include <QObject>
+#include <QPointer>
 #include <QSet>
 #include <QQmlEngine>
 #include <QRegularExpression>
@@ -13,6 +14,7 @@
 #include "library/basesqltablemodel.h"
 #include "library/basetracktablemodel.h"
 #include "library/columncache.h"
+#include "library/trackavailability.h"
 #include "mixer/playerinfo.h"
 #include "sources/stemsidecar.h"
 #include "moc_qmllibrarytracklistmodel.cpp"
@@ -95,6 +97,21 @@ QmlLibraryTrackListModel::QmlLibraryTrackListModel(
     }
     pTrackModel->select();
     setSourceModel(pModel);
+
+    // The files of the library were checked again (a drive plugged or removed,
+    // a copy deleted): read the rows again, the tracks that are not there left the list
+    if (pSqlModel != nullptr) {
+        if (auto* pAvailability = TrackAvailability::instance()) {
+            connect(pAvailability,
+                    &TrackAvailability::finished,
+                    this,
+                    [pGuard = QPointer<BaseSqlTableModel>(pSqlModel)](bool changed) {
+                        if (changed && pGuard) {
+                            pGuard->select();
+                        }
+                    });
+        }
+    }
 
     connect(&PlayerInfo::instance(),
             &PlayerInfo::currentPlayingTrackChanged,

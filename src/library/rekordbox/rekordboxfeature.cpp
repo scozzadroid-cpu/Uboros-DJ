@@ -19,6 +19,7 @@
 #include <rekordbox_pdb.h>
 
 #include <QMap>
+#include <QScopeGuard>
 #include <QMessageBox>
 #include <QSettings>
 #ifdef __ANDROID__
@@ -35,6 +36,7 @@
 #include "library/rekordbox/deviceanalysisstore.h"
 #include "library/rekordbox/rekordboxconstants.h"
 #include "library/dao/analysisdao.h"
+#include "library/trackavailability.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
@@ -504,7 +506,8 @@ mixxx::RgbColor::optional_t hotCueColorFromRgb(
     return mixxx::RgbColor(qRgb(red, green, blue));
 }
 
-void insertTrack(
+// Returns false when the track is not imported (its file is not on the drive)
+bool insertTrack(
         QSqlDatabase& database,
         rekordbox_pdb_t::track_row_t* track,
         QSqlQuery& query,
@@ -523,6 +526,11 @@ void insertTrack(
     QString year = QString::number(track->year());
     QString genre = genresMap[track->genre_id()];
     QString location = devicePath + getText(track->file_path());
+    // A file that is not on the drive (the export lists more than was copied, or
+    // an imported copy was deleted) is not listed: it could not be loaded
+    if (!QFileInfo::exists(location)) {
+        return false;
+    }
     float bpm = static_cast<float>(track->tempo() / 100.0);
     int bitrate = static_cast<int>(track->bitrate());
     QString key = keysMap[track->key_id()];
@@ -592,7 +600,7 @@ void insertTrack(
     }
     if (trackID < 0) {
         qWarning() << "Rekordbox: track" << rbID << location << "not imported";
-        return;
+        return false;
     }
 
     // Insert into device all tracks playlist
@@ -604,6 +612,7 @@ void insertTrack(
                 << "trackID:" << trackID
                 << "position:" << audioFilesCount;
     }
+    return true;
 }
 
 void buildPlaylistTree(
@@ -766,20 +775,20 @@ QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool,
                                                                 ->track_id();
                                     } break;
                                     case rekordbox_pdb_t::PAGE_TYPE_TRACKS: {
-                                        insertTrack(database,
-                                                static_cast<rekordbox_pdb_t::track_row_t*>(
-                                                        rowRef->body()),
-                                                query,
-                                                queryInsertIntoDevicePlaylistTracks,
-                                                artistsMap,
-                                                albumsMap,
-                                                genresMap,
-                                                keysMap,
-                                                devicePath,
-                                                device,
-                                                audioFilesCount);
-
-                                        audioFilesCount++;
+                                        if (insertTrack(database,
+                                                    static_cast<rekordbox_pdb_t::track_row_t*>(
+                                                            rowRef->body()),
+                                                    query,
+                                                    queryInsertIntoDevicePlaylistTracks,
+                                                    artistsMap,
+                                                    albumsMap,
+                                                    genresMap,
+                                                    keysMap,
+                                                    devicePath,
+                                                    device,
+                                                    audioFilesCount)) {
+                                            audioFilesCount++;
+                                        }
                                     } break;
                                     case rekordbox_pdb_t::PAGE_TYPE_PLAYLIST_TREE: {
                                         auto* playlistTree =
@@ -1992,7 +2001,8 @@ RekordboxFeature::RekordboxFeature(
     // the Rekordbox entry: first scan shortly after start, then every 5 s
     connect(&m_autoScanTimer, &QTimer::timeout, this, &RekordboxFeature::autoScanDevices);
     m_autoScanTimer.start(5000);
-    QTimer::singleShot(3000, this, &RekordboxFeature::autoScanDevices);
+    // The start screen covers this: no need to wait for the interface to settle
+    QTimer::singleShot(400, this, &RekordboxFeature::autoScanDevices);
 #endif
 }
 
@@ -2181,6 +2191,20 @@ void RekordboxFeature::activateChild(const QModelIndex& index) {
 }
 
 void RekordboxFeature::onRekordboxDevicesFound() {
+    // The start is over only when this slot has finished (it can start a load)
+    m_startupHold = true;
+    bool devicesChanged = false;
+    const auto finishScan = qScopeGuard([this, &devicesChanged]() {
+        m_scansDone++;
+        m_startupHold = false;
+        if (devicesChanged) {
+            // A drive came or went: its tracks are there or not
+            if (auto* pAvailability = TrackAvailability::instance()) {
+                pAvailability->verify();
+            }
+        }
+        updateStartupBusy();
+    });
     const QList<TreeItem*> result = m_devicesFuture.result();
     auto foundDevices = std::vector<std::unique_ptr<TreeItem>>(result.cbegin(), result.cend());
 
@@ -2206,6 +2230,7 @@ void RekordboxFeature::onRekordboxDevicesFound() {
 
         if (root->childRows() > 0) {
             // Devices have since been unmounted
+            devicesChanged = true;
             m_pSidebarModel->removeRows(0, root->childRows());
         }
     } else {
@@ -2256,6 +2281,7 @@ void RekordboxFeature::onRekordboxDevicesFound() {
                 for (int j = child->childRows() - 1; j >= 0; j--) {
                     TreeItem* imported = child->child(j);
                     if (!labelFound(imported->getLabel())) {
+                        devicesChanged = true;
                         clearDeviceTables(database, imported);
                         m_pSidebarModel->removeRows(j, 1, groupIndex);
                     }
@@ -2264,6 +2290,7 @@ void RekordboxFeature::onRekordboxDevicesFound() {
                     m_pSidebarModel->removeRows(deviceIndex, 1);
                 }
             } else if (!labelFound(child->getLabel())) {
+                devicesChanged = true;
                 clearDeviceTables(database, child);
                 m_pSidebarModel->removeRows(deviceIndex, 1);
             }
@@ -2285,9 +2312,11 @@ void RekordboxFeature::onRekordboxDevicesFound() {
         }
 
         if (!childrenToAdd.empty()) {
+            devicesChanged = true;
             m_pSidebarModel->insertTreeItemRows(std::move(childrenToAdd), 0);
         }
         if (!importedToAdd.empty()) {
+            devicesChanged = true;
             int groupRow = findGroupRow();
             if (groupRow < 0) {
                 std::vector<std::unique_ptr<TreeItem>> group;
@@ -2346,10 +2375,61 @@ void RekordboxFeature::setBusyText(const QString& text) {
     }
     m_busyText = text;
     emit busyTextChanged(text);
+    updateStartupBusy();
+}
+
+bool RekordboxFeature::hasUnloadedDevice() const {
+    TreeItem* root = m_pSidebarModel->getRootItem();
+    if (root == nullptr) {
+        return false;
+    }
+    const auto isPending = [](TreeItem* item) {
+        const QList<QVariant> data = item->getData().toList();
+        return data.size() >= 2 && data[1].toString() == IS_RECORDBOX_DEVICE;
+    };
+    for (int i = 0; i < root->childRows(); i++) {
+        TreeItem* top = root->child(i);
+        if (top->getData().isValid()) {
+            if (isPending(top)) {
+                return true;
+            }
+        } else {
+            for (int j = 0; j < top->childRows(); j++) {
+                if (isPending(top->child(j))) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void RekordboxFeature::updateStartupBusy() {
+    if (!m_startupBusy || m_startupHold) {
+        return;
+    }
+    const bool pending = m_scansDone == 0 || m_devicesFuture.isRunning() ||
+            m_tracksFuture.isRunning() || !m_busyText.isEmpty() ||
+            m_preanalysisTimer.isActive() || hasUnloadedDevice();
+    if (!pending) {
+        m_startupBusy = false;
+        qInfo() << "Rekordbox: the drives found at the start are ready";
+        emit startupBusyChanged(false);
+    }
 }
 
 void RekordboxFeature::onTracksFound() {
     qDebug() << "onTracksFound";
+    // The drive is read; what follows (the models, the preparation) belongs to the start
+    m_startupHold = true;
+    const auto finishLoad = qScopeGuard([this]() {
+        m_startupHold = false;
+        updateStartupBusy();
+        // Another drive is waiting: do not wait for the next timer tick
+        if (hasUnloadedDevice()) {
+            QTimer::singleShot(200, this, &RekordboxFeature::autoScanDevices);
+        }
+    });
     m_pSidebarModel->triggerRepaint();
 
     QString devicePlaylist;

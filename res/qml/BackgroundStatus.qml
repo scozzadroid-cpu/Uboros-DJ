@@ -12,6 +12,8 @@ Item {
     id: root
 
     property bool centered: false
+    // Off on the start screen, which says it in its own line
+    property bool showUsb: true
     property int pixelSize: Theme.textFontPixelSize - 1
     property color textColor: Theme.lightGray2
 
@@ -22,7 +24,7 @@ Item {
     readonly property bool analyzing: Mixxx.Analysis.active && Mixxx.Analysis.totalTracks > 0
     readonly property string statusText: {
         const parts = [];
-        if (usbText !== "")
+        if (showUsb && usbText !== "")
             parts.push(usbText);
         if (stemsBusy === 2)
             parts.push(qsTr("Measuring stem speed…"));

@@ -1472,6 +1472,7 @@ add_library(
   src/library/tabledelegates/stardelegate.cpp
   src/library/tabledelegates/stareditor.cpp
   src/library/tabledelegates/tableitemdelegate.cpp
+  src/library/trackavailability.cpp
   src/library/trackcollection.cpp
   src/library/trackcollectioniterator.cpp
   src/library/trackcollectionmanager.cpp

@@ -111,6 +111,12 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
         return s_pInstance;
     }
     /// What the feature is doing with a USB drive ("" when idle)
+    /// True from the start until the first look for USB drives is over and every
+    /// drive found has been read and prepared (the start screen waits for it:
+    /// reading a drive makes the interface stutter). Never true again after that.
+    bool startupBusy() const {
+        return m_startupBusy;
+    }
     QString busyText() const {
         return m_busyText;
     }
@@ -120,6 +126,7 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
 
   signals:
     void busyTextChanged(const QString& text);
+    void startupBusyChanged(bool busy);
 
   public slots:
     void activate() override;
@@ -160,6 +167,13 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
     int m_preanalysisRow = 0;
     QString m_busyText;
     void setBusyText(const QString& text);
+    bool m_startupBusy = true;
+    int m_scansDone = 0;
+    // A slot that changes several things one after the other: the start is not
+    // over in between
+    bool m_startupHold = false;
+    void updateStartupBusy();
+    bool hasUnloadedDevice() const;
     static inline RekordboxFeature* s_pInstance = nullptr;
     QList<AnalyzerScheduledTrack> m_preanalysisTracks;
     QTimer m_exportTimer;
