@@ -39,12 +39,15 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
+#include "sources/soundsourceproxy.h"
 #include "moc_rekordboxfeature.cpp"
 #include "track/beats.h"
 #include "track/cue.h"
 #include "track/keyfactory.h"
 #include "track/keyutils.h"
 #include "track/track.h"
+#include "track/trackmetadata.h"
+#include "util/fileaccess.h"
 #include "util/color/color.h"
 #include "util/defs.h"
 #include "util/db/dbconnectionpooled.h"
@@ -276,8 +279,16 @@ QList<TreeItem*> findRekordboxDevices() {
     }
     devicePaths.removeDuplicates();
 
-    // label -> path of the places that may hold a Rekordbox export
-    QList<std::pair<QString, QString>> candidates;
+    // The places that may hold a rekordbox export. A removable volume or an
+    // imported drive without one is listed as a plain drive (its audio files
+    // are read by scanPlainDevice()); the folders of the internal storage only
+    // count with an export.
+    struct Candidate {
+        QString label;
+        QString path;
+        QString plainLabel; // empty: only with a rekordbox export
+    };
+    QList<Candidate> candidates;
     for (const QString& devicePath : std::as_const(devicePaths)) {
         const QStringList parts = devicePath.split(QChar('/'), Qt::SkipEmptyParts);
         // Only /storage/<name>
@@ -286,40 +297,53 @@ QList<TreeItem*> findRekordboxDevices() {
                 parts[1] == QStringLiteral("self")) {
             continue;
         }
-        candidates.append({parts[1], devicePath});
+        candidates.append({parts[1], devicePath, QStringLiteral("USB ") + parts[1]});
     }
     // A Rekordbox drive can also be copied to the shared internal storage,
     // either to its root or to a folder in it. Android does not mount every
     // USB drive, e.g. the ones without a partition table.
     const QString internalStorage = QStringLiteral("/storage/emulated/0");
-    candidates.append({QStringLiteral("Internal Storage"), internalStorage});
+    candidates.append({QStringLiteral("Internal Storage"), internalStorage, QString()});
     const QFileInfoList internalDirs = QDir(internalStorage)
                                                .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
     for (const QFileInfo& internalDir : internalDirs) {
-        candidates.append({internalDir.fileName(), internalDir.absoluteFilePath()});
+        candidates.append({internalDir.fileName(), internalDir.absoluteFilePath(), QString()});
     }
     // Drives imported without root by org.mixxx.UsbImporter, one folder per
-    // volume label
+    // volume label: with the rekordbox export, or only the audio files
     const QFileInfoList importedDirs =
             QDir(internalStorage + QStringLiteral("/RekordboxUSB"))
                     .entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
     for (const QFileInfo& importedDir : importedDirs) {
-        candidates.append({importedDir.fileName() + QStringLiteral(" (USB)"),
-                importedDir.absoluteFilePath()});
+        const QString label = importedDir.fileName() + QStringLiteral(" (USB)");
+        candidates.append({label, importedDir.absoluteFilePath(), label});
     }
 
-    for (const auto& [label, devicePath] : std::as_const(candidates)) {
-        QFileInfo rbDBFileInfo(devicePath + QStringLiteral("/") + kPdbPath);
+    int plainDevices = 0;
+    for (const auto& candidate : std::as_const(candidates)) {
+        QFileInfo rbDBFileInfo(candidate.path + QStringLiteral("/") + kPdbPath);
         if (rbDBFileInfo.exists() && rbDBFileInfo.isFile()) {
-            qDebug() << "RekordboxFeature: found Rekordbox export in" << devicePath;
+            qDebug() << "RekordboxFeature: found Rekordbox export in" << candidate.path;
             auto* pFoundDevice = new TreeItem(
-                    label,
-                    QVariant(QList<QString>{devicePath, IS_RECORDBOX_DEVICE}));
+                    candidate.label,
+                    QVariant(QList<QString>{candidate.path, IS_RECORDBOX_DEVICE}));
             foundDevices << pFoundDevice;
+        } else if (!candidate.plainLabel.isEmpty() &&
+                QFileInfo(candidate.path).isDir() &&
+                QDir(candidate.path).isReadable()) {
+            // Loaded like a rekordbox drive: parseDeviceDB() sees that there
+            // is no export and lists the audio files instead
+            qDebug() << "RekordboxFeature: plain drive (no rekordbox export)" << candidate.path;
+            auto* pFoundDevice = new TreeItem(
+                    candidate.plainLabel,
+                    QVariant(QList<QString>{candidate.path, IS_RECORDBOX_DEVICE}));
+            foundDevices << pFoundDevice;
+            plainDevices++;
         }
     }
     qDebug() << "RekordboxFeature: checked" << candidates.size()
-             << "Android locations," << foundDevices.size() << "Rekordbox export(s) found";
+             << "Android locations," << foundDevices.size() - plainDevices
+             << "Rekordbox export(s) and" << plainDevices << "plain drive(s) found";
 #else // __APPLE__
     QFileInfoList devices = QDir(QStringLiteral("/Volumes")).entryInfoList(QDir::AllDirs | QDir::NoDotAndDotDot);
 
@@ -625,6 +649,272 @@ void buildPlaylistTree(
         const QString& playlistPath,
         const QString& device);
 
+// Folders of a plain drive that never hold the user's music: the system's
+// (Windows, macOS, Android), rekordbox's and the analyses stored by Mixxx.
+// Hidden ones (".Trashes", ".Spotlight-V100", ...) are not listed at all.
+bool isSkippedPlainFolder(const QString& name) {
+    static const QStringList kSkipped = {
+            QStringLiteral("System Volume Information"),
+            QStringLiteral("$RECYCLE.BIN"),
+            QStringLiteral("RECYCLER"),
+            QStringLiteral("FOUND.000"),
+            QStringLiteral("LOST.DIR"),
+            QStringLiteral("Android"),
+            QStringLiteral("PIONEER"),
+            QStringLiteral("MIXXX"),
+    };
+    return kSkipped.contains(name, Qt::CaseInsensitive);
+}
+
+struct PlainTrack {
+    QString location;
+    QString folder; // relative to the drive, "" for its root, "A/B" below
+};
+
+// Worker thread. Lists every audio file of a drive without rekordbox export
+// (all folders, the skipped ones above excepted), with its tags. A track that
+// is already in the Mixxx library (prepared or played before) takes the data
+// of the library instead, with its BPM and key, without reading the file.
+// The tracks are listed in one playlist for the drive (named like its path)
+// and one per folder holding audio files (with those of its subfolders), whose
+// items are appended below deviceItem.
+QString scanPlainDevice(QSqlDatabase& database,
+        TreeItem* deviceItem,
+        const QString& device,
+        const QString& devicePath) {
+    QElapsedTimer timer;
+    timer.start();
+    // Big drives: stop somewhere, the list must come
+    constexpr int kMaxTracks = 30000;
+    constexpr int kMaxDepth = 16;
+    QList<PlainTrack> tracks;
+    {
+        QList<std::pair<QString, int>> pending{{QString(), 0}};
+        int dirsRead = 0;
+        while (!pending.isEmpty() && tracks.size() < kMaxTracks) {
+            const auto [folder, depth] = pending.takeLast();
+            // Unplugged while reading: give up
+            if ((++dirsRead % 50) == 0 && !QFileInfo::exists(devicePath)) {
+                qWarning() << "Plain drive" << devicePath << "gone while reading it";
+                return QString();
+            }
+            const QDir dir(folder.isEmpty() ? devicePath : devicePath + QChar('/') + folder);
+            const QFileInfoList entries = dir.entryInfoList(
+                    QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                    QDir::Name | QDir::IgnoreCase | QDir::DirsLast);
+            QStringList subfolders;
+            for (const QFileInfo& entry : entries) {
+                const QString name = entry.fileName();
+                if (name.startsWith(QChar('.'))) {
+                    continue;
+                }
+                if (entry.isDir()) {
+                    if (depth < kMaxDepth && !isSkippedPlainFolder(name)) {
+                        subfolders << (folder.isEmpty() ? name : folder + QChar('/') + name);
+                    }
+                } else if (SoundSourceProxy::isFileNameSupported(name)) {
+                    tracks.append({entry.absoluteFilePath(), folder});
+                }
+            }
+            // Depth first, in name order
+            for (auto it = subfolders.crbegin(); it != subfolders.crend(); ++it) {
+                pending.append({*it, depth + 1});
+            }
+        }
+        qInfo() << "Plain drive" << device << ":" << tracks.size() << "audio file(s) in"
+                << dirsRead << "folder(s)," << timer.elapsed() << "ms";
+    }
+
+    // The data of each file, read before writing anything: the database stays
+    // free for the interface while the files are read
+    QSqlQuery fromLibrary(database);
+    fromLibrary.prepare(QStringLiteral(
+            "SELECT library.artist, library.title, library.album, library.year,"
+            " library.genre, library.comment, library.tracknumber, library.bpm,"
+            " library.bitrate, library.duration, library.rating, library.key_id,"
+            " library.color FROM library JOIN track_locations"
+            " ON library.location=track_locations.id"
+            " WHERE track_locations.location=:location AND library.mixxx_deleted=0"));
+    struct Row {
+        QString artist, title, album, year, genre, comment, trackNumber, key;
+        double bpm = 0;
+        int bitrate = 0;
+        int duration = 0;
+        int rating = 0;
+        QVariant color;
+    };
+    QList<Row> rows;
+    rows.reserve(tracks.size());
+    int tagsRead = 0;
+    for (const PlainTrack& track : std::as_const(tracks)) {
+        if ((rows.size() % 100) == 99 && !QFileInfo::exists(devicePath)) {
+            qWarning() << "Plain drive" << devicePath << "gone while reading it";
+            return QString();
+        }
+        Row row;
+        fromLibrary.bindValue(":location", track.location);
+        if (fromLibrary.exec() && fromLibrary.next()) {
+            row.artist = fromLibrary.value(0).toString();
+            row.title = fromLibrary.value(1).toString();
+            row.album = fromLibrary.value(2).toString();
+            row.year = fromLibrary.value(3).toString();
+            row.genre = fromLibrary.value(4).toString();
+            row.comment = fromLibrary.value(5).toString();
+            row.trackNumber = fromLibrary.value(6).toString();
+            row.bpm = fromLibrary.value(7).toDouble();
+            row.bitrate = fromLibrary.value(8).toInt();
+            row.duration = static_cast<int>(fromLibrary.value(9).toDouble());
+            row.rating = fromLibrary.value(10).toInt();
+            const int keyId = fromLibrary.value(11).toInt();
+            if (keyId > 0) {
+                row.key = KeyUtils::keyToString(KeyUtils::keyFromNumericValue(keyId));
+            }
+            row.color = fromLibrary.value(12);
+        } else {
+            mixxx::TrackMetadata metadata;
+            SoundSourceProxy::importTrackMetadataAndCoverImageFromFile(
+                    mixxx::FileAccess(mixxx::FileInfo(track.location)),
+                    &metadata,
+                    nullptr,
+                    false);
+            tagsRead++;
+            const mixxx::TrackInfo& info = metadata.getTrackInfo();
+            row.artist = info.getArtist();
+            row.title = info.getTitle();
+            row.album = metadata.getAlbumInfo().getTitle();
+            row.year = info.getYear();
+            row.genre = info.getGenre();
+            row.comment = info.getComment();
+            row.trackNumber = info.getTrackNumber();
+            if (info.getBpm().isValid()) {
+                row.bpm = info.getBpm().value();
+            }
+            row.key = KeyUtils::keyToString(KeyUtils::guessKeyFromText(info.getKeyText()));
+            if (metadata.getStreamInfo().getBitrate().isValid()) {
+                row.bitrate = static_cast<int>(metadata.getStreamInfo().getBitrate().value());
+            }
+            row.duration = static_cast<int>(metadata.getDurationSecondsRounded());
+        }
+        if (row.artist.isEmpty() && row.title.isEmpty()) {
+            // Like the file browser: "Artist - Title.mp3"
+            mixxx::TrackInfo fromName;
+            const QFileInfo fileInfo(track.location);
+            if (fromName.parseArtistTitleFromFileName(fileInfo.fileName(), true)) {
+                row.artist = fromName.getArtist();
+                row.title = fromName.getTitle();
+            }
+            if (row.title.isEmpty()) {
+                row.title = fileInfo.completeBaseName();
+            }
+        }
+        rows.append(std::move(row));
+    }
+    fromLibrary.finish();
+
+    ScopedTransaction transaction(database);
+    removeDevicePlaylists(database, devicePath);
+
+    const int devicePlaylistId = createDevicePlaylist(database, devicePath);
+    QSqlQuery insertPlaylistTrack(database);
+    insertPlaylistTrack.prepare("INSERT INTO " + kRekordboxPlaylistTracksTable +
+            " (playlist_id, track_id, position) VALUES (:playlist_id, :track_id, :position)");
+    QSqlQuery insertTrack(database);
+    insertTrack.prepare("INSERT INTO " + kRekordboxLibraryTable +
+            " (rb_id, artist, title, album, year, genre, comment, tracknumber, bpm,"
+            " bitrate, duration, location, rating, key, analyze_path, device, color)"
+            " VALUES (:rb_id, :artist, :title, :album, :year, :genre, :comment,"
+            " :tracknumber, :bpm, :bitrate, :duration, :location, :rating, :key,"
+            " '', :device, :color)");
+    QSqlQuery findByLocation(database);
+    findByLocation.prepare("SELECT id FROM " + kRekordboxLibraryTable +
+            " WHERE location=:location");
+
+    // Folder ("A/B") -> playlist id and its next position; the sidebar items
+    QHash<QString, std::pair<int, int>> folderPlaylists;
+    QHash<QString, TreeItem*> folderItems;
+    const auto playlistForFolder = [&](const QString& folder) -> std::pair<int, int>& {
+        auto it = folderPlaylists.find(folder);
+        if (it != folderPlaylists.end()) {
+            return *it;
+        }
+        const int slash = folder.lastIndexOf(QChar('/'));
+        TreeItem* parentItem = slash < 0
+                ? deviceItem
+                : folderItems.value(folder.left(slash), deviceItem);
+        const QString name = devicePath + kPLaylistPathDelimiter +
+                QString(folder).replace(QChar('/'), kPLaylistPathDelimiter);
+        folderItems.insert(folder,
+                parentItem->appendChild(folder.mid(slash + 1),
+                        QVariant(QList<QString>{name, IS_NOT_RECORDBOX_DEVICE})));
+        return *folderPlaylists.insert(folder, {createDevicePlaylist(database, name), 0});
+    };
+    const auto addToPlaylist = [&](int playlistId, int trackId, int position) {
+        if (playlistId == kInvalidPlaylistId) {
+            return;
+        }
+        insertPlaylistTrack.bindValue(":playlist_id", playlistId);
+        insertPlaylistTrack.bindValue(":track_id", trackId);
+        insertPlaylistTrack.bindValue(":position", position);
+        if (!insertPlaylistTrack.exec()) {
+            LOG_FAILED_QUERY(insertPlaylistTrack);
+        }
+    };
+
+    int count = 0;
+    for (int i = 0; i < tracks.size(); ++i) {
+        const PlainTrack& track = tracks.at(i);
+        const Row& row = rows.at(i);
+        insertTrack.bindValue(":rb_id", i);
+        insertTrack.bindValue(":artist", row.artist);
+        insertTrack.bindValue(":title", row.title);
+        insertTrack.bindValue(":album", row.album);
+        insertTrack.bindValue(":year", row.year);
+        insertTrack.bindValue(":genre", row.genre);
+        insertTrack.bindValue(":comment", row.comment);
+        insertTrack.bindValue(":tracknumber", row.trackNumber);
+        insertTrack.bindValue(":bpm", row.bpm);
+        insertTrack.bindValue(":bitrate", row.bitrate);
+        insertTrack.bindValue(":duration", row.duration);
+        insertTrack.bindValue(":location", track.location);
+        insertTrack.bindValue(":rating", row.rating);
+        insertTrack.bindValue(":key", row.key);
+        insertTrack.bindValue(":device", device);
+        insertTrack.bindValue(":color", row.color);
+        int trackId = -1;
+        if (insertTrack.exec()) {
+            trackId = insertTrack.lastInsertId().toInt();
+        } else {
+            // Already listed (an earlier load of the same drive): use that row
+            findByLocation.bindValue(":location", track.location);
+            if (findByLocation.exec() && findByLocation.next()) {
+                trackId = findByLocation.value(0).toInt();
+            }
+        }
+        if (trackId < 0) {
+            qWarning() << "Plain drive: track" << track.location << "not listed";
+            continue;
+        }
+        addToPlaylist(devicePlaylistId, trackId, count);
+        // Its folder and the ones above it, the parents first (their items
+        // must exist before the children are appended)
+        QStringList chain;
+        for (QString f = track.folder; !f.isEmpty();
+                f = f.contains(QChar('/')) ? f.left(f.lastIndexOf(QChar('/'))) : QString()) {
+            chain.prepend(f);
+        }
+        for (const QString& f : std::as_const(chain)) {
+            auto& [playlistId, position] = playlistForFolder(f);
+            addToPlaylist(playlistId, trackId, position++);
+        }
+        count++;
+    }
+    transaction.commit();
+    qInfo() << "Plain drive" << device << ":" << count << "track(s) listed," << tagsRead
+            << "read from the files," << folderPlaylists.size() << "folder(s),"
+            << timer.elapsed() << "ms";
+    return devicePath;
+}
+
 // Runs on a worker thread: it gets the label and the path by value. It used to
 // read them from the TreeItem, whose data the main thread replaces right after
 // starting this thread (activateChild): a concurrent QVariant copy and
@@ -638,10 +928,7 @@ QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool,
     qDebug() << "parseDeviceDB device: " << device << " devicePath: " << devicePath;
 
     QString dbPath = devicePath + QStringLiteral("/") + kPdbPath;
-
-    if (!QFile(dbPath).exists()) {
-        return devicePath;
-    }
+    const bool plainDevice = !QFile(dbPath).exists();
 
     // The pooler limits the lifetime all thread-local connections,
     // that should be closed immediately before exiting this function.
@@ -658,6 +945,12 @@ QString parseDeviceDB(mixxx::DbConnectionPoolPtr dbConnectionPool,
     //Give thread a low priority
     QThread* thisThread = QThread::currentThread();
     thisThread->setPriority(QThread::LowPriority);
+
+    if (plainDevice) {
+        // No rekordbox export (a plain USB stick, or one imported without it):
+        // list its audio files
+        return scanPlainDevice(database, deviceItem, device, devicePath);
+    }
 
     ScopedTransaction transaction(database);
 
@@ -1802,6 +2095,19 @@ QString RekordboxPlaylistModel::preparedStamp(const QModelIndex& index) const {
 TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
     qDebug() << "RekordboxTrackModel::getTrack";
 
+    if (getFieldVariant(index, ColumnCache::COLUMN_REKORDBOX_ANALYZE_PATH)
+                    .toString()
+                    .isEmpty()) {
+        // A file of a drive without rekordbox export: an ordinary track,
+        // with the data of its tags (the base class would overwrite them with
+        // the columns of the list) and analyzed like any other
+        const QString location = getTrackLocation(index);
+        if (location.isEmpty()) {
+            return TrackPointer();
+        }
+        return m_pTrackCollectionManager->getOrAddTrack(TrackRef::fromFilePath(location));
+    }
+
     TrackPointer track = BaseExternalPlaylistModel::getTrack(index);
     QString location = getFieldVariant(
             index, ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION)
@@ -2492,6 +2798,11 @@ void RekordboxFeature::onTracksFound() {
         return;
     }
     setBusyText(QString());
+    if (devicePlaylist.isEmpty()) {
+        // Not read (e.g. the drive was unplugged while it was read)
+        m_backgroundLoad = false;
+        return;
+    }
 
     qDebug() << "Show Rekordbox Device Playlist: " << devicePlaylist;
 
@@ -2537,7 +2848,11 @@ bool RekordboxFeature::deviceStillThere() const {
         return true;
     }
     const QDir root(m_preanalysisPlaylist);
-    return root.exists() && QFileInfo(root.filePath(QStringLiteral("PIONEER"))).isDir();
+    // A drive without rekordbox export has no PIONEER folder: an unmounted
+    // drive leaves no folder or an empty one
+    return root.exists() &&
+            (QFileInfo(root.filePath(QStringLiteral("PIONEER"))).isDir() ||
+                    !root.isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot));
 }
 
 void RekordboxFeature::abortDeviceWork(const QString& why) {
