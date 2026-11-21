@@ -29,7 +29,8 @@ import me.jahnen.libaums.core.fs.UsbFile;
 import me.jahnen.libaums.core.partition.Partition;
 
 /**
- * Copies the Rekordbox export of USB drives (PIONEER/ and Contents/) to the
+ * Copies the rekordbox export of USB drives (PIONEER/ and Contents/), or the
+ * audio files of a drive without one (in their folders), to the
  * internal storage, without root and without the drive being mounted by
  * Android (e.g. FAT32 drives without a partition table, which vold ignores).
  *
@@ -222,29 +223,38 @@ public class UsbImporter {
             UsbFile pdb = root.search("PIONEER/rekordbox/export.pdb");
             String label = sanitize(fs.getVolumeLabel());
             Log.i(TAG, "Partition '" + label + "': export.pdb " + (pdb != null ? "found" : "missing"));
-            if (pdb == null) {
-                continue;
-            }
             File destDir = new File(destRoot, label);
+            List<FileToCopy> all = new ArrayList<>();
+            if (pdb != null) {
+                // rekordbox export: its folders, as they are
+                for (String folder : kFoldersToCopy) {
+                    UsbFile dir = root.search(folder);
+                    if (dir == null || !dir.isDirectory()) {
+                        continue;
+                    }
+                    updateProgress(context, "Lettura delle cartelle (" + folder + ")...");
+                    collect(dir, new File(destDir, folder), all);
+                }
+            } else {
+                // Plain drive: the audio files, in their folders. The library
+                // lists the copy like a plain drive plugged in.
+                updateProgress(context, "Ricerca dei file audio...");
+                collectAudio(root, destDir, all, 0);
+                if (all.isEmpty()) {
+                    Log.i(TAG, "Partition '" + label + "': no audio files");
+                    continue;
+                }
+            }
             List<FileToCopy> files = new ArrayList<>();
             long bytesToCopy = 0;
             int skipped = 0;
-            for (String folder : kFoldersToCopy) {
-                UsbFile dir = root.search(folder);
-                if (dir == null || !dir.isDirectory()) {
-                    continue;
-                }
-                updateProgress(context, "Lettura delle cartelle (" + folder + ")...");
-                List<FileToCopy> all = new ArrayList<>();
-                collect(dir, new File(destDir, folder), all);
-                for (FileToCopy file : all) {
-                    if (file.destination.isFile()
-                            && file.destination.length() == file.source.getLength()) {
-                        skipped++;
-                    } else {
-                        files.add(file);
-                        bytesToCopy += file.source.getLength();
-                    }
+            for (FileToCopy file : all) {
+                if (file.destination.isFile()
+                        && file.destination.length() == file.source.getLength()) {
+                    skipped++;
+                } else {
+                    files.add(file);
+                    bytesToCopy += file.source.getLength();
                 }
             }
             Log.i(TAG, files.size() + " file(s) to copy (" + bytesToCopy + " bytes), "
@@ -279,8 +289,8 @@ public class UsbImporter {
             Log.i(TAG, "Copied " + copied + " bytes in "
                             + (System.currentTimeMillis() - startMs) + " ms to " + destDir);
             synchronized (sPending) {
-                sImported.add(label + " (" + files.size() + " file copiati, "
-                        + skipped + " già presenti)");
+                sImported.add(label + (pdb != null ? " (rekordbox, " : " (file audio, ")
+                        + files.size() + " file copiati, " + skipped + " già presenti)");
             }
         }
     }
@@ -298,6 +308,61 @@ public class UsbImporter {
             if (child.isDirectory()) {
                 collect(child, dest, out);
             } else {
+                out.add(new FileToCopy(child, dest));
+            }
+        }
+    }
+
+    // Audio files copied from a drive without rekordbox export (the formats
+    // the app plays)
+    private static final String[] kAudioExtensions = {
+            "mp3", "m4a", "aac", "mp4", "flac", "wav", "aif", "aiff", "ogg", "opus", "wv"};
+    // Folders of the system, of rekordbox and of the app, never music
+    private static final String[] kSkippedFolders = {
+            "System Volume Information", "$RECYCLE.BIN", "RECYCLER", "FOUND.000",
+            "LOST.DIR", "Android", "PIONEER", "MIXXX"};
+    private static final int kMaxDepth = 16;
+
+    private static boolean isAudioFile(String name) {
+        int dot = name.lastIndexOf('.');
+        if (dot < 0) {
+            return false;
+        }
+        String extension = name.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
+        for (String audio : kAudioExtensions) {
+            if (audio.equals(extension)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSkippedFolder(String name) {
+        for (String skipped : kSkippedFolders) {
+            if (skipped.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The audio files below dir, without hidden ("._x.mp3", ".Trashes") and system folders. */
+    private static void collectAudio(UsbFile dir, File destDir, List<FileToCopy> out, int depth)
+            throws IOException {
+        for (UsbFile child : dir.listFiles()) {
+            if (sCancelled) {
+                return;
+            }
+            String name = child.getName();
+            if (name.startsWith(".")) {
+                continue;
+            }
+            File dest = new File(destDir, name);
+            if (child.isDirectory()) {
+                if (depth < kMaxDepth && !isSkippedFolder(name)) {
+                    collectAudio(child, dest, out, depth + 1);
+                }
+            } else if (isAudioFile(name)) {
                 out.add(new FileToCopy(child, dest));
             }
         }
@@ -390,10 +455,10 @@ public class UsbImporter {
             synchronized (sPending) {
                 if (sImported.isEmpty()) {
                     message = "Nessuna chiavetta con un export rekordbox "
-                            + "(PIONEER/rekordbox/export.pdb) trovata.";
+                            + "o con file audio trovata.";
                 } else {
                     message = "Importato:\n" + String.join("\n", sImported)
-                            + "\n\nTocca \"Rekordbox\" nella libreria per vederlo.";
+                            + "\n\nTocca \"USB / rekordbox\" nella libreria per vederlo.";
                 }
             }
         }

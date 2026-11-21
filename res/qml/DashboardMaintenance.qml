@@ -373,7 +373,7 @@ ColumnLayout {
             // copied to the phone, no root needed. Only here and in the Dashboard.
             Skin.DashboardAction {
                 Layout.fillWidth: true
-                subtitle: root.updIt ? "Copia una chiavetta rekordbox sul telefono, senza root" : qsTr("Copy a rekordbox USB drive to the phone, no root needed")
+                subtitle: root.updIt ? "Copia una chiavetta sul telefono, senza root: export rekordbox o solo file audio in cartelle" : qsTr("Copy a USB drive to the phone, no root needed: a rekordbox export or just audio files in folders")
                 title: root.updIt ? "Importa chiavetta USB" : qsTr("Import USB drive")
                 visible: Qt.platform.os === "android"
 

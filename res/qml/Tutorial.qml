@@ -182,8 +182,8 @@ Item {
         {
             view: "none",
             targets: ["showDashboardButton"],
-            title: tr("Chiavetta preparata con rekordbox", "USB stick from rekordbox"),
-            text: tr("Collega una chiavetta preparata con rekordbox e apri il Dashboard, Libreria e USB, e usa Importa chiavetta USB: brani, griglie, cue e crate compaiono in libreria. Senza root.", "Plug in a USB stick prepared with rekordbox and open the Dashboard, Library & USB, and use Import USB drive: tracks, beat grids, cues and crates appear in the library. No root needed.")
+            title: tr("Chiavetta USB", "USB stick"),
+            text: tr("Collega una chiavetta: va bene sia una preparata con rekordbox (brani, griglie, cue e crate) sia una con solo file audio in cartelle (tutti i brani e le cartelle). Compare nella libreria sotto USB / rekordbox. Se non compare, apri il Dashboard, Libreria e USB, e usa Importa chiavetta USB. Senza root.", "Plug in a USB stick: one prepared with rekordbox (tracks, beat grids, cues and crates) or one with just audio files in folders (all tracks and folders) both work. It shows up in the library under USB / rekordbox. If it does not, open the Dashboard, Library & USB, and use Import USB drive. No root needed.")
         },
         {
             view: "none",
